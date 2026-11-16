@@ -313,7 +313,8 @@
         U.loading(false);
       }
       searching = false;
-      G.state.res.copper -= cost; G.save();
+      const err = G.paySearch();
+      if (err) { U.toast(err); return; }
       U.closeModal();
       if (opp) {
         const buildings = G.Battle.baseFromLayout(opp.layout);
@@ -384,7 +385,7 @@
       <div class="row-btns"><button class="btn danger" id="s-reset">${t('reset')}</button>${G.Net.session ? `<button class="btn danger" id="s-del">${t('deleteAccount')}</button>` : ''}</div>
       <p class="hint"><a href="privacy.html" target="_blank" rel="noopener">${t('privacyPolicy')}</a> · CyberWar ${t('version')} ${G.VERSION}</p>`, { cls: 'small' });
     if ($('#s-logout')) $('#s-logout').onclick = async () => {
-      try { await G.Net.pushSave(); } catch (_) {}
+      try { await G.Net.flush(); } catch (_) {}
       await G.Net.signOut(); U.closeModal(); G.Auth.show('login');
     };
     if ($('#s-login')) $('#s-login').onclick = () => { U.closeModal(); G.Auth.show('login'); };

@@ -64,22 +64,40 @@
       clampGhost();
       return;
     }
+    // tapping a resource bubble only collects (no building panel)
+    const bub = hitBubble(sx, sy);
+    if (bub) { collectFrom(bub); return; }
     const b = hitBuilding(sx, sy);
     if (!b) { V.select(null); return; }
-    if (B[b.type].prod && b.level > 0) {
-      G.updateCollector(b);
-      G.state.flags.collected = true;
-      if (b.acc >= 1) {
-        const got = G.collect(b);
-        const [wx, wy] = G.tileToWorld(b.x + 1.5, b.y + 1.5);
-        const res = B[b.type].prod;
-        if (got > 0) V.floats.push({ wx, wy: wy - 50, text: '+' + got, color: res === 'scrap' ? '#ff8a1f' : '#e8955a', life: 1.4 });
-        else G.UI.toast(G.t('storageFull'));
-        G.save();
-      }
-    }
     V.select(b);
   };
+  // collector bubbles: visible when enough has piled up; returns the collector under the finger
+  V.bubbleAt = function (b) {
+    const d = B[b.type];
+    if (!d.prod || b.level <= 0 || b.acc < Math.max(10, d.cap[b.level - 1] * 0.08)) return null;
+    const s = d.size, [cx, cy] = G.tileToWorld(b.x + s / 2, b.y + s / 2);
+    return [cx, cy - G.Art.sprite(b.type, b.level).top - 6];
+  };
+  function hitBubble(sx, sy) {
+    let best = null, bd = 30;
+    for (const b of G.state.buildings) {
+      const p = V.bubbleAt(b);
+      if (!p) continue;
+      const [px, py] = V.cam.toScreen(p[0], p[1]);
+      const d = Math.hypot(px - sx, py - sy);
+      if (d < bd) { bd = d; best = b; }
+    }
+    return best;
+  }
+  function collectFrom(b) {
+    G.state.flags.collected = true;
+    const got = G.collect(b);
+    const p = V.bubbleAt(b) || G.tileToWorld(b.x + 1.5, b.y + 1.5);
+    const res = B[b.type].prod;
+    if (got > 0) V.floats.push({ wx: p[0], wy: p[1], text: '+' + got, color: res === 'scrap' ? '#ff8a1f' : '#e8955a', life: 1.4 });
+    else G.UI.toast(G.t('storageFull'));
+    G.save();
+  }
   V.select = function (b) {
     V.sel = b;
     if (b) G.UI.showSel(b); else G.UI.hideSel();
@@ -119,7 +137,8 @@
     if (!V.ghostValid()) { G.UI.toast(G.t('badPlace')); return; }
     if (g.moveId) {
       const b = G.state.buildings.find((q) => q.id === g.moveId);
-      b.x = g.x; b.y = g.y; G.save();
+      const err = G.moveBuilding(b, g.x, g.y);
+      if (err) { G.UI.toast(err); return; }
       V.ghost = null; G.UI.hidePlace(); V.select(b);
       return;
     }

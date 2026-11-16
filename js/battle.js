@@ -21,7 +21,7 @@
       if (x >= 0 && y >= 0 && x < M && y < M) b.noDeploy[y * M + x] = 1;
     }
     b.showZone = 2.5;
-    b.avail = Object.assign({}, G.state.army);
+    b.avail = Object.assign({}, G.state.army); b.used = {};
     b.heroes = {};
     for (const h of G.HERO_ORDER) if (G.heroUnlocked(h)) b.heroes[h] = { state: 'ready', unit: null, abil: 'ready' };
     b.units = []; b.fx = []; b.deployed = 0;
@@ -179,7 +179,7 @@
       b.sel = G.UNIT_ORDER.find((u) => b.avail[u] > 0) || null;
     } else {
       if (!(b.avail[b.sel] > 0)) return false;
-      b.avail[b.sel]--; G.state.army[b.sel]--;
+      b.avail[b.sel]--; b.used[b.sel] = (b.used[b.sel] || 0) + 1;
       spawn(b.sel, tx, ty, false);
       if (b.avail[b.sel] <= 0) b.sel = G.UNIT_ORDER.find((u) => b.avail[u] > 0) || Object.keys(b.heroes).find((h) => b.heroes[h].state === 'ready') || null;
     }
@@ -334,34 +334,33 @@
     b.ended = true;
     const { pct, stars } = b.result();
     const s = G.state, o = b.opts;
-    const gained = { scrap: 0, copper: 0 };
-    let trophies = 0, chips = 0;
-    if (o.mode === 'pve') {
-      const rec = s.pve[o.level] || { stars: 0, taken: { scrap: 0, copper: 0 } };
-      const L = G.PVE[o.level - 1];
-      for (const r of ['scrap', 'copper']) {
-        const left = L.loot[r] - rec.taken[r];
-        const want = Math.floor(L.loot[r] * pct) - rec.taken[r];
-        const g = Math.max(0, Math.min(left, want));
-        gained[r] = G.addRes(r, g); rec.taken[r] += gained[r];
-      }
-      if (stars > rec.stars) { chips = (stars - rec.stars) * 5; G.addRes('chips', chips); rec.stars = stars; }
-      s.pve[o.level] = rec;
-    } else {
-      for (const r of ['scrap', 'copper']) gained[r] = G.addRes(r, Math.floor(o.base.loot[r] * pct));
+    // only units that died are lost; survivors (and units never deployed) stay in the army
+    const used = {};
+    for (const u of b.units) if (!u.hero && u.dead) used[u.type] = (used[u.type] || 0) + 1;
+    const real = o.mode === 'pvp' && o.defender;
+    let r;
+    // loot and chips are decided by the shared economy rules (again on the server)
+    if (o.mode === 'pve') r = G.act({ c: 'battle', mode: 'pve', level: o.level, stars, pct, used });
+    else if (!real) r = G.act({ c: 'battle', mode: 'bot', loot: o.base.loot, pct, used });
+    else {
+      // real player: show the loot now; the server credits it from the attack record it creates
+      const want = { scrap: Math.floor(o.base.loot.scrap * pct), copper: Math.floor(o.base.loot.copper * pct) };
+      r = G.Econ.apply(s, { c: 'battle', mode: 'pvp', loot: want, used }, Date.now());
     }
+    const gained = (r && r.gained) || { scrap: 0, copper: 0 }, chips = (r && r.chips) || 0;
     s.flags.battleDone = true;
     G.Sfx.play(stars > 0 ? 'win' : 'lose');
     G.save();
-    const real = o.mode === 'pvp' && o.defender;
-    G.UI.showResult({ stars, pct, gained, trophies: real ? null : trophies, chips, mode: o.mode, bot: o.mode === 'pvp' && !real });
+    G.UI.showResult({ stars, pct, gained, trophies: real ? null : 0, chips, mode: o.mode, bot: o.mode === 'pvp' && !real });
     if (real) {
-      // the server checks the loot, moves trophies and protects the defender with a shield
+      // the server checks the loot, moves trophies, shields the defender and returns the attack id
       G.Net.submitAttack(o.defender, stars, Math.round(pct * 100), gained.scrap, gained.copper)
-        .then((delta) => { s.trophies = Math.max(0, s.trophies + delta); G.save(); G.UI.setResultTrophies(delta); })
-        .catch(() => G.UI.setResultTrophies(null))
-        .then(() => G.Net.pushSave().catch(() => {}));
-    } else G.Net.pushSave().catch(() => {});
+        .then((res) => {
+          s.trophies = Math.max(0, s.trophies + res.delta); G.save(true); G.UI.setResultTrophies(res.delta);
+          G.Net.queue({ c: 'battle', mode: 'pvp', attack: res.id, used, pct });
+        })
+        .catch(() => { G.UI.setResultTrophies(null); G.Net.queue({ c: 'battle', mode: 'pvp', used, pct }); });
+    }
   };
 
   // Turns an untrusted layout from the server ([type, level, x, y] rows) into a safe base.

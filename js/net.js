@@ -116,29 +116,72 @@ G.Net = (function () {
     N.profile = r && r[0] ? r[0] : null;
     return N.profile;
   };
-  N.loadSave = async function () {
-    await ensureFresh();
-    const r = await req('/rest/v1/saves?select=data,updated_at&user_id=eq.' + N.uid(), { auth: true });
-    return r && r[0] ? r[0].data : null;
+  // ---------- authoritative game server (Supabase Edge Function "game") ----------
+  // Commands run instantly on the phone and are sent in small batches; the server replays them with the same
+  // rules (econ.js), saves, publishes the PvP base, applies attacks on us, and returns the true state.
+  N.pending = [];
+  let inflight = null, flushTimer = null, retryMs = 2000;
+  N.queue = function (cmd) {
+    if (!N.session) return;
+    N.pending.push(cmd);
+    clearTimeout(flushTimer); flushTimer = setTimeout(() => N.flush().catch(() => {}), 700);
   };
-  N.pushSave = async function (keepalive) {
+  N.queueMeta = function () {
     if (!N.session || !G.state) return;
-    await ensureFresh();
-    G.state.owner = N.uid(); G.state.savedAt = Date.now();
-    await req('/rest/v1/saves', { method: 'POST', auth: true, keepalive, headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
-      body: { user_id: N.uid(), data: G.state, updated_at: new Date().toISOString() } });
-    await N.publishBase(keepalive);
-    N.dirty = false; N.lastPush = Date.now();
+    const s = G.state, m = { c: 'meta', settings: s.settings, lang: s.lang, tut: s.tut, flags: s.flags };
+    const i = N.pending.findIndex((c) => c.c === 'meta');
+    if (i >= 0) N.pending[i] = m; else N.queue(m);
   };
+  async function callGame(cmds, keepalive) {
+    await ensureFresh();
+    return await req('/functions/v1/game', { method: 'POST', auth: true, keepalive, body: { cmds } });
+  }
+  // send pending commands (or just ask for the latest state); resolves with the server reply
+  N.flush = async function (keepalive) {
+    if (!N.session) return null;
+    if (inflight) { await inflight.catch(() => {}); if (!N.pending.length) return null; }
+    const batch = N.pending.splice(0);
+    inflight = (async () => {
+      try {
+        const r = await callGame(batch, keepalive);
+        retryMs = 2000;
+        N.adopt(r);
+        return r;
+      } catch (e) {
+        N.pending.unshift(...batch);
+        if (e.code === 'auth') { await N.signOut(); G.Auth.show('login', G.t('err_auth')); }
+        else { clearTimeout(flushTimer); flushTimer = setTimeout(() => N.flush().catch(() => {}), retryMs); retryMs = Math.min(60000, retryMs * 2); }
+        throw e;
+      }
+    })();
+    try { return await inflight; } finally { inflight = null; }
+  };
+  // take the server's state, then re-apply anything queued meanwhile so the screen doesn't jump back
+  N.adopt = function (r) {
+    if (!r || !r.state) return;
+    const s = G.Econ.norm(r.state, Date.now());
+    for (const c of N.pending) G.Econ.apply(s, c, Date.now());
+    const selId = G.Village.sel && G.Village.sel.id;
+    G.state = s;
+    if (N.profile) N.profile.trophies = s.trophies;
+    G.save(true);
+    if (selId != null) { const b = G.Econ.findB(s, selId); if (b && G.scene === G.Village) G.Village.select(b); else G.Village.select(null); }
+    if (G.UI) G.UI.refreshHud();
+    if (r.defenses && r.defenses.length && G.UI && G.scene === G.Village && !G.UI.isModal()) G.UI.openDefenseLog(r.defenses.length);
+  };
+  // first contact after login: the server's save becomes the game
+  N.sync = async function () {
+    const r = await callGame([]);
+    G.applyState(r.state);
+    if (r.defenses && r.defenses.length) setTimeout(() => G.UI.openDefenseLog(r.defenses.length), 600);
+    return r;
+  };
+  // every 90 s while playing: hear about attacks on our base
+  setInterval(() => { if (N.session && !document.hidden && G.scene === G.Village && !N.pending.length) N.flush().catch(() => {}); }, 90000);
+  document.addEventListener('visibilitychange', () => { if (document.hidden && N.pending.length) N.flush(true).catch(() => {}); });
 
   // ---------- PvP ----------
   const rpc = (name, body, keepalive) => req('/rest/v1/rpc/' + name, { method: 'POST', auth: true, keepalive, body: body || {} });
-  // what other players attack: finished buildings + 20% of stored resources as loot
-  N.publishBase = async function (keepalive) {
-    const s = G.state;
-    const layout = s.buildings.filter((b) => b.level > 0).map((b) => [b.type, b.level, b.x, b.y]);
-    await rpc('publish_base', { p_layout: layout, p_core: G.coreLevel(), p_scrap: Math.floor(s.res.scrap * 0.2), p_copper: Math.floor(s.res.copper * 0.2) }, keepalive);
-  };
   N.findOpponent = async function () {
     await ensureFresh();
     const r = await rpc('find_opponent');
@@ -148,59 +191,8 @@ G.Net = (function () {
     await ensureFresh();
     return await rpc('submit_attack', { p_defender: defender, p_stars: stars, p_pct: pct, p_scrap: scrap, p_copper: copper });
   };
-  N.fetchDefenses = async function () {
-    await ensureFresh();
-    return await req('/rest/v1/attacks?select=attacker_name,stars,pct,loot_scrap,loot_copper,trophies,created_at&seen=is.false&order=created_at.asc&defender=eq.' + N.uid(), { auth: true });
-  };
-  N.markSeen = async function () { await ensureFresh(); await rpc('mark_attacks_seen'); };
   N.leaderboard = async function () {
     return await req('/rest/v1/profiles?select=username,trophies&order=trophies.desc,created_at.asc&limit=50', { auth: !!N.session });
-  };
-
-  // Applies attacks made on this player while away: lost loot, trophies, defense report.
-  let checking = false;
-  N.checkDefenses = async function () {
-    if (!N.session || checking) return;
-    checking = true;
-    try {
-      const list = await N.fetchDefenses();
-      if (list && list.length) {
-        const s = G.state;
-        s.defLog = s.defLog || [];
-        for (const a of list) {
-          s.res.scrap = Math.max(0, s.res.scrap - a.loot_scrap);
-          s.res.copper = Math.max(0, s.res.copper - a.loot_copper);
-          s.defLog.unshift({ name: a.attacker_name, stars: a.stars, pct: a.pct, scrap: a.loot_scrap, copper: a.loot_copper, trophies: a.trophies, at: a.created_at });
-        }
-        s.defLog = s.defLog.slice(0, 20);
-        await N.markSeen();
-        await N.loadProfile();
-        if (N.profile) s.trophies = N.profile.trophies;
-        G.save();
-        await N.pushSave();
-        if (G.UI && G.scene === G.Village) G.UI.openDefenseLog(list.length);
-      }
-    } catch (_) {}
-    checking = false;
-  };
-  setInterval(() => { if (G.scene === G.Village && !document.hidden) N.checkDefenses(); }, 60000);
-  N.markDirty = () => { N.dirty = true; };
-  // background sync: every 20 s if something changed, and right away when the app goes to background
-  setInterval(() => { if (N.dirty && N.session) N.pushSave().catch(() => {}); }, 20000);
-  document.addEventListener('visibilitychange', () => { if (document.hidden && N.dirty && N.session) N.pushSave(true).catch(() => {}); });
-
-  // Picks which save to play after login: cloud wins, unless this device has newer progress of the same account
-  // (or progress made before accounts existed, which gets attached to the new account).
-  N.resolveState = async function (local) {
-    const cloud = await N.loadSave();
-    let s;
-    if (cloud && local && local.owner === N.uid() && (local.savedAt || 0) > (cloud.savedAt || 0)) s = local;
-    else if (cloud) s = cloud;
-    else if (local && (!local.owner || local.owner === N.uid())) s = local;
-    else s = G.newGame();
-    if (N.profile) { s.name = N.profile.username; s.trophies = N.profile.trophies; }
-    s.owner = N.uid();
-    return s;
   };
 
   N.restore = function () { N.session = loadSession(); return !!N.session; };

@@ -156,10 +156,15 @@ G.Auth = (function () {
 
   // Loads the right save for this account, then starts the game.
   A.afterLogin = async function () {
-    const s = await G.Net.resolveState(G.load());
-    G.applyState(s);
+    try { await G.Net.sync(); }
+    catch (e) {
+      if (e.code === 'auth') throw e;
+      // game server unreachable for a moment: keep playing, retry in the background
+      setTimeout(() => G.UI.toast(G.t('err_server')), 800);
+      const retry = (ms) => setTimeout(() => G.Net.sync().catch(() => retry(Math.min(ms * 2, 120000))), ms);
+      retry(15000);
+    }
     A.hide();
-    G.Net.pushSave().catch(() => {}).then(() => G.Net.checkDefenses());
   };
 
   return A;
