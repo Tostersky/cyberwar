@@ -10,7 +10,8 @@
     G.UI.showVillage();
   };
   V.update = function (dt) {
-    V.t += dt;
+    V.t += dt; V.lastDt = dt;
+    G.World.update(dt, V.t);
     for (const f of V.floats) { f.life -= dt; f.wy -= 30 * dt; }
     V.floats = V.floats.filter((f) => f.life > 0);
     while (G.events.length) {
@@ -148,6 +149,7 @@
     const sp = G.Art.sprite(b.type, lv);
     const constructing = b.level === 0;
     G.Art.drawSprite(ctx, sp, wx, wy, alpha != null ? alpha : (constructing ? 0.35 : 1));
+    if (!constructing && alpha == null) G.Art.anim(ctx, b.type, lv, wx, wy, V.t, V.lastDt || 0.016, b.id);
     if (b.type === 'laser' && !constructing) {
       const [cx, cy] = G.tileToWorld(b.x + 1, b.y + 1);
       G.Art.drawLaserHead(ctx, cx, cy, lv, V.t * 0.5 + b.id, false, false);
@@ -193,7 +195,9 @@
       ctx.save(); ctx.shadowColor = '#19f0ff'; ctx.shadowBlur = 12; ctx.globalAlpha = pulse + 0.2;
       G.R.diamond(ctx, V.sel.x, V.sel.y, s, 'rgba(25,240,255,.12)', '#19f0ff', 2); ctx.restore();
     }
-    for (const b of list) drawBuilding(ctx, b, t, walls);
+    const items = list.map((b) => ({ d: b.x + b.y + B[b.type].size, b })).concat(G.World.propItems());
+    items.sort((a, b) => a.d - b.d);
+    for (const it of items) { if (it.b) drawBuilding(ctx, it.b, t, walls); else G.World.drawProp(ctx, it.prop); }
     if (V.ghost) {
       const g = V.ghost, s = B[g.type].size, ok = V.ghostValid();
       G.R.diamond(ctx, g.x, g.y, s, ok ? 'rgba(57,255,136,.25)' : 'rgba(255,51,85,.3)', ok ? '#39ff88' : '#ff3355', 2);
@@ -205,6 +209,7 @@
       arrow(1, 0); arrow(-1, 0); arrow(0, 1); arrow(0, -1); ctx.restore();
       void cx; void cy;
     }
+    G.R.end(ctx, cam, V.lastDt || 0.016);
     for (const f of V.floats) { ctx.globalAlpha = Math.min(1, f.life * 2); G.R.text(ctx, f.text, f.wx, f.wy, f.color, 16); ctx.globalAlpha = 1; }
   };
 })();

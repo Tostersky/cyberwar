@@ -114,11 +114,36 @@
     return best;
   }
 
+  // fire, smoke and flying debris when a building is destroyed
+  function explode(q) {
+    const c = centerW(q, 10), n = 10 + q.size * 8;
+    for (let i = 0; i < n; i++) {
+      const a = Math.random() * Math.PI * 2, sp = 30 + Math.random() * 70;
+      G.World.emit({ k: 'spark', x: c[0], y: c[1], vx: Math.cos(a) * sp, vy: Math.sin(a) * sp * 0.5 - 60, g: 140, r: 2 + Math.random() * 2, life: 0.6 + Math.random() * 0.5, max: 1.1, c: Math.random() < 0.5 ? '#ffb040' : '#ff5a2a' });
+    }
+    for (let i = 0; i < 4 + q.size * 3; i++) {
+      const a = Math.random() * Math.PI * 2, sp = 40 + Math.random() * 60;
+      G.World.emit({ k: 'debris', x: c[0], y: c[1] - 6, vx: Math.cos(a) * sp, vy: -50 - Math.random() * 70, g: 220, r: 2 + Math.random() * 3, life: 0.9, max: 0.9, c: '#1e1a28', rot: Math.random() * 6, vr: (Math.random() - 0.5) * 12, floor: c[1] + 10 + Math.random() * 10 });
+    }
+    for (let i = 0; i < 3 + q.size * 2; i++) {
+      G.World.emit({ k: 'smoke', x: c[0] + (Math.random() - 0.5) * q.size * 20, y: c[1] - Math.random() * 10, vx: (Math.random() - 0.5) * 14, vy: -12 - Math.random() * 12, r: 6 + q.size * 2, gr: 10, life: 2.4, max: 2.4, c: '30,26,36', a: 0.55 });
+    }
+    Bt.fx.push({ k: 'flash', x: c[0], y: c[1], r: 40 + q.size * 25, life: 0.35, max: 0.35, color: '#ffb050' });
+  }
+
   function damageB(q, dmg) {
     if (q.dead) return;
     q.hp -= dmg; q.hitT = 0.08;
+    // floating damage numbers (summed, at most ~3 per second per building)
+    q.dmgAcc = (q.dmgAcc || 0) + dmg;
+    if (!q.wall && Bt.t - (q.numAt || -1) > 0.33) {
+      const c0 = centerW(q, Math.min(G.Art.sprite(q.type, q.level).top, 80) * 0.6);
+      Bt.fx.push({ k: 'num', x: c0[0] + (Math.random() - 0.5) * 20, y: c0[1], text: '-' + Math.round(q.dmgAcc), color: '#ffe14d', life: 0.8, max: 0.8 });
+      q.numAt = Bt.t; q.dmgAcc = 0;
+    }
     if (q.hp <= 0) {
-      q.dead = true; q.hp = 0;
+      q.dead = true; q.hp = 0; q.deadAt = Bt.t;
+      if (!q.wall) { Bt.shake = Math.max(Bt.shake || 0, q.type === 'core' ? 0.6 : 0.35); explode(q); }
       for (let y = q.y; y < q.y + q.size; y++) for (let x = q.x; x < q.x + q.size; x++) Bt.grid[y * M + x] = -1;
       if (!q.wall) { Bt.destroyed++; if (q.type === 'core') Bt.coreDown = true; }
       const c = centerW(q, 8);
@@ -186,6 +211,8 @@
   function stepUnit(u, dt) {
     const b = Bt;
     u.anim += dt; if (u.hitT > 0) u.hitT -= dt;
+    if (u.atkT > 0) u.atkT -= dt;
+    u.moving = false;
     if (u.storm > 0) {
       u.storm -= dt;
       for (const q of b.bs) if (!q.dead && distRect(u.x, u.y, q) <= 1.6) damageB(q, 70 * dt);
@@ -206,15 +233,15 @@
         const c = centerW(goal, 6);
         b.fx.push({ k: 'boom', x: c[0], y: c[1], r: 30, life: 0.45, max: 0.45, color: '#ff3355' });
         for (const q of b.bs) if (!q.dead && distRect(cx, cy, q) <= u.def.splash) damageB(q, u.def.dmg);
-        u.dead = true; return;
+        u.dead = true; u.deadAt = b.t; u.exploded = true; return;
       }
       u.cd -= dt;
       if (u.cd <= 0) {
-        u.cd = u.def.interval;
+        u.cd = u.def.interval; u.atkT = 0.25;
         damageB(goal, u.def.dmg);
         const from = unitW(u), to = centerW(goal);
         G.Sfx.play(u.def.range > 1.5 ? 'shot' : 'hit');
-        if (u.def.range > 1.5) b.fx.push({ k: 'beam', x1: from[0], y1: from[1], x2: to[0], y2: to[1], color: G.Art.UCOL[u.type], life: 0.1, max: 0.1, w: 1.6 });
+        if (u.def.range > 1.5) b.fx.push({ k: 'bolt', x1: from[0] + (u.flip ? -14 : 14), y1: from[1] - 6, x2: to[0], y2: to[1], color: G.Art.UCOL[u.type], life: 0.16, max: 0.16 });
         else { const p = G.tileToWorld(cx, cy); b.fx.push({ k: 'spark', x: p[0], y: p[1] - 10, life: 0.2, max: 0.2, color: G.Art.UCOL[u.type] }); }
       }
       return;
@@ -225,6 +252,7 @@
     else { [tx, ty] = closest(u.x, u.y, tq); }
     const dx = tx - u.x, dy = ty - u.y, d = Math.hypot(dx, dy), stp = u.def.speed * dt;
     if (Math.abs(dx - dy) > 0.01) u.flip = (dx - dy) < 0;
+    u.moving = true;
     if (d <= stp) { u.x = tx; u.y = ty; if (u.path && u.path.length) u.path.shift(); }
     else { u.x += dx / d * stp; u.y += dy / d * stp; }
   }
@@ -250,7 +278,7 @@
       G.Sfx.play('laser');
       Bt.fx.push({ k: 'beam', x1: 0, y1: 0, from: q, x2: tw[0], y2: tw[1], color: G.Art.TRIM[q.level - 1], life: 0.12, max: 0.12, w: 2.4 });
       if (u.hp <= 0) {
-        u.dead = true;
+        u.dead = true; u.deadAt = Bt.t;
         G.Sfx.play('small');
         Bt.fx.push({ k: 'boom', x: tw[0], y: tw[1], r: 12, life: 0.35, max: 0.35, color: G.Art.UCOL[u.type] });
       }
@@ -259,7 +287,15 @@
 
   Bt.update = function (dt) {
     const b = Bt;
-    b.t += dt;
+    b.t += dt; b.lastDt = dt;
+    G.World.update(dt, b.t);
+    if (b.shake > 0) b.shake = Math.max(0, b.shake - dt * 1.6);
+    // smouldering ruins
+    for (const q of b.bs) if (q.dead && !q.wall && b.t - q.deadAt < 8 && Math.random() < dt * 2.5) {
+      const c = centerW(q, 4);
+      G.World.emit({ k: 'smoke', x: c[0] + (Math.random() - 0.5) * q.size * 18, y: c[1], vx: 6 + Math.random() * 6, vy: -14 - Math.random() * 8, r: 3 + q.size, gr: 7, life: 2.4, max: 2.4, c: '40,36,48', a: 0.4 });
+      if (Math.random() < 0.3) G.World.emit({ k: 'spark', x: c[0] + (Math.random() - 0.5) * q.size * 14, y: c[1], vx: (Math.random() - 0.5) * 10, vy: -30 - Math.random() * 20, g: 0, r: 1.5, life: 0.8, max: 0.8, c: '#ff7a30' });
+    }
     if (b.showZone > 0) b.showZone -= dt;
     for (const f of b.fx) f.life -= dt;
     b.fx = b.fx.filter((f) => f.life > 0);
@@ -349,6 +385,12 @@
 
   Bt.render = function (ctx) {
     const b = Bt;
+    let shook = null;
+    if (b.shake > 0) {
+      shook = [b.cam.x, b.cam.y];
+      const k = b.shake * 16 / b.cam.z;
+      b.cam.x += (Math.random() - 0.5) * k; b.cam.y += (Math.random() - 0.5) * k;
+    }
     G.R.begin(ctx, b.cam);
     if (b.showZone > 0) {
       ctx.save(); ctx.globalAlpha = Math.min(1, b.showZone) * 0.5; ctx.fillStyle = '#ff3355';
@@ -360,15 +402,18 @@
     }
     const items = [];
     for (const q of b.bs) items.push({ d: q.x + q.y + q.size, q });
-    for (const u of b.units) if (!u.dead) items.push({ d: u.x + u.y + (u.fly ? 2 : 0), u });
+    for (const u of b.units) if (!u.dead || (!u.exploded && b.t - u.deadAt < 0.6)) items.push({ d: u.x + u.y + (u.fly ? 2 : 0), u });
+    for (const pi of G.World.propItems()) items.push(pi);
     items.sort((a, c) => a.d - c.d);
     const walls = new Map();
     for (const q of b.bs) if (q.wall && !q.dead) walls.set(q.x * 100 + q.y, q);
     for (const it of items) {
+      if (it.prop) { G.World.drawProp(ctx, it.prop); continue; }
       if (it.q) {
         const q = it.q, p = G.tileToWorld(q.x, q.y);
         if (q.dead) { G.Art.drawSprite(ctx, G.Art.sprite('rubble', q.size), p[0], p[1]); continue; }
         G.Art.drawSprite(ctx, G.Art.sprite(q.type, q.level), p[0], p[1]);
+        if (!q.wall) G.Art.anim(ctx, q.type, q.level, p[0], p[1], b.t, b.lastDt || 0.016, q.i);
         if (q.hitT > 0) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.25; G.Art.drawSprite(ctx, G.Art.sprite(q.type, q.level), p[0], p[1]); ctx.restore(); }
         if (q.type === 'laser') {
           const c = G.tileToWorld(q.x + 1, q.y + 1);
@@ -382,7 +427,8 @@
         }
       } else {
         const u = it.u, p = G.tileToWorld(u.x, u.y);
-        G.Art.drawUnit(ctx, u.type, p[0], p[1], u.anim, u.flip, u.hitT > 0);
+        G.Art.drawUnit(ctx, u.type, p[0], p[1], u.anim, u.flip, u.hitT > 0 && !u.dead,
+          { moving: u.moving, atk: Math.max(0, (u.atkT || 0) / 0.25), dead: u.dead ? Math.min(1, (b.t - u.deadAt) / 0.6) : 0 });
         if (u.storm > 0) {
           ctx.save(); ctx.strokeStyle = '#ff4d4d'; ctx.shadowColor = '#ff4d4d'; ctx.shadowBlur = 10; ctx.lineWidth = 2;
           ctx.beginPath(); ctx.ellipse(p[0], p[1] - 6, 30, 15, 0, u.anim * 12, u.anim * 12 + 4.5); ctx.stroke(); ctx.restore();
@@ -395,34 +441,55 @@
       G.R.bar(ctx, c[0], c[1], q.wall ? 18 : 34, q.hp / q.maxHp, q.hp / q.maxHp > 0.5 ? '#39ff88' : '#ffe14d');
     }
     for (const u of b.units) if (!u.dead && (u.hp < u.maxHp || u.hero)) {
-      const p = unitW(u, (u.fly ? 30 : u.type === 'mech' ? 34 : 26));
+      const p = unitW(u, (u.fly ? 36 : u.type === 'mech' ? 46 : u.hero ? 40 : 32));
       G.R.bar(ctx, p[0], p[1], u.hero ? 22 : 14, u.hp / u.maxHp, u.hero ? '#ffe14d' : '#ff2bd6');
     }
-    // effects
+    // effects (additive 'bloom' instead of costly shadowBlur)
     ctx.save();
+    ctx.lineCap = 'round';
+    const L = (col, x, y, r, al) => G.World.light(ctx, col, x, y, r, r * 0.7, al);
     for (const f of b.fx) {
-      const a = f.life / f.max;
-      ctx.globalAlpha = Math.max(0, a);
+      const a = Math.max(0, f.life / f.max);
+      ctx.globalCompositeOperation = 'lighter';
       if (f.k === 'beam') {
         let x1 = f.x1, y1 = f.y1;
         if (f.from) { const m = f.from.muzzle || centerW(f.from); x1 = m[0]; y1 = m[1]; }
-        ctx.strokeStyle = f.color; ctx.lineWidth = f.w; ctx.shadowColor = f.color; ctx.shadowBlur = 10;
-        ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(f.x2, f.y2); ctx.stroke();
-        ctx.strokeStyle = '#fff'; ctx.lineWidth = f.w * 0.4; ctx.stroke();
+        const seg = (w, col, al) => { ctx.globalAlpha = al * a; ctx.strokeStyle = col; ctx.lineWidth = w; ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(f.x2, f.y2); ctx.stroke(); };
+        seg(f.w * 5, f.color, 0.18); seg(f.w * 2.2, f.color, 0.55); seg(f.w * 0.7, '#ffffff', 1);
+        L(f.color, f.x2, f.y2, 14, 0.8 * a); L(f.color, x1, y1, 10, 0.7 * a);
+      } else if (f.k === 'bolt') {
+        const p = 1 - a, hx = f.x1 + (f.x2 - f.x1) * p, hy = f.y1 + (f.y2 - f.y1) * p;
+        const tx = f.x1 + (f.x2 - f.x1) * Math.max(0, p - 0.3), ty = f.y1 + (f.y2 - f.y1) * Math.max(0, p - 0.3);
+        ctx.globalAlpha = 0.6; ctx.strokeStyle = f.color; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(tx, ty); ctx.lineTo(hx, hy); ctx.stroke();
+        ctx.globalAlpha = 1; ctx.strokeStyle = '#fff'; ctx.lineWidth = 1; ctx.stroke();
+        L(f.color, hx, hy, 8, 0.9);
+        if (a < 0.15) L(f.color, f.x2, f.y2, 14, 0.8);
       } else if (f.k === 'boom') {
-        const r = f.r * (1.2 - a * 0.6);
-        const g = ctx.createRadialGradient(f.x, f.y, 0, f.x, f.y, r);
-        g.addColorStop(0, '#fff'); g.addColorStop(0.3, f.color); g.addColorStop(1, 'rgba(0,0,0,0)');
-        ctx.fillStyle = g; ctx.shadowBlur = 0; ctx.beginPath(); ctx.ellipse(f.x, f.y, r, r * 0.7, 0, 0, Math.PI * 2); ctx.fill();
+        const r = f.r * (1.25 - a * 0.6);
+        L('#ffffff', f.x, f.y, r * 0.5, a);
+        L(f.color, f.x, f.y, r, a);
+      } else if (f.k === 'flash') {
+        L(f.color, f.x, f.y, f.r * (1.3 - a * 0.5), a * 0.9);
+        L('#ffffff', f.x, f.y, f.r * 0.35, a);
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.globalAlpha = a * 0.8; ctx.strokeStyle = '#ffd080'; ctx.lineWidth = 2;
+        const rr = f.r * (1.4 - a);
+        ctx.beginPath(); ctx.ellipse(f.x, f.y + 8, rr, rr * 0.45, 0, 0, Math.PI * 2); ctx.stroke();
       } else if (f.k === 'ring') {
-        ctx.strokeStyle = f.color; ctx.lineWidth = 3; ctx.shadowColor = f.color; ctx.shadowBlur = 12;
         const r = f.r * (1 - a * 0.8);
-        ctx.beginPath(); ctx.ellipse(f.x, f.y, r, r / 2, 0, 0, Math.PI * 2); ctx.stroke();
+        ctx.globalAlpha = a; ctx.strokeStyle = f.color;
+        ctx.lineWidth = 8; ctx.globalAlpha = a * 0.25; ctx.beginPath(); ctx.ellipse(f.x, f.y, r, r / 2, 0, 0, Math.PI * 2); ctx.stroke();
+        ctx.lineWidth = 2.5; ctx.globalAlpha = a; ctx.stroke();
       } else if (f.k === 'spark') {
-        ctx.fillStyle = f.color; ctx.shadowColor = f.color; ctx.shadowBlur = 8;
-        ctx.beginPath(); ctx.arc(f.x, f.y, 3 * a + 1, 0, Math.PI * 2); ctx.fill();
+        L(f.color, f.x, f.y, 6 * a + 3, 1);
+      } else if (f.k === 'num') {
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.globalAlpha = Math.min(1, a * 2);
+        G.R.text(ctx, f.text, f.x, f.y - (1 - a) * 22, f.color, 11);
       }
     }
     ctx.restore();
+    G.R.end(ctx, b.cam, b.lastDt || 0.016);
+    if (shook) { b.cam.x = shook[0]; b.cam.y = shook[1]; }
   };
 })();

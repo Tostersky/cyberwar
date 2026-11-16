@@ -21,6 +21,14 @@
   G.Input.init(cv);
   G.Village.enter();
 
+  // loading screen fades out once the first scene and the login decision are ready (min 0.9 s)
+  const bootStart = performance.now();
+  const hideBoot = () => {
+    const el = document.getElementById('boot');
+    if (!el) return;
+    setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 700); }, Math.max(0, 900 - (performance.now() - bootStart)));
+  };
+
   // accounts: resume the saved session, otherwise ask to log in / register
   (async function () {
     // coming back from a password-reset email link?
@@ -39,7 +47,7 @@
       else { await G.Net.signOut(); G.Auth.show('login'); }
     }
     G.UI.loading(false);
-  })();
+  })().catch(() => {}).finally(hideBoot);
 
   let last = performance.now();
   function loop(now) {

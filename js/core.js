@@ -95,18 +95,20 @@ G.Input = (function () {
 
 // ---------- Shared rendering ----------
 G.R = {
+  // sky + skyline (screen space), then wet ground and lamp light pools (world space)
   begin(ctx, cam) {
-    const d = G.dpr;
-    ctx.setTransform(d, 0, 0, d, 0, 0);
-    if (!G.R.bg || G.R.bgH !== G.H) {
-      const g = ctx.createLinearGradient(0, 0, 0, G.H);
-      g.addColorStop(0, '#0b0820'); g.addColorStop(0.6, '#140a2a'); g.addColorStop(1, '#1d0a2c');
-      G.R.bg = g; G.R.bgH = G.H;
-    }
-    ctx.fillStyle = G.R.bg; ctx.fillRect(0, 0, G.W, G.H);
+    const t = performance.now() / 1000;
+    G.World.drawSky(ctx, cam, t);
     cam.apply(ctx);
-    const gr = G.Art.ground();
+    const gr = G.World.ground();
     ctx.drawImage(gr.c, -gr.ox, -gr.oy, gr.w, gr.h);
+    G.World.drawLights(ctx, t);
+  },
+  // particles in the world, then rain/fog/vignette over the screen
+  end(ctx, cam, dt) {
+    G.World.drawParts(ctx);
+    G.World.drawWeather(ctx, dt, performance.now() / 1000);
+    cam.apply(ctx);
   },
   diamond(ctx, x, y, s, fill, stroke, lw) {
     const a = G.tileToWorld(x, y), b = G.tileToWorld(x + s, y), c = G.tileToWorld(x + s, y + s), d = G.tileToWorld(x, y + s);

@@ -6,9 +6,10 @@
   const t = (k, p) => G.t(k, p);
 
   const IC = {
-    scrap: '<svg viewBox="0 0 24 24"><g fill="none" stroke="#ff8a1f" stroke-width="2.6" stroke-linecap="round"><circle cx="12" cy="12" r="4.6"/><path d="M12 2.5v3.5M12 18v3.5M2.5 12H6M18 12h3.5M5.3 5.3l2.5 2.5M16.2 16.2l2.5 2.5M5.3 18.7l2.5-2.5M16.2 7.8l2.5-2.5"/></g></svg>',
-    copper: '<svg viewBox="0 0 24 24"><path d="M3.5 15.5l4-7.5h9l4 7.5-3.5 3.5h-10z" fill="#d9783a" stroke="#ffb37a" stroke-width="1.6" stroke-linejoin="round"/><path d="M8 12h8" stroke="#ffd2ad" stroke-width="1.4"/></svg>',
-    chips: '<svg viewBox="0 0 24 24"><path d="M9 2.5v3.5M15 2.5v3.5M9 18v3.5M15 18v3.5M2.5 9H6M2.5 15H6M18 9h3.5M18 15h3.5" stroke="#19f0ff" stroke-width="2" stroke-linecap="round"/><rect x="6" y="6" width="12" height="12" rx="2" fill="#19f0ff"/><rect x="9.3" y="9.3" width="5.4" height="5.4" fill="#07060f"/></svg>',
+    // glossy "3D" resource icons
+    scrap: '<svg viewBox="0 0 24 24"><defs><radialGradient id="gs" cx="35%" cy="30%" r="75%"><stop offset="0" stop-color="#ffe0a8"/><stop offset=".45" stop-color="#ff8a1f"/><stop offset="1" stop-color="#7a3200"/></radialGradient></defs><path d="M10.3 1.8h3.4l.6 2.7 2.1.9 2.4-1.5 2.4 2.4-1.5 2.4.9 2.1 2.7.6v3.4l-2.7.6-.9 2.1 1.5 2.4-2.4 2.4-2.4-1.5-2.1.9-.6 2.7h-3.4l-.6-2.7-2.1-.9-2.4 1.5-2.4-2.4 1.5-2.4-.9-2.1-2.7-.6v-3.4l2.7-.6.9-2.1-1.5-2.4 2.4-2.4 2.4 1.5 2.1-.9z" fill="url(#gs)" stroke="#5a2400" stroke-width=".8"/><circle cx="12" cy="12" r="3.6" fill="#2a1200" stroke="#ffb060" stroke-width=".8"/><ellipse cx="9" cy="6.5" rx="3" ry="1.4" fill="#fff" opacity=".45"/></svg>',
+    copper: '<svg viewBox="0 0 24 24"><defs><linearGradient id="gc" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffd0a8"/><stop offset=".5" stop-color="#d9783a"/><stop offset="1" stop-color="#6a2e10"/></linearGradient><linearGradient id="gc2" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#8a3e16"/><stop offset="1" stop-color="#c8662c"/></linearGradient></defs><path d="M3 15.5l4.2-7.8h9.6l4.2 7.8z" fill="url(#gc)" stroke="#5a2a10" stroke-width=".8" stroke-linejoin="round"/><path d="M3 15.5h18l-2.2 3.5H5.2z" fill="url(#gc2)" stroke="#5a2a10" stroke-width=".8" stroke-linejoin="round"/><path d="M8 9.2h6.5" stroke="#fff" stroke-width="1.3" stroke-linecap="round" opacity=".6"/></svg>',
+    chips: '<svg viewBox="0 0 24 24"><defs><linearGradient id="gh" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#b8fbff"/><stop offset=".5" stop-color="#19f0ff"/><stop offset="1" stop-color="#05707a"/></linearGradient></defs><path d="M9 2.5v3.5M15 2.5v3.5M9 18v3.5M15 18v3.5M2.5 9H6M2.5 15H6M18 9h3.5M18 15h3.5" stroke="#5ff6ff" stroke-width="2" stroke-linecap="round"/><rect x="6" y="6" width="12" height="12" rx="2.2" fill="url(#gh)" stroke="#04545c" stroke-width=".8"/><rect x="9.2" y="9.2" width="5.6" height="5.6" rx=".8" fill="#06222a"/><path d="M10.4 12h3.2M12 10.4v3.2" stroke="#19f0ff" stroke-width=".9"/><path d="M7.2 7.6h6" stroke="#fff" stroke-width="1.2" stroke-linecap="round" opacity=".55"/></svg>',
     trophy: '<svg viewBox="0 0 24 24"><path d="M12 2l8 3v6c0 5.2-3.5 9.2-8 11-4.5-1.8-8-5.8-8-11V5z" fill="#ffe14d"/><path d="M12 6l1.6 3.4 3.6.4-2.7 2.4.8 3.6L12 14l-3.3 1.8.8-3.6-2.7-2.4 3.6-.4z" fill="#7a5a00"/></svg>',
     gear: '<svg viewBox="0 0 24 24"><g fill="none" stroke="#e9e6ff" stroke-width="2"><circle cx="12" cy="12" r="3.2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9L7 7M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/></g></svg>',
     sword: '<svg viewBox="0 0 24 24"><g stroke="#fff" stroke-width="2.2" stroke-linecap="round" fill="none"><path d="M4 20L16 8M14 4h6v6M6 14l4 4M3 21l2-2"/><path d="M20 20L8 8M4 4v6h0M18 14l-4 4M21 21l-2-2" stroke="#ffd0f5"/></g></svg>',
@@ -111,9 +112,16 @@
       $('.cap', el).textContent = r === 'chips' ? '' : '/ ' + G.fmt(cap);
       $('.bar b', el).style.width = r === 'chips' ? '100%' : Math.min(100, v / cap * 100) + '%';
       el.classList.toggle('full', r !== 'chips' && v >= cap);
+      // little bump animation whenever a resource goes up
+      if (lastRes[r] != null && v > lastRes[r]) { el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump'); }
+      lastRes[r] = v;
     }
-    $('#builders-v').textContent = (G.BUILDERS - G.buildersBusy()) + '/' + G.BUILDERS;
+    const free = G.BUILDERS - G.buildersBusy();
+    $('#builders-v').textContent = free + '/' + G.BUILDERS;
+    $('#hud-builders').classList.toggle('free', free > 0);
+    $('#btn-army').classList.toggle('busy', s.queue.length > 0);
   };
+  const lastRes = {};
 
   // ---------- selection bar ----------
   U.showSel = function (b) {
@@ -450,10 +458,20 @@
     U.modal(win ? t('victory') : t('defeat'), `
       <div class="res-stars">${stars}</div>
       <div class="res-pct">${t('destruction')}: <b>${Math.round(r.pct * 100)}%</b></div>
-      <div class="res-loot">${t('loot')}: ${costHtml('scrap', r.gained.scrap)} ${costHtml('copper', r.gained.copper)} ${r.chips ? costHtml('chips', r.chips) : ''}</div>
+      <div class="res-loot">${t('loot')}: <span class="cost">${resIc('scrap')}<b data-count="${r.gained.scrap}">0</b></span> <span class="cost">${resIc('copper')}<b data-count="${r.gained.copper}">0</b></span> ${r.chips ? `<span class="cost">${resIc('chips')}<b data-count="${r.chips}">0</b></span>` : ''}</div>
       ${r.mode === 'pvp' ? (r.bot ? `<p class="hint">${t('botNoTrophies')}</p>` : `<div class="res-tro">${IC.trophy} <span id="res-tro">${r.trophies == null ? '…' : (r.trophies >= 0 ? '+' : '') + r.trophies}</span></div>`) : ''}
       <div class="row-btns"><button class="btn primary" id="r-home">${t('returnHome')}</button></div>`, { cls: 'small result ' + (win ? 'win' : 'lose'), noClose: true });
     $('#r-home').onclick = () => { U.closeModal(); G.Village.enter(); };
+    // stars pop in one by one with a chime, loot counts up
+    for (let k = 0; k < r.stars; k++) setTimeout(() => G.Sfx.play('star'), 350 * k + 200);
+    const t0 = performance.now();
+    const els = [...document.querySelectorAll('#modal [data-count]')];
+    const tick = () => {
+      const p = Math.min(1, (performance.now() - t0) / 1200), e = 1 - Math.pow(1 - p, 3);
+      els.forEach((el) => { el.textContent = G.fmt(+el.dataset.count * e); });
+      if (p < 1 && els.length && document.body.contains(els[0])) requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
   };
 
   // ---------- per-frame updates ----------
