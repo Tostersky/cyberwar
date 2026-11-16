@@ -59,7 +59,7 @@ G.Tut = (function () {
   T.frame = function () {
     const box = $('#tut');
     if (!box) return;
-    if (!T.active()) { box.classList.add('hidden'); return; }
+    if (!T.active() || G.Auth.isOpen()) { box.classList.add('hidden'); return; }
     let st = STEPS[S().tut];
     // skip steps already satisfied (e.g. player did it before the prompt)
     while (st && st.done && !st.button && st.done()) { S().tut++; G.save(); st = STEPS[S().tut]; }

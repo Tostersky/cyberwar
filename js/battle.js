@@ -319,6 +319,7 @@
     s.flags.battleDone = true;
     G.Sfx.play(stars > 0 ? 'win' : 'lose');
     G.save();
+    G.Net.pushSave().catch(() => {});
     G.UI.showResult({ stars, pct, gained, trophies, chips, mode: o.mode });
   };
 

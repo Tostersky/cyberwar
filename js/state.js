@@ -22,8 +22,28 @@
     try { const raw = localStorage.getItem(KEY); if (raw) { const s = JSON.parse(raw); if (s && s.v === 1) { s.settings = s.settings || { sfx: true, music: true }; s.flags = s.flags || {}; if (s.tut == null) s.tut = 0; return s; } } } catch (_) {}
     return null;
   };
-  G.save = function () { try { localStorage.setItem(KEY, JSON.stringify(G.state)); } catch (_) {} };
-  G.resetGame = function () { try { localStorage.removeItem(KEY); } catch (_) {} G.state = G.newGame(); G.state.lang = G.lang; G.save(); };
+  // quiet = periodic local save only (does not trigger a cloud upload)
+  G.save = function (quiet) {
+    if (!G.state) return;
+    if (quiet !== true) G.state.savedAt = Date.now();
+    try { localStorage.setItem(KEY, JSON.stringify(G.state)); } catch (_) {}
+    if (G.Net && quiet !== true) G.Net.markDirty();
+  };
+  G.resetGame = function () {
+    const owner = G.state && G.state.owner, name = G.state && G.state.name;
+    try { localStorage.removeItem(KEY); } catch (_) {}
+    G.state = G.newGame(); G.state.lang = G.lang; G.state.owner = owner; if (name) G.state.name = name;
+    G.save();
+  };
+  // Swap in a whole save (after login) and restart the home scene.
+  G.applyState = function (s) {
+    s.settings = s.settings || { sfx: true, music: true }; s.flags = s.flags || {}; if (s.tut == null) s.tut = 0;
+    G.state = s;
+    G.lang = s.lang || G.lang; s.lang = G.lang;
+    G.tick(); G.save();
+    G.UI.applyLang();
+    G.Village.camInit = false; G.Village.enter();
+  };
 
   const S = () => G.state;
   G.coreLevel = () => { const c = S().buildings.find((b) => b.type === 'core'); return c ? Math.max(1, c.level) : 1; };

@@ -10,14 +10,30 @@
   window.addEventListener('resize', resize);
   resize();
 
+  // the local save (if any) runs in the background behind the login screen
   G.state = G.load() || G.newGame();
-  G.lang = G.state.lang || ((navigator.language || 'pl').toLowerCase().startsWith('pl') ? 'pl' : 'en');
+  let storedLang = null; try { storedLang = localStorage.getItem('cyberwar_lang'); } catch (_) {}
+  G.lang = G.state.lang || storedLang || ((navigator.language || 'pl').toLowerCase().startsWith('pl') ? 'pl' : 'en');
   G.state.lang = G.lang;
   G.tick();
   G.UI.init();
   G.Tut.init();
   G.Input.init(cv);
   G.Village.enter();
+
+  // accounts: resume the saved session, otherwise ask to log in / register
+  (async function () {
+    if (!G.Net.restore()) { G.Auth.show(); return; }
+    G.UI.loading(true);
+    try {
+      await G.Net.loadProfile();
+      await G.Auth.afterLogin();
+    } catch (e) {
+      if (e.code === 'offline' && G.state.owner === G.Net.uid()) { /* play offline, sync later */ }
+      else { await G.Net.signOut(); G.Auth.show('login'); }
+    }
+    G.UI.loading(false);
+  })();
 
   let last = performance.now();
   function loop(now) {
@@ -33,9 +49,9 @@
   }
   requestAnimationFrame(loop);
 
-  setInterval(G.save, 5000);
-  document.addEventListener('visibilitychange', () => { if (document.hidden) G.save(); });
-  window.addEventListener('pagehide', G.save);
+  setInterval(() => G.save(true), 5000);
+  document.addEventListener('visibilitychange', () => { if (document.hidden) G.save(true); });
+  window.addEventListener('pagehide', () => G.save(true));
 
   if ('serviceWorker' in navigator && location.protocol.startsWith('http') && location.hostname !== 'localhost') {
     navigator.serviceWorker.register('sw.js').catch(() => {});

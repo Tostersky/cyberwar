@@ -62,6 +62,12 @@
     document.querySelectorAll('[data-t]').forEach((el) => { el.textContent = t(el.dataset.t); });
   };
 
+  U.loading = function (on) {
+    let el = $('#loading');
+    if (!el) { el = document.createElement('div'); el.id = 'loading'; el.innerHTML = '<div class="spin"></div>'; $('#ui').appendChild(el); }
+    el.classList.toggle('hidden', !on);
+  };
+
   let toastT = null;
   U.toast = function (msg) {
     G.Sfx.play('error');
@@ -313,16 +319,27 @@
 
   // ---------- settings ----------
   U.openSettings = function () {
+    const esc = (v) => String(v || '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
     U.modal(t('settings'), `
-      <label class="fld">${t('name')}<input id="s-name" maxlength="16" value="${G.state.name.replace(/"/g, '')}"></label>
+      <div class="acct">${G.Net.session ? `<div><small>${t('loggedAs')}</small><b>${esc(G.state.name)}</b><small>${esc(G.Net.email())}</small></div>
+        <button class="btn sm" id="s-logout">${t('logout')}</button>` : `<div><b>${t('offlineMode')}</b></div><button class="btn sm primary" id="s-login">${t('login')}</button>`}</div>
       <div class="fld">${t('language')}<div class="seg"><button data-l="pl" class="${G.lang === 'pl' ? 'on' : ''}">Polski</button><button data-l="en" class="${G.lang === 'en' ? 'on' : ''}">English</button></div></div>
       <div class="fld">${t('sounds')}<div class="seg" id="s-sfx"><button data-v="1" class="${G.state.settings.sfx ? 'on' : ''}">${t('on')}</button><button data-v="0" class="${G.state.settings.sfx ? '' : 'on'}">${t('off')}</button></div></div>
       <div class="fld">${t('music')}<div class="seg" id="s-mus"><button data-v="1" class="${G.state.settings.music ? 'on' : ''}">${t('on')}</button><button data-v="0" class="${G.state.settings.music ? '' : 'on'}">${t('off')}</button></div></div>
       <div class="row-btns"><button class="btn" id="s-tut">${t('tutAgain')}</button></div>
-      <div class="row-btns"><button class="btn danger" id="s-reset">${t('reset')}</button></div>
-      <p class="hint">CyberWar · ${t('version')} ${G.VERSION}</p>`, { cls: 'small' });
-    const nm = $('#s-name');
-    nm.onchange = nm.onblur = () => { const v = nm.value.trim().slice(0, 16); if (v) { G.state.name = v; G.save(); U.refreshHud(); } };
+      <div class="row-btns"><button class="btn danger" id="s-reset">${t('reset')}</button>${G.Net.session ? `<button class="btn danger" id="s-del">${t('deleteAccount')}</button>` : ''}</div>
+      <p class="hint"><a href="privacy.html" target="_blank" rel="noopener">${t('privacyPolicy')}</a> · CyberWar ${t('version')} ${G.VERSION}</p>`, { cls: 'small' });
+    if ($('#s-logout')) $('#s-logout').onclick = async () => {
+      try { await G.Net.pushSave(); } catch (_) {}
+      await G.Net.signOut(); U.closeModal(); G.Auth.show('login');
+    };
+    if ($('#s-login')) $('#s-login').onclick = () => { U.closeModal(); G.Auth.show('login'); };
+    if ($('#s-del')) $('#s-del').onclick = () => U.confirm(t('deleteConfirm'), async () => {
+      try { await G.Net.deleteAccount(); } catch (e) { U.toast(t('err_' + (e.code || 'server'))); return; }
+      try { localStorage.removeItem('cyberwar_save_v1'); localStorage.removeItem('cyberwar_had_account'); } catch (_) {}
+      G.state = G.newGame(); G.state.lang = G.lang; G.save(true);
+      G.Village.camInit = false; G.Village.enter(); G.Auth.show('register');
+    });
     document.querySelectorAll('#modal .seg button[data-l]').forEach((b) => {
       b.onclick = () => { G.lang = b.dataset.l; G.state.lang = G.lang; G.save(); U.applyLang(); U.openSettings(); U.refreshHud(); };
     });

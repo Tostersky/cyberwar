@@ -1,5 +1,5 @@
 // Game data: buildings, units, heroes, campaign. All numbers are CyberWar's own.
-G.TW = 64; G.TH = 32; G.MAP = 40; G.VERSION = '0.2.0';
+G.TW = 64; G.TH = 32; G.MAP = 40; G.VERSION = '0.3.0';
 G.BUILDERS = 2;
 
 G.BUILDINGS = {
