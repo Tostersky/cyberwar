@@ -137,6 +137,11 @@ table.stats td.nx { color: var(--grn); font-weight: 800; width: 90px; }
 .q-item { position: relative; width: 52px; height: 52px; flex: none; background: rgba(28,22,56,.95); border: 1px solid var(--yel); }
 .q-item img { width: 100%; height: 100%; }
 .q-item span { position: absolute; bottom: 0; left: 0; right: 0; font-size: 10px; font-weight: 800; background: rgba(0,0,0,.7); }
+.q-item.q-group { width: 64px; height: 64px; border-color: var(--line); }
+.q-item.q-group.active { border-color: var(--yel); box-shadow: 0 0 10px rgba(255,225,77,.35); }
+.q-item em { position: absolute; top: 2px; right: 3px; font-style: normal; font-weight: 900; font-size: 14px; color: var(--yel); text-shadow: 0 0 4px #000, 0 0 2px #000; }
+.q-total { display: flex; align-items: center; gap: 8px; margin-top: 12px; padding: 6px 10px; background: rgba(25,240,255,.08); border: 1px solid var(--line); }
+.q-total svg { width: 20px; height: 20px; } .q-total b { color: var(--cyan); font-size: 15px; } .q-total small { color: var(--dim); }
 .heroes { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 8px; }
 .hero { display: flex; gap: 10px; align-items: center; padding: 8px; background: rgba(28,22,56,.95); border: 1px solid var(--yel); clip-path: var(--cut); }
 .hero img { width: 64px; height: 64px; flex: none; }
