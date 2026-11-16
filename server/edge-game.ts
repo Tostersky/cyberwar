@@ -3,7 +3,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 // @ts-nocheck
 const G: any = {};
 // Game data: buildings, units, heroes, campaign. All numbers are CyberWar's own.
-G.TW = 64; G.TH = 32; G.MAP = 40; G.VERSION = '0.9.6';
+G.TW = 64; G.TH = 32; G.MAP = 40; G.VERSION = '0.10.0';
 G.BUILDERS = 2;
 
 // every array has one value per level (1..8)
@@ -33,6 +33,9 @@ G.BUILDINGS = {
   // anti-air missiles: big damage, flying targets only
   aa:         { size: 2, res: 'scrap',  cost: [8000, 14000, 22000, 32000, 46000, 64000, 88000, 120000], time: [600, 900, 1800, 3600, 5400, 7200, 9000, 10800],
                 hp: [600, 700, 800, 900, 1000, 1100, 1250, 1400], dmg: [80, 100, 125, 150, 180, 210, 245, 280], interval: 1.2, range: 8, defense: true, hits: 'air' },
+  // EMP pylon: every few seconds a shock wave hurts and slows every unit around it (ground and air)
+  emp:        { size: 2, res: 'scrap',  cost: [6000, 11000, 18000, 28000, 40000, 56000, 78000, 105000], time: [600, 900, 1800, 3600, 5400, 7200, 9000, 10800],
+                hp: [650, 750, 860, 980, 1100, 1240, 1380, 1530], dmg: [14, 18, 23, 29, 36, 44, 53, 63], interval: 5, range: 4.5, slow: 2.5, defense: true, hits: 'both', pulse: true },
   // hidden trap: explodes once when a ground unit steps close
   mine:       { size: 1, res: 'scrap',  cost: [500, 800, 1200, 1800, 2600, 3600, 5000, 7000], time: [0, 0, 0, 0, 0, 0, 0, 0],
                 hp: [1, 1, 1, 1, 1, 1, 1, 1], dmg: [60, 80, 105, 135, 170, 210, 255, 305], trap: true, splash: 1.5 },
@@ -45,9 +48,9 @@ G.LIMITS = {
   core: [1, 1, 1, 1, 1, 1, 1, 1], scrapyard: [2, 3, 4, 5, 6, 6, 7, 7], coppermine: [2, 3, 4, 5, 6, 6, 7, 7],
   vault: [1, 1, 2, 2, 3, 3, 4, 4], factory: [1, 1, 1, 1, 1, 1, 1, 1], squadhq: [1, 1, 1, 1, 1, 1, 1, 1],
   lab: [0, 1, 1, 1, 1, 1, 1, 1], clanhub: [0, 0, 1, 1, 1, 1, 1, 1], laser: [1, 2, 3, 4, 5, 5, 6, 6], mortar: [0, 0, 1, 1, 2, 2, 3, 3],
-  aa: [0, 0, 0, 1, 1, 2, 2, 3], mine: [0, 0, 2, 3, 4, 5, 6, 8], firewall: [25, 50, 75, 100, 150, 175, 200, 225],
+  aa: [0, 0, 0, 1, 1, 2, 2, 3], emp: [0, 0, 0, 0, 1, 1, 2, 2], mine: [0, 0, 2, 3, 4, 5, 6, 8], firewall: [25, 50, 75, 100, 150, 175, 200, 225],
 };
-G.SHOP = ['laser', 'mortar', 'aa', 'mine', 'firewall', 'scrapyard', 'coppermine', 'vault', 'factory', 'squadhq', 'lab', 'clanhub'];
+G.SHOP = ['laser', 'mortar', 'aa', 'emp', 'mine', 'firewall', 'scrapyard', 'coppermine', 'vault', 'factory', 'squadhq', 'lab', 'clanhub'];
 
 // laboratory research: unit level 2..5 (cost in copper, time in seconds); each level = +15% hitpoints and damage
 G.RESEARCH = { cost: [0, 1500, 5000, 14000, 32000], time: [0, 120, 600, 1800, 3600], maxLv: 5, bonus: 0.15 };
@@ -58,8 +61,10 @@ G.UNITS = {
   gunner: { cost: 50,  space: 1, hp: 32,  dmg: 11,  interval: 1.0, speed: 1.6, range: 3.5, time: 6,  unlock: 2, target: 'any' },
   drone:  { cost: 120, space: 2, hp: 45,  dmg: 160, interval: 0,   speed: 2.8, range: 0.4, time: 10, unlock: 3, target: 'defense', fly: true, splash: 1.3 },
   mech:   { cost: 300, space: 5, hp: 520, dmg: 42,  interval: 1.6, speed: 0.9, range: 0.9, time: 20, unlock: 4, target: 'defense' },
+  // field medic: doesn't attack; follows the squad and heals ground units and heroes around it
+  medic:  { cost: 150, space: 3, hp: 180, dmg: 0, heal: 18, healR: 2.6, interval: 1.0, speed: 1.5, range: 1.4, time: 15, unlock: 5, target: 'heal' },
 };
-G.UNIT_ORDER = ['runner', 'gunner', 'drone', 'mech'];
+G.UNIT_ORDER = ['runner', 'gunner', 'drone', 'mech', 'medic'];
 
 G.HEROES = {
   ronin: { hp: 950, dmg: 40, interval: 0.8, speed: 1.6, range: 0.7, unlock: 2, target: 'any' },
@@ -83,6 +88,17 @@ G.packById = (id) => G.CHIP_PACKS.find((p) => p.id === id);
 // rewarded ads: off until an ad account (AdSense / H5 Games Ads) is set up — then on:true + client id
 // chips come ONLY from purchases and the campaign: an ad gives resources (share of storage), never chips
 G.ADS = { on: false, client: '', resPct: 0.1, perDay: 5, cooldown: 90 };
+// daily login reward, 7-day streak (share of storage + bonus units). Never chips.
+G.DAILY = [
+  { pct: 0.05 }, { pct: 0.08 }, { pct: 0.10, units: { runner: 5 } }, { pct: 0.12 },
+  { pct: 0.15 }, { pct: 0.18, units: { gunner: 4 } }, { pct: 0.25, units: { mech: 2 } },
+];
+// daily missions: 3 a day picked from this pool; goal = fixed number or share of storage (cap)
+G.MISSIONS = {
+  collect_scrap: { cap: 0.3 }, collect_copper: { cap: 0.3 }, win: { goal: 2 }, stars: { goal: 5 },
+  build: { goal: 2 }, train: { goal: 15 }, raid: { goal: 1 },
+};
+G.MISSION_REWARD = 0.12; // share of storage, scrap + copper
 // VIP: monthly Google Play subscription — ad rewards without watching ads, no ads, gold badge (no chips!)
 G.VIP = { id: 'vip_monthly', price: '47 zł / mies.' };
 // chips -> resources exchange (fill 10% / 50% / to the top of storage)
@@ -136,11 +152,14 @@ G.genBase = function (p, seed) {
   for (let i = 0; i < (p.mortar || 0); i++) rest.push('mortar');
   for (let i = 0; i < (p.aa || 0); i++) rest.push('aa');
   if (p.lab) rest.push('lab');
+  for (let i = 0; i < (p.emp || 0); i++) rest.push('emp');
+  // defenses are placed first so they always fit near the core
+  rest.sort((a, b) => (G.BUILDINGS[b].defense ? 1 : 0) - (G.BUILDINGS[a].defense ? 1 : 0));
   for (const type of rest) {
     const s = G.BUILDINGS[type].size, def = G.BUILDINGS[type].defense;
-    for (let tries = 0; tries < 400; tries++) {
+    for (let tries = 0; tries < 900; tries++) {
       // defenses stay close to the core, economy buildings spread out
-      const spread = (def ? 4 : 7) + Math.floor(tries / 40);
+      const spread = Math.min(17, (def ? 4 : 7) + Math.floor(tries / 40));
       const x = Math.floor(20 - s / 2 + (r() * 2 - 1) * spread), y = Math.floor(20 - s / 2 + (r() * 2 - 1) * spread);
       if (free(x, y, s, 1)) { put(type, Math.min(blv, G.MAXLV), x, y); break; }
     }
@@ -166,6 +185,19 @@ G.PVE = [
   { core: 7, lasers: 6, laserLv: 6, rings: 2, wallLv: 6, wallLv2: 5, scrap: 4, copper: 4, vault: 4, factory: 1, hq: 1, mortar: 3, aa: 2, mines: 6, lab: 1, loot: { scrap: 40000, copper: 40000 }, seed: 88 },
 ];
 
+// campaign 9..20: max-level bases that keep getting tougher (hpMul = building hitpoints); 10, 15, 20 are bosses
+for (let n = 9; n <= 20; n++) {
+  const k = n - 8, boss = n % 5 === 0;
+  G.PVE.push({
+    core: 8, blv: 8, lasers: 6, laserLv: Math.min(8, 6 + Math.ceil(k / 3)), rings: 2,
+    wallLv: Math.min(8, 6 + Math.floor(k / 4)), wallLv2: Math.min(8, 5 + Math.floor(k / 4)),
+    scrap: 5, copper: 5, vault: 4, factory: 1, hq: 1, lab: 1,
+    mortar: 3, aa: Math.min(3, 2 + Math.floor(k / 6)), mines: Math.min(8, 6 + Math.floor(k / 3)), emp: k >= 7 ? 2 : k >= 2 ? 1 : 0,
+    loot: { scrap: 45000 + k * 12000, copper: 45000 + k * 12000 }, seed: 90 + k * 11,
+    hpMul: Math.round((1 + k * 0.06 + (boss ? 0.25 : 0)) * 100) / 100, boss,
+  });
+}
+
 G.BOT_NAMES = ['Vex_77', 'NeonGhost', 'KiloByte', 'RustQueen', 'Zer0Day', 'GlitchRat', 'ChromeFox', 'NullPtr',
   'VoltaKid', 'SynthWolf', 'Hexa', 'D4rkM4tter', 'PixelMonk', 'IronLotus', 'ByteBandit', 'OverClock'];
 
@@ -177,7 +209,7 @@ G.genBot = function (coreLv, seed) {
     core: c, lasers: Math.max(1, G.LIMITS.laser[c - 1] - (r() < 0.5 ? 1 : 0)), laserLv: c,
     rings: c >= 4 ? 2 : (c >= 2 ? 1 : (r() < 0.5 ? 1 : 0)), wallLv: Math.max(1, c - 1), wallLv2: Math.max(1, c - 2),
     scrap: Math.min(6, 1 + c), copper: Math.min(6, 1 + c), vault: G.LIMITS.vault[c - 1], factory: 1, hq: 1, blv: c,
-    mortar: G.LIMITS.mortar[c - 1], aa: G.LIMITS.aa[c - 1], mines: G.LIMITS.mine[c - 1], lab: G.LIMITS.lab[c - 1],
+    mortar: G.LIMITS.mortar[c - 1], aa: G.LIMITS.aa[c - 1], emp: G.LIMITS.emp[c - 1], mines: G.LIMITS.mine[c - 1], lab: G.LIMITS.lab[c - 1],
   };
   const loot = { scrap: Math.floor((300 + r() * 500) * c * c), copper: Math.floor((300 + r() * 500) * c * c) };
   const name = G.BOT_NAMES[Math.floor(r() * G.BOT_NAMES.length)];
@@ -218,7 +250,9 @@ G.genBot = function (coreLv, seed) {
     s.unitLv = s.unitLv || {}; for (const u of G.UNIT_ORDER) s.unitLv[u] = Math.max(1, Math.min(G.RESEARCH.maxLv, s.unitLv[u] | 0 || 1));
     if (s.research && !G.UNITS[s.research.u]) s.research = null;
     s.trophies = Math.max(0, Math.floor(+s.trophies || 0));
-    s.vipUntil = Math.max(0, +s.vipUntil || 0); if (typeof s.vipToken !== 'string') delete s.vipToken;
+    s.daily = s.daily && typeof s.daily.last === 'string' ? { last: s.daily.last, streak: Math.max(1, Math.min(7, s.daily.streak | 0)) } : null;
+    if (!(s.mis && typeof s.mis.day === 'string' && Array.isArray(s.mis.list) && s.mis.list.every((m) => m && G.MISSIONS[m.id]))) s.mis = null;
+    s.vipUntil = Math.max(0, +s.vipUntil || 0); s.shieldUntil = Math.max(0, +s.shieldUntil || 0); if (typeof s.vipToken !== 'string') delete s.vipToken;
     s.ads = s.ads && typeof s.ads.day === 'string' ? { day: s.ads.day, n: Math.max(0, s.ads.n | 0), last: +s.ads.last || 0 } : { day: '', n: 0, last: 0 };
     s.nextId = Math.max(s.nextId || 1, ...s.buildings.map((b) => b.id + 1), 1);
     for (const b of s.buildings) { if (b.last == null) b.last = now; if (b.acc == null) b.acc = 0; }
@@ -281,7 +315,7 @@ G.genBot = function (coreLv, seed) {
     if (s) {
       const moved = E.addRes(s, d.prod, Math.floor(b.acc));
       b.acc -= moved;
-      if (moved > 0) b.flow = (b.flow || 0) + moved;
+      if (moved > 0) { b.flow = (b.flow || 0) + moved; E.progress(s, now, 'collect_' + d.prod, moved); }
     }
   };
   E.ratePer = (b, sec) => (b.level > 0 && BD()[b.type].prod ? BD()[b.type].rate[b.level - 1] * sec / 3600 : 0);
@@ -298,7 +332,7 @@ G.genBot = function (coreLv, seed) {
     }
     while (s.queue.length) {
       const dur = G.UNITS[s.queue[0]].time * 1000;
-      if (now >= s.qStart + dur) { s.army[s.queue[0]]++; s.queue.shift(); s.qStart += dur; ev.push({ kind: 'trained' }); }
+      if (now >= s.qStart + dur) { s.army[s.queue[0]]++; s.queue.shift(); s.qStart += dur; ev.push({ kind: 'trained' }); E.progress(s, now, 'train', 1); }
       else break;
     }
     if (!s.queue.length) s.qStart = 0;
@@ -334,6 +368,48 @@ G.genBot = function (coreLv, seed) {
     return Math.max(0, Math.min(room, want));
   };
   E.isVip = (s, now) => s.vipUntil > now;
+
+  // ---------- daily login reward & daily missions (UTC days) ----------
+  E.today = (now) => new Date(now).toISOString().slice(0, 10);
+  E.dailyState = function (s, now) {
+    const today = E.today(now), yest = E.today(now - 86400000), d = s.daily || {};
+    if (d.last === today) return { claimable: false, day: d.streak || 1 };
+    return { claimable: true, day: d.last === yest ? (d.streak % 7) + 1 : 1 };
+  };
+  // gives resources (share of storage) and units that fit in the squad
+  function grant(s, pct, units) {
+    const gained = { scrap: 0, copper: 0 }, got = {};
+    for (const r of ['scrap', 'copper']) gained[r] = E.addRes(s, r, Math.floor(E.capOf(s, r) * pct));
+    for (const u in units || {}) {
+      for (let i = 0; i < units[u]; i++) {
+        if (E.armySpace(s) + E.queueSpace(s) + G.UNITS[u].space > E.housing(s)) break;
+        s.army[u] = (s.army[u] || 0) + 1; got[u] = (got[u] || 0) + 1;
+      }
+    }
+    return { gained, units: got };
+  }
+  const hashStr = (str) => { let h = 2166136261; for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; };
+  // today's 3 missions (the same on the phone and the server: seeded by the date and the save)
+  E.missions = function (s, now) {
+    const day = E.today(now);
+    if (s.mis && s.mis.day === day) return s.mis.list;
+    const ids = Object.keys(G.MISSIONS), r = G.rng(hashStr(day + ':' + (s.created || 0)));
+    const pick = [];
+    while (pick.length < 3) { const id = ids[Math.floor(r() * ids.length)]; if (!pick.includes(id)) pick.push(id); }
+    const list = pick.map((id) => {
+      const m = G.MISSIONS[id], res = id === 'collect_copper' ? 'copper' : 'scrap';
+      const goal = m.cap ? Math.max(500, Math.round(E.capOf(s, res) * m.cap / 100) * 100) : m.goal;
+      return { id, goal, n: 0, got: false };
+    });
+    s.mis = { day, list };
+    return list;
+  };
+  E.progress = function (s, now, id, n) {
+    if (!(n > 0)) return;
+    for (const m of E.missions(s, now)) if (m.id === id && !m.got) m.n = Math.min(m.goal, m.n + n);
+  };
+  // red dot on the Missions button
+  E.questDot = (s, now) => E.dailyState(s, now).claimable || E.missions(s, now).some((m) => m.n >= m.goal && !m.got);
   // rewarded ads today: {left, wait (seconds)}; the counter resets every UTC day
   E.adState = function (s, now) {
     const day = new Date(now).toISOString().slice(0, 10);
@@ -363,6 +439,7 @@ G.genBot = function (coreLv, seed) {
       const e = pay(s, d.res, d.cost[0]); if (e) return e;
       const b = { id: s.nextId++, type: cmd.type, level: dur > 0 ? 0 : 1, x: cmd.x, y: cmd.y, acc: 0, last: now, busyUntil: dur > 0 ? now + dur * 1000 : 0, busyStart: now, upTo: dur > 0 ? 1 : 0 };
       s.buildings.push(b);
+      E.progress(s, now, 'build', 1);
       return { ok: true, id: b.id };
     }
     if (c === 'upgrade') {
@@ -376,6 +453,7 @@ G.genBot = function (coreLv, seed) {
       E.updateCollector(b, now, s);
       if (u.time > 0) { b.busyUntil = now + u.time * 1000; b.busyStart = now; b.upTo = u.next; }
       else b.level = u.next;
+      E.progress(s, now, 'build', 1);
       return { ok: true };
     }
     if (c === 'finish') {
@@ -447,6 +525,26 @@ G.genBot = function (coreLv, seed) {
       const cost = 30 * E.coreLevel(s);
       return pay(s, 'copper', cost) || { ok: true };
     }
+    if (c === 'daily') { // daily login reward
+      const st = E.dailyState(s, now);
+      if (!st.claimable) return ERR('dailyDone');
+      const D = G.DAILY[st.day - 1];
+      const g = grant(s, D.pct, D.units);
+      s.daily = { last: E.today(now), streak: st.day };
+      return { ok: true, day: st.day, gained: g.gained, units: g.units };
+    }
+    if (c === 'mission') { // claim a finished daily mission
+      const m = E.missions(s, now)[cmd.i | 0];
+      if (!m || m.got) return ERR('missionDone');
+      if (m.n < m.goal) return ERR('missionNotDone');
+      m.got = true;
+      const g = grant(s, G.MISSION_REWARD);
+      return { ok: true, gained: g.gained };
+    }
+    if (c === 'revenged') { // revenge used for this attack (the server-side check is in revenge_target)
+      const e = s.defLog.find((a) => a.aid === cmd.aid); if (e) e.rev = true;
+      return { ok: true };
+    }
     if (c === 'buyRes') { // chips -> scrap/copper: 10%, 50% of storage, or fill it up
       const r = cmd.r;
       if (r !== 'scrap' && r !== 'copper') return ERR('server');
@@ -478,7 +576,7 @@ G.genBot = function (coreLv, seed) {
       return { ok: true };
     }
     if (c === 'reset') {
-      const keep = { name: s.name, owner: s.owner, trophies: s.trophies, lang: s.lang, settings: s.settings, defLog: s.defLog, vipUntil: s.vipUntil, vipToken: s.vipToken, vipCheck: s.vipCheck, ads: s.ads };
+      const keep = { name: s.name, owner: s.owner, trophies: s.trophies, lang: s.lang, settings: s.settings, defLog: s.defLog, vipUntil: s.vipUntil, vipToken: s.vipToken, vipCheck: s.vipCheck, ads: s.ads, daily: s.daily };
       const n = E.newGame(now, s.name);
       for (const k of Object.keys(s)) delete s[k];
       Object.assign(s, n, keep, { tut: 99 });
@@ -516,6 +614,11 @@ G.genBot = function (coreLv, seed) {
       // the server fills cmd.loot from the attack record (submit_attack already capped it)
       if (cmd.loot) for (const r of ['scrap', 'copper']) gained[r] = E.addRes(s, r, Math.max(0, cmd.loot[r] | 0));
     }
+    // daily missions: victories, stars, raids
+    const st = Math.max(0, Math.min(3, cmd.stars | 0, G.starsFor(pct)));
+    if (st > 0) E.progress(s, now, 'win', 1);
+    E.progress(s, now, 'stars', st);
+    if (cmd.mode !== 'pve') E.progress(s, now, 'raid', 1);
     return { ok: true, gained, chips };
   }
 
@@ -524,7 +627,7 @@ G.genBot = function (coreLv, seed) {
     for (const a of list) {
       s.res.scrap = Math.max(0, s.res.scrap - (a.loot_scrap | 0));
       s.res.copper = Math.max(0, s.res.copper - (a.loot_copper | 0));
-      s.defLog.unshift({ name: a.attacker_name, stars: a.stars, pct: a.pct, scrap: a.loot_scrap, copper: a.loot_copper, trophies: a.trophies, at: a.created_at });
+      s.defLog.unshift({ aid: a.id, name: a.attacker_name, stars: a.stars, pct: a.pct, scrap: a.loot_scrap, copper: a.loot_copper, trophies: a.trophies, at: a.created_at });
     }
     s.defLog = s.defLog.slice(0, 20);
   };
@@ -737,6 +840,9 @@ Deno.serve(async (req) => {
     if (prof) {
       const b = G.Econ.baseSnapshot(s);
       await admin.from('bases').upsert({ user_id: uid, username: prof.username, trophies: prof.trophies, core: b.core, layout: b.layout, loot_scrap: b.scrap, loot_copper: b.copper, updated_at: iso });
+      // PvP shield after being attacked (shown on the HUD)
+      const { data: bs } = await admin.from('bases').select('shield_until').eq('user_id', uid).maybeSingle();
+      s.shieldUntil = bs && bs.shield_until ? Date.parse(bs.shield_until) || 0 : 0;
     }
     return json({ state: s, results, defenses: defs || [], received: (inbox || []).map((r) => ({ unit: r.unit, from: r.from_name })) });
   } catch (e) {
