@@ -7,12 +7,13 @@ G.Clan = (function () {
   const EMBLEMS = ['#ff2bd6', '#19f0ff', '#ffe14d', '#39ff88', '#ff5a3c', '#b26bff', '#ffffff', '#ff8a1f'];
   const emblem = (i, size) => `<span class="emb" style="--c:${EMBLEMS[i | 0] || EMBLEMS[0]};width:${size || 34}px;height:${size || 34}px"><i></i></span>`;
   let my = null, tab = 'chat', msgs = [], lastId = 0, pollT = null, roster = [];
+  let blocked = new Set(), menuFor = null, reported = new Set();
 
   // friendly text for errors raised by the clan functions
   function errText(e) {
     const m = ((e && e.message) || '') + '';
     const map = [['already in a clan', 'clanErrIn'], ['clan name taken', 'clanErrTaken'], ['bad clan name', 'clanErrName'], ['clan full', 'clanErrFull'],
-      ['not enough trophies', 'clanErrTrophies'], ['too fast', 'err_rateLimit'], ['not allowed', 'clanErrPerm'], ['not in a clan', 'clanErrNotIn']];
+      ['not enough trophies', 'clanErrTrophies'], ['too fast', 'err_rateLimit'], ['not allowed', 'clanErrPerm'], ['not in a clan', 'clanErrNotIn'], ['chat muted', 'chatMuted']];
     for (const [k, v] of map) if (m.includes(k)) return t(v);
     return t('err_' + ((e && e.code) || 'server'));
   }
@@ -99,6 +100,7 @@ G.Clan = (function () {
     $('#cl-send').onclick = send;
     $('#cl-msg').onkeydown = (e) => { if (e.key === 'Enter') send(); };
     $('#cl-req').onclick = async () => { try { await G.Net.clan.request(t('clanAskText')); G.Sfx.play('train'); await poll(); } catch (e) { fail(e); } };
+    try { blocked = new Set((await G.Net.blocks()).map((b) => b.blocked_id)); } catch (_) {}
     try { msgs = await G.Net.clan.messages(my.id); lastId = msgs.length ? msgs[msgs.length - 1].id : 0; } catch (e) { fail(e); }
     drawMsgs(true);
     pollT = setInterval(() => { if (!document.hidden) poll().catch(() => {}); }, 3500);
@@ -115,7 +117,12 @@ G.Clan = (function () {
     const el = $('#cl-chat'); if (!el) return;
     const me = G.Net.uid();
     const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 30;
-    el.innerHTML = msgs.length ? msgs.map((m) => {
+    // other players' messages get a ⋮ menu: report / block (blocked players are hidden)
+    const more = (m) => (m.user_id && m.user_id !== me ? `<button class="msg-more" data-mm="${m.id}">⋮</button>${menuFor === m.id ? `<div class="msg-menu">
+        <button class="btn sm" data-rep="${m.id}" ${reported.has(m.id) ? 'disabled' : ''}>🚩 ${reported.has(m.id) ? t('reportedOk') : t('report')}</button>
+        <button class="btn sm danger" data-blk="${m.id}">⛔ ${t('blockPlayer')}</button></div>` : ''}` : '');
+    const shown = msgs.filter((m) => !m.user_id || !blocked.has(m.user_id));
+    el.innerHTML = shown.length ? shown.map((m) => {
       const time = new Date(m.created_at).toLocaleTimeString(G.lang, { hour: '2-digit', minute: '2-digit' });
       if (m.kind === 'system') return `<div class="msg sys">${esc(m.body)}</div>`;
       if (m.kind === 'request') {
@@ -128,9 +135,23 @@ G.Clan = (function () {
           ${donors ? `<small class="dim">${t('clanDonors')}: ${donors}</small>` : ''}
           ${btns ? `<div class="don-row">${btns}</div>` : (!mine && open ? `<small class="dim">${t('clanNoUnits')}</small>` : '')}</div>`;
       }
-      return `<div class="msg ${m.user_id === me ? 'me' : ''}"><b>${esc(m.username)}</b> <small>${time}</small><div>${esc(m.body)}</div></div>`;
+      return `<div class="msg ${m.user_id === me ? 'me' : ''}"><b>${esc(m.username)}</b> <small>${time}</small>${more(m)}<div>${esc(m.body)}</div></div>`;
     }).join('') : `<p class="hint">${t('clanEmpty')}</p>`;
     if (scroll || atBottom) el.scrollTop = el.scrollHeight;
+    el.querySelectorAll('.msg-more').forEach((b) => { b.onclick = () => { menuFor = menuFor === +b.dataset.mm ? null : +b.dataset.mm; drawMsgs(false); }; });
+    el.querySelectorAll('[data-rep]').forEach((b) => {
+      b.onclick = async () => {
+        const m = msgs.find((x) => x.id === +b.dataset.rep); if (!m) return;
+        try { await G.Net.report(m.user_id, m.username, m.id, m.body); reported.add(m.id); G.UI.notify(t('reportThanks')); } catch (e) { fail(e); }
+        drawMsgs(false);
+      };
+    });
+    el.querySelectorAll('[data-blk]').forEach((b) => {
+      b.onclick = () => {
+        const m = msgs.find((x) => x.id === +b.dataset.blk); if (!m) return;
+        G.Net.block(m.user_id, m.username).then(() => { blocked.add(m.user_id); menuFor = null; G.UI.notify(t('blockedOk', { n: m.username })); drawMsgs(false); }).catch(fail);
+      };
+    });
     el.querySelectorAll('.don').forEach((b) => {
       b.onclick = () => {
         const u = b.dataset.u;

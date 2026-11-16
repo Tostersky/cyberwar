@@ -1,6 +1,8 @@
 // Game data: buildings, units, heroes, campaign. All numbers are CyberWar's own.
-G.TW = 64; G.TH = 32; G.MAP = 40; G.VERSION = '0.11.1';
-G.BUILDERS = 2;
+G.TW = 64; G.TH = 32; G.MAP = 40; G.VERSION = '0.12.0';
+G.BUILDERS = 2; // builder drones at the start; more can be bought with chips (up to 5)
+G.BUILDER_PRICE = [0, 0, 250, 500, 1000]; // price of the 3rd, 4th and 5th drone
+G.BUILDERS_MAX = 5;
 
 // every array has one value per level (1..8)
 G.BUILDINGS = {
@@ -33,6 +35,14 @@ G.BUILDINGS = {
   // EMP pylon: every few seconds a shock wave hurts and slows every unit around it (ground and air)
   emp:        { size: 2, res: 'scrap',  cost: [6000, 11000, 18000, 28000, 40000, 56000, 78000, 105000], time: [600, 1200, 2400, 3600, 10800, 18000, 28800, 43200],
                 hp: [650, 750, 860, 980, 1100, 1240, 1380, 1530], dmg: [14, 18, 23, 29, 36, 44, 53, 63], interval: 5, range: 4.5, slow: 2.5, defense: true, hits: 'both', pulse: true },
+  // plasma (3rd resource, from Core 5): pumped by extractors, kept in plasma tanks; used for hero upgrades
+  extractor:  { size: 3, res: 'scrap',  cost: [20000, 26000, 33000, 42000, 55000, 80000, 120000, 170000], time: [600, 1200, 2400, 3600, 7200, 14400, 21600, 28800],
+                hp: [500, 550, 600, 650, 700, 760, 820, 880], prod: 'plasma', rate: [100, 140, 180, 230, 300, 380, 470, 580], cap: [400, 600, 800, 1000, 1300, 1600, 2000, 2500] },
+  tank:       { size: 2, res: 'copper', cost: [15000, 20000, 26000, 34000, 45000, 70000, 110000, 160000], time: [600, 1200, 2400, 3600, 7200, 14400, 21600, 28800],
+                hp: [500, 560, 620, 690, 760, 840, 920, 1000], store: [3000, 4500, 6000, 8000, 10000, 14000, 20000, 28000], storeRes: 'plasma' },
+  // Program Forge: compiles battle programs (spells); housing = how many programs it can hold
+  forge:      { size: 3, res: 'copper', cost: [6000, 12000, 20000, 40000, 80000, 130000, 200000, 260000], time: [600, 1800, 3600, 10800, 18000, 28800, 36000, 43200],
+                hp: [550, 650, 750, 850, 950, 1050, 1150, 1250], housing: [2, 2, 3, 3, 4, 4, 5, 6] },
   // hidden trap: explodes once when a ground unit steps close
   mine:       { size: 1, res: 'scrap',  cost: [500, 800, 1200, 1800, 2600, 3600, 5000, 7000], time: [0, 0, 0, 0, 0, 0, 0, 0],
                 hp: [1, 1, 1, 1, 1, 1, 1, 1], dmg: [60, 80, 105, 135, 170, 210, 255, 305], trap: true, splash: 1.5 },
@@ -57,10 +67,10 @@ G.refCap = (L) => G.BUILDINGS.core.store[L - 1] + G.BUILDINGS.vault.store[L - 1]
 G.LIMITS = {
   core: [1, 1, 1, 1, 1, 1, 1, 1], scrapyard: [2, 3, 4, 5, 6, 6, 7, 7], coppermine: [2, 3, 4, 5, 6, 6, 7, 7],
   vault: [1, 1, 2, 2, 3, 3, 4, 4], factory: [1, 1, 1, 1, 1, 1, 1, 1], squadhq: [1, 1, 1, 1, 1, 1, 1, 1],
-  lab: [0, 1, 1, 1, 1, 1, 1, 1], clanhub: [0, 0, 1, 1, 1, 1, 1, 1], laser: [1, 2, 3, 4, 5, 5, 6, 6], mortar: [0, 0, 1, 1, 2, 2, 3, 3],
+  lab: [0, 1, 1, 1, 1, 1, 1, 1], forge: [0, 0, 0, 1, 1, 1, 1, 1], extractor: [0, 0, 0, 0, 1, 2, 2, 3], tank: [0, 0, 0, 0, 1, 1, 2, 2], clanhub: [0, 0, 1, 1, 1, 1, 1, 1], laser: [1, 2, 3, 4, 5, 5, 6, 6], mortar: [0, 0, 1, 1, 2, 2, 3, 3],
   aa: [0, 0, 0, 1, 1, 2, 2, 3], emp: [0, 0, 0, 0, 1, 1, 2, 2], mine: [0, 0, 2, 3, 4, 5, 6, 8], firewall: [25, 50, 75, 100, 150, 175, 200, 225],
 };
-G.SHOP = ['laser', 'mortar', 'aa', 'emp', 'mine', 'firewall', 'scrapyard', 'coppermine', 'vault', 'factory', 'squadhq', 'lab', 'clanhub'];
+G.SHOP = ['laser', 'mortar', 'aa', 'emp', 'mine', 'firewall', 'scrapyard', 'coppermine', 'vault', 'factory', 'squadhq', 'lab', 'forge', 'extractor', 'tank', 'clanhub'];
 
 // laboratory research: unit level 2..5 (cost in copper, time in seconds); each level = +15% hitpoints and damage
 G.RESEARCH = { cost: [0, 1500, 5000, 14000, 32000], time: [0, 600, 3600, 3 * 3600, 8 * 3600], maxLv: 5, bonus: 0.15 };
@@ -81,6 +91,18 @@ G.HEROES = {
   nyx:   { hp: 520, dmg: 30, interval: 0.9, speed: 1.5, range: 4.0, unlock: 4, target: 'any' },
 };
 G.HERO_ORDER = ['ronin', 'nyx'];
+// hero levels 1..10, paid in plasma; max level = Squad HQ level + 2; +8% hitpoints/damage per level
+G.HERO_UP = { cost: [0, 1500, 2500, 3500, 5000, 7000, 9000, 12000, 16000, 20000], time: [0, 1800, 3600, 7200, 14400, 21600, 28800, 36000, 43200, 57600] };
+G.HERO_MAX = 10;
+G.heroRestMin = (lv) => 5 + 2 * lv; // minutes a fallen hero needs to recover
+
+// battle programs (spells), compiled in the Program Forge; deployed as a zone on the battlefield
+G.SPELLS = {
+  heal: { cost: 400, time: 90,  unlock: 1, radius: 3,   dur: 6, power: 28, color: '#39ff88' },  // heals units inside (hp/s)
+  rage: { cost: 700, time: 150, unlock: 2, radius: 3,   dur: 8, power: 1.5, color: '#ff2bd6' }, // x1.5 damage, faster units
+  jam:  { cost: 900, time: 210, unlock: 3, radius: 3.5, dur: 5, color: '#7fd8ff' },              // switches defenses off
+};
+G.SPELL_ORDER = ['heal', 'rage', 'jam'];
 
 G.BATTLE_TIME = 180;
 // creating a clan costs premium chips (500 chips = the 14,99 zł chip pack in the shop)
@@ -203,7 +225,7 @@ for (let n = 9; n <= 20; n++) {
     wallLv: Math.min(8, 6 + Math.floor(k / 4)), wallLv2: Math.min(8, 5 + Math.floor(k / 4)),
     scrap: 5, copper: 5, vault: 4, factory: 1, hq: 1, lab: 1,
     mortar: 3, aa: Math.min(3, 2 + Math.floor(k / 6)), mines: Math.min(8, 6 + Math.floor(k / 3)), emp: k >= 7 ? 2 : k >= 2 ? 1 : 0,
-    loot: { scrap: 45000 + k * 12000, copper: 45000 + k * 12000 }, seed: 90 + k * 11,
+    loot: { scrap: 45000 + k * 12000, copper: 45000 + k * 12000, plasma: 400 + k * 250 }, seed: 90 + k * 11,
     hpMul: Math.round((1 + k * 0.06 + (boss ? 0.25 : 0)) * 100) / 100, boss,
   });
 }

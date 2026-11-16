@@ -130,7 +130,8 @@
   const HGT = {
     core: (L) => 52 + L * 12, scrapyard: (L) => 46 + L * 4, coppermine: (L) => 58 + L * 5, vault: (L) => 34 + L * 6,
     factory: (L) => 26 + L * 3, squadhq: (L) => 22 + L * 3, laser: (L) => 12 + L * 2, firewall: (L) => 15 + L * 2,
-    mortar: (L) => 14 + L * 2, aa: (L) => 14 + L * 2, emp: (L) => 16 + L * 2, mine: () => 3, lab: (L) => 24 + L * 3, clanhub: (L) => 30 + L * 4,
+    mortar: (L) => 14 + L * 2, aa: (L) => 14 + L * 2, emp: (L) => 16 + L * 2, mine: () => 3,
+    forge: (L) => 26 + L * 3, extractor: (L) => 20 + L * 3, tank: (L) => 14 + L * 2, lab: (L) => 24 + L * 3, clanhub: (L) => 30 + L * 4,
   };
   A.laserHeight = HGT.laser;
 
@@ -397,6 +398,57 @@
       // radar dish
       x.fillStyle = '#9aa0c0'; x.beginPath(); x.ellipse(c[0] + 14, c[1] - h - 8, 6, 3, 0.5, 0, Math.PI * 2); x.fill();
       return h + 34;
+    },
+    // Program Forge: a server block with glowing code screens and an antenna array
+    forge(x, ox, oy, s, L) {
+      const h = HGT.forge(L), t = TRIM[L - 1];
+      shadow(x, ox, oy, s, h); pad(x, ox, oy, s);
+      const f = box(x, ox, oy, 0.35, 0.35, s - 0.35, s - 0.35, 3, h, pal('#232a3e'));
+      // rows of server lights and two "code" screens
+      for (let z = 10; z < h - 6; z += 7) faceLines(x, f, z, 'rgba(25,240,255,.18)', 0.6);
+      for (const [face, k] of [['L', 0.35], ['R', 0.6]]) {
+        const p = fp(f, face, k, h * 0.55);
+        x.save(); x.translate(p[0], p[1]); x.transform(1, face === 'L' ? 0.5 : -0.5, 0, 1, 0, 0);
+        x.fillStyle = '#04121a'; x.fillRect(-11, -9, 22, 16); glow(x, '#39ff88', 8);
+        x.fillStyle = '#39ff88'; for (let i = 0; i < 5; i++) x.fillRect(-9, -7 + i * 3, 4 + ((i * 7 + L) % 12), 1.2);
+        noglow(x); x.restore();
+      }
+      faceLines(x, f, h - 3, t, 1.3);
+      const c = P(ox, oy, s / 2, s / 2);
+      for (let i = -1; i <= 1; i++) { line(x, [c[0] + i * 10, c[1] - h], [c[0] + i * 10, c[1] - h - 14 - (i === 0 ? 8 : 0)], '#8a90a8', 1.2); dot(x, c[0] + i * 10, c[1] - h - 15 - (i === 0 ? 8 : 0), 1.8, t, 8); }
+      return h + 26;
+    },
+    // plasma extractor: a drill rig pumping glowing purple plasma into a glass column
+    extractor(x, ox, oy, s, L) {
+      const h = HGT.extractor(L);
+      shadow(x, ox, oy, s, h + 20); pad(x, ox, oy, s);
+      const f = box(x, ox, oy, 0.25, 0.25, s - 1.3, s - 0.25, 3, h * 0.6, pal('#2d2438'));
+      faceLines(x, f, h * 0.6 - 4, '#b26bff', 1);
+      const c = P(ox, oy, s - 0.75, s / 2);
+      cyl(x, c[0], c[1], 9, 3, h + 16, '#3a2a55', '#b26bff');
+      x.save(); x.globalAlpha = 0.85; const g = x.createLinearGradient(0, c[1] - h - 14, 0, c[1]);
+      g.addColorStop(0, '#f3d6ff'); g.addColorStop(0.4, '#b26bff'); g.addColorStop(1, '#4a1a8a');
+      x.fillStyle = g; x.fillRect(c[0] - 5, c[1] - h - 12, 10, h + 8); x.restore();
+      glow(x, '#b26bff', 14); x.strokeStyle = '#d9a8ff'; x.lineWidth = 1; x.strokeRect(c[0] - 5, c[1] - h - 12, 10, h + 8); noglow(x);
+      const d0 = P(ox, oy, 0.9, s / 2);
+      line(x, [d0[0], d0[1] - h * 0.6], [d0[0], d0[1] - h - 18], '#6a6a86', 2.4);
+      line(x, [d0[0] - 8, d0[1] - h - 14], [d0[0] + 8, d0[1] - h - 10], '#6a6a86', 1.6);
+      return h + 30;
+    },
+    // plasma tank: armoured sphere with a glowing window
+    tank(x, ox, oy, s, L) {
+      const h = HGT.tank(L), t = TRIM[L - 1];
+      shadow(x, ox, oy, s, h + 24); pad(x, ox, oy, s);
+      const c = P(ox, oy, s / 2, s / 2), cy = c[1] - h;
+      x.strokeStyle = '#4a4a5e'; x.lineWidth = 2.4;
+      for (const dx of [-14, 14]) { x.beginPath(); x.moveTo(c[0] + dx, c[1] - 2); x.lineTo(c[0] + dx * 0.6, cy + 6); x.stroke(); }
+      const g = x.createRadialGradient(c[0] - 6, cy - 8, 2, c[0], cy, 22);
+      g.addColorStop(0, '#6a5a8a'); g.addColorStop(1, '#1e1830');
+      x.fillStyle = g; x.beginPath(); x.arc(c[0], cy, 20, 0, Math.PI * 2); x.fill();
+      x.strokeStyle = t; x.lineWidth = 1.2; x.beginPath(); x.ellipse(c[0], cy, 20, 6, 0, 0, Math.PI * 2); x.stroke();
+      glow(x, '#b26bff', 14); x.fillStyle = '#b26bff'; x.beginPath(); x.ellipse(c[0] + 4, cy - 2, 7, 9, 0, 0, Math.PI * 2); x.fill(); noglow(x);
+      x.fillStyle = 'rgba(255,255,255,.35)'; x.beginPath(); x.ellipse(c[0] - 8, cy - 9, 5, 3, -0.5, 0, Math.PI * 2); x.fill();
+      return h + 26;
     },
     // EMP pylon: armoured base, a tall coil with copper rings and an energy orb on top
     emp(x, ox, oy, s, L) {
@@ -675,6 +727,17 @@
       ctx.translate(fn[0], fn[1] - h - 10); ctx.scale(1, 0.5); ctx.rotate(t * 8);
       ctx.fillStyle = '#8a8098';
       for (let k = 0; k < 4; k++) { ctx.rotate(Math.PI / 2); ctx.fillRect(-1.2, 0, 2.4, 7); }
+    } else if (type === 'extractor') {
+      // bubbling plasma column
+      const h = HGT.extractor(L), c = Pw(s - 0.75, s / 2);
+      ctx.globalCompositeOperation = 'lighter';
+      light(ctx, '#b26bff', c[0], c[1] - h * 0.6, 14, 0.35 + Math.sin(t * 3 + seed) * 0.15);
+      const by = c[1] - ((t * 30 + seed * 7) % (h + 4));
+      ctx.fillStyle = 'rgba(243,214,255,.8)'; ctx.beginPath(); ctx.arc(c[0] + Math.sin(t * 5) * 2, by, 1.6, 0, Math.PI * 2); ctx.fill();
+    } else if (type === 'forge') {
+      const h = HGT.forge(L), c = Pw(s / 2, s / 2);
+      ctx.globalCompositeOperation = 'lighter';
+      light(ctx, '#39ff88', c[0], c[1] - h - 23, 6, Math.sin(t * 7 + seed) > 0 ? 0.9 : 0.2);
     } else if (type === 'emp') {
       // charging orb + electric arcs
       const h = HGT.emp(L), c = Pw(s / 2, s / 2), oy2 = c[1] - h - 38;

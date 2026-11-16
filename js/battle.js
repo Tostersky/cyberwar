@@ -25,14 +25,17 @@
     b.avail = Object.assign({}, G.state.army); b.used = {};
     b.availClan = Object.assign({}, G.state.clanArmy || {}); b.usedClan = {};
     b.heroes = {};
-    for (const h of G.HERO_ORDER) if (G.heroUnlocked(h)) b.heroes[h] = { state: 'ready', unit: null, abil: 'ready' };
+    // heroes that are resting after a lost fight, or being upgraded, stay home
+    for (const h of G.HERO_ORDER) if (G.heroUnlocked(h) && G.Econ.heroReady(G.state, h, Date.now())) b.heroes[h] = { state: 'ready', unit: null, abil: 'ready' };
+    b.availSpells = Object.assign({}, G.state.spells || {}); b.usedSpells = {}; b.zones = [];
     b.units = []; b.fx = []; b.deployed = 0;
     b.sel = nextSel();
     b.holdAcc = 0;
     b.cam.center(); b.cam.z *= 1.05;
     // scouting someone's village: just look, nothing can be deployed
+    b.dep = {}; // what was deployed (sent to the server, which checks the result against it)
     if (opts.mode === 'scout') { b.avail = {}; b.availClan = {}; b.heroes = {}; b.sel = null; b.ended = true; b.showZone = 0; }
-    else G.state.flags.battled = true;
+    else { G.state.flags.battled = true; G.act({ c: 'bstart', mode: opts.mode }); }
     G.Sfx.play('open');
     G.scene = b;
     G.UI.showBattle();
@@ -161,12 +164,13 @@
   function spawn(type, tx, ty, hero) {
     // laboratory levels make units tougher and stronger
     const base = hero ? G.HEROES[type] : G.UNITS[type];
-    const mul = hero ? 1 : G.unitMul(G.state.unitLv && G.state.unitLv[type]);
+    const mul = hero ? G.Econ.heroMul(G.state, type) : G.unitMul(G.state.unitLv && G.state.unitLv[type]);
     const def = Object.assign({}, base, { hp: Math.round(base.hp * mul), dmg: Math.round(base.dmg * mul), heal: Math.round((base.heal || 0) * mul) });
     const u = { type, hero, def, x: tx, y: ty, hp: def.hp, maxHp: def.hp, cd: 0.2, target: null, wall: null, path: null,
       dead: false, fly: !!def.fly, flip: false, anim: Math.random() * 5, jx: (Math.random() - 0.5) * 0.5, jy: (Math.random() - 0.5) * 0.5, storm: 0, hitT: 0 };
     Bt.units.push(u);
     Bt.deployed++;
+    Bt.dep[type] = (Bt.dep[type] || 0) + 1;
     return u;
   }
 
@@ -175,6 +179,19 @@
     if (b.ended || !b.sel) return;
     const [tx, ty] = b.cam.toTile(sx, sy);
     const ix = Math.floor(tx), iy = Math.floor(ty);
+    if (b.sel.startsWith('s:') && ix >= 0 && iy >= 0 && ix < M && iy < M) {
+      // battle program: a zone of effect, may be cast anywhere (also over the base)
+      const k = b.sel.slice(2), d = G.SPELLS[k];
+      if (!(b.availSpells[k] > 0)) return false;
+      b.availSpells[k]--; b.usedSpells[k] = (b.usedSpells[k] || 0) + 1; b.dep._spells = (b.dep._spells || 0) + 1;
+      b.zones.push({ k, x: tx, y: ty, r: d.radius, t: d.dur, max: d.dur });
+      const w = G.tileToWorld(tx, ty);
+      b.fx.push({ k: 'ring', x: w[0], y: w[1], r: d.radius * G.TW * 0.7, life: 0.6, max: 0.6, color: d.color });
+      G.Sfx.play('zap');
+      if (b.availSpells[k] <= 0) b.sel = nextSel();
+      G.UI.battleCards();
+      return true;
+    }
     if (ix < 0 || iy < 0 || ix >= M || iy >= M || b.noDeploy[iy * M + ix]) {
       b.showZone = 1.5;
       if (!b.zoneToastT || b.t - b.zoneToastT > 1.5) { G.UI.toast(G.t('noDeploy')); b.zoneToastT = b.t; }
@@ -191,6 +208,7 @@
       if (!(b.availClan[u] > 0)) return false;
       b.availClan[u]--; b.usedClan[u] = (b.usedClan[u] || 0) + 1;
       spawn(u, tx, ty, false).clan = true;
+      Bt.dep[u]--; Bt.dep['c:' + u] = (Bt.dep['c:' + u] || 0) + 1; // count clan units separately
       if (b.availClan[u] <= 0) b.sel = nextSel();
     } else {
       if (!(b.avail[b.sel] > 0)) return false;
@@ -207,6 +225,21 @@
     const b = Bt;
     return G.UNIT_ORDER.find((u) => b.avail[u] > 0) || (G.UNIT_ORDER.filter((u) => b.availClan[u] > 0).map((u) => 'c:' + u)[0])
       || Object.keys(b.heroes).find((h) => b.heroes[h].state === 'ready') || null;
+  }
+  // battle programs active this frame: heal / rage zones on units, jam zones on defenses
+  function stepZones(dt) {
+    const b = Bt;
+    for (const z of b.zones) {
+      z.t -= dt; if (z.t <= 0) continue;
+      const d = G.SPELLS[z.k];
+      if (z.k === 'jam') { for (const q of b.bs) if (q.defense && !q.dead && Math.hypot(q.x + q.size / 2 - z.x, q.y + q.size / 2 - z.y) <= z.r + q.size / 2) q.dis = Math.max(q.dis, 0.15); continue; }
+      for (const u of b.units) {
+        if (u.dead || Math.hypot(u.x - z.x, u.y - z.y) > z.r) continue;
+        if (z.k === 'heal') u.hp = Math.min(u.maxHp, u.hp + d.power * dt);
+        else if (z.k === 'rage') u.rage = 0.15;
+      }
+    }
+    b.zones = b.zones.filter((z) => z.t > 0);
   }
 
   Bt.useAbility = function (h) {
@@ -264,11 +297,12 @@
     u.anim += dt; if (u.hitT > 0) u.hitT -= dt;
     if (u.atkT > 0) u.atkT -= dt;
     if (u.slow > 0) u.slow -= dt;
+    if (u.rage > 0) u.rage -= dt;
     u.moving = false;
     if (u.def.target === 'heal') { stepMedic(u, dt); return; }
     if (u.storm > 0) {
       u.storm -= dt;
-      for (const q of b.bs) if (!q.dead && distRect(u.x, u.y, q) <= 1.6) damageB(q, 70 * dt);
+      for (const q of b.bs) if (!q.dead && distRect(u.x, u.y, q) <= 1.6) damageB(q, 70 * dt * G.Econ.heroMul(G.state, 'ronin'));
     }
     if (u.target == null || b.bs[u.target].dead) {
       u.target = pickTarget(u); u.wall = null; u.path = null;
@@ -291,7 +325,7 @@
       u.cd -= dt;
       if (u.cd <= 0) {
         u.cd = u.def.interval; u.atkT = 0.25;
-        damageB(goal, u.def.dmg);
+        damageB(goal, u.def.dmg * (u.rage > 0 ? G.SPELLS.rage.power : 1));
         const from = unitW(u), to = centerW(goal);
         G.Sfx.play(u.def.range > 1.5 ? 'shot' : 'hit');
         if (u.def.range > 1.5) b.fx.push({ k: 'bolt', x1: from[0] + (u.flip ? -14 : 14), y1: from[1] - 6, x2: to[0], y2: to[1], color: G.Art.UCOL[u.type], life: 0.16, max: 0.16 });
@@ -303,7 +337,7 @@
     if (!u.fly && u.path && u.path.length) { tx = u.path[0].x; ty = u.path[0].y; }
     else if (!u.fly && u.wall != null) { [tx, ty] = closest(u.x, u.y, b.bs[u.wall]); }
     else { [tx, ty] = closest(u.x, u.y, tq); }
-    const dx = tx - u.x, dy = ty - u.y, d = Math.hypot(dx, dy), stp = u.def.speed * dt * (u.slow > 0 ? 0.5 : 1);
+    const dx = tx - u.x, dy = ty - u.y, d = Math.hypot(dx, dy), stp = u.def.speed * dt * (u.slow > 0 ? 0.5 : 1) * (u.rage > 0 ? 1.3 : 1);
     if (Math.abs(dx - dy) > 0.01) u.flip = (dx - dy) < 0;
     u.moving = true;
     if (d <= stp) { u.x = tx; u.y = ty; if (u.path && u.path.length) u.path.shift(); }
@@ -425,6 +459,7 @@
     } else b.holdAcc = 0;
     const sub = Math.ceil(dt / 0.034), sdt = dt / sub;
     for (let k = 0; k < sub; k++) {
+      stepZones(sdt);
       for (const u of b.units) if (!u.dead) stepUnit(u, sdt);
       for (const q of b.bs) if (q.defense && !q.dead) stepDefense(q, sdt);
       stepTraps();
@@ -453,14 +488,17 @@
     // only units that died are lost; survivors (and units never deployed) stay in the army
     const used = {};
     for (const u of b.units) if (!u.hero && !u.clan && u.dead) used[u.type] = (used[u.type] || 0) + 1;
-    const usedClan = b.usedClan;
+    const usedClan = b.usedClan, usedSpells = b.usedSpells || {};
+    // a hero that fell in battle rests for a while
+    for (const h of Object.keys(b.heroes)) if (b.heroes[h].unit && b.heroes[h].unit.dead) G.Econ.heroFell(s, h, Date.now());
     const real = o.mode === 'pvp' && o.defender;
     let r;
     // loot and chips are decided by the shared economy rules (again on the server)
-    if (o.mode === 'pve') r = G.act({ c: 'battle', mode: 'pve', level: o.level, stars, pct, used, usedClan });
-    else if (!real) r = G.act({ c: 'battle', mode: 'bot', loot: o.base.loot, pct, used, usedClan });
+    const proof = { deployed: b.dep, dur: Math.round(b.t * 10) / 10, usedSpells, fell: Object.keys(b.heroes).filter((h) => b.heroes[h].unit && b.heroes[h].unit.dead) };
+    if (o.mode === 'pve') r = G.act(Object.assign({ c: 'battle', mode: 'pve', level: o.level, stars, pct, used, usedClan }, proof));
+    else if (!real) r = G.act(Object.assign({ c: 'battle', mode: 'bot', loot: o.base.loot, seed: o.seed, pct, used, usedClan }, proof));
     else {
-      // real player: show the loot now; the server credits it from the attack record it creates
+      // real player: show the loot now; the server checks the battle and credits what it accepts
       const want = { scrap: Math.floor(o.base.loot.scrap * pct), copper: Math.floor(o.base.loot.copper * pct) };
       r = G.Econ.apply(s, { c: 'battle', mode: 'pvp', loot: want, used, usedClan }, Date.now());
     }
@@ -471,13 +509,11 @@
     G.UI.showResult({ stars, pct, gained, trophies: real ? null : 0, chips, mode: o.mode, bot: o.mode === 'pvp' && !real });
     if (real) {
       s.shieldUntil = 0; // attacking a real player drops your own shield
-      // the server checks the loot, moves trophies, shields the defender and returns the attack id
-      G.Net.submitAttack(o.defender, stars, Math.round(pct * 100), gained.scrap, gained.copper)
-        .then((res) => {
-          s.trophies = Math.max(0, s.trophies + res.delta); G.save(true); G.UI.setResultTrophies(res.delta);
-          G.Net.queue({ c: 'battle', mode: 'pvp', attack: res.id, used, usedClan, pct });
-        })
-        .catch(() => { G.UI.setResultTrophies(null); G.Net.queue({ c: 'battle', mode: 'pvp', used, usedClan, pct }); });
+      // the server checks the battle, moves trophies, shields the defender and credits the loot
+      const cmd = Object.assign({ c: 'battle', mode: 'pvp', defender: o.defender, stars, pct, used, usedClan }, proof);
+      G.Net.callNow(cmd)
+        .then((res) => { G.UI.setResultTrophies(res && !res.err ? res.delta : null); })
+        .catch(() => { G.UI.setResultTrophies(null); G.Net.queue(cmd); });
     }
   };
 
@@ -509,6 +545,14 @@
       b.cam.x += (Math.random() - 0.5) * k; b.cam.y += (Math.random() - 0.5) * k;
     }
     G.R.begin(ctx, b.cam);
+    // active battle programs: glowing circles on the ground
+    for (const z of b.zones || []) {
+      const d = G.SPELLS[z.k], w = G.tileToWorld(z.x, z.y), a = Math.min(1, z.t / 0.6) * (0.75 + Math.sin(b.t * 6) * 0.15);
+      ctx.save(); ctx.globalAlpha = 0.22 * a; ctx.fillStyle = d.color;
+      ctx.beginPath(); ctx.ellipse(w[0], w[1], z.r * G.TW * 0.7, z.r * G.TH * 0.7, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = 0.8 * a; ctx.strokeStyle = d.color; ctx.lineWidth = 2; ctx.setLineDash([8, 6]); ctx.lineDashOffset = -b.t * 30; ctx.stroke();
+      ctx.restore();
+    }
     if (b.showZone > 0) {
       ctx.save(); ctx.globalAlpha = Math.min(1, b.showZone) * 0.5; ctx.fillStyle = '#ff3355';
       for (let y = 0; y < M; y++) for (let x = 0; x < M; x++) if (b.noDeploy[y * M + x]) {

@@ -245,12 +245,47 @@ G.Net = (function () {
   };
   N.feedbackList = async function () {
     await ensureFresh();
-    return await req('/rest/v1/feedback?select=id,created_at,username,kind,body,version,device,status,note&order=created_at.desc&limit=500', { auth: true });
+    return await req('/rest/v1/feedback?select=id,created_at,username,kind,body,version,device,status,note,target_user,target_msg&order=created_at.desc&limit=500', { auth: true });
   };
   N.feedbackUpdate = async function (id, fields) {
     await ensureFresh();
     await req('/rest/v1/feedback?id=eq.' + id, { method: 'PATCH', auth: true, headers: { Prefer: 'return=minimal' }, body: fields });
   };
+  // ---------- push notifications ----------
+  N.pushSupported = () => 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+  N.pushOn = async function () {
+    if (!N.pushSupported()) throw new NetError('pushNo');
+    const perm = await Notification.requestPermission();
+    if (perm !== 'granted') throw new NetError('pushDenied');
+    const reg = await navigator.serviceWorker.ready;
+    const k = await N.callNow({ c: 'pushKey' });
+    if (!k || !k.key) throw new NetError('server');
+    const raw = atob(k.key.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat((4 - k.key.length % 4) % 4));
+    const appKey = Uint8Array.from(raw, (c) => c.charCodeAt(0));
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: appKey });
+    const r = await N.callNow({ c: 'pushSub', sub: sub.toJSON(), lang: G.lang });
+    if (r.err) throw new NetError(r.err);
+    try { localStorage.setItem('cyberwar_push', '1'); } catch (_) {}
+  };
+  N.pushOffNow = async function () {
+    try { const reg = await navigator.serviceWorker.ready; const sub = await reg.pushManager.getSubscription(); if (sub) await sub.unsubscribe(); } catch (_) {}
+    try { localStorage.removeItem('cyberwar_push'); } catch (_) {}
+    await N.callNow({ c: 'pushOff' });
+  };
+  N.pushIsOn = () => { try { return localStorage.getItem('cyberwar_push') === '1' && Notification.permission === 'granted'; } catch (_) { return false; } };
+
+  // ---------- moderation: block / report / admin tools ----------
+  N.blocks = async function () { await ensureFresh(); return (await req('/rest/v1/blocks?select=blocked_id,blocked_name&user_id=eq.' + N.uid(), { auth: true })) || []; };
+  N.block = async function (id, name) { await ensureFresh(); await req('/rest/v1/blocks', { method: 'POST', auth: true, headers: { Prefer: 'return=minimal,resolution=ignore-duplicates' }, body: { user_id: N.uid(), blocked_id: id, blocked_name: name } }); };
+  N.unblock = async function (id) { await ensureFresh(); await req('/rest/v1/blocks?user_id=eq.' + N.uid() + '&blocked_id=eq.' + id, { method: 'DELETE', auth: true, headers: { Prefer: 'return=minimal' } }); };
+  N.report = async function (id, name, msgId, text) {
+    await ensureFresh();
+    await req('/rest/v1/feedback', { method: 'POST', auth: true, headers: { Prefer: 'return=minimal' },
+      body: { user_id: N.uid(), kind: 'report', body: ('🚩 ' + name + ': «' + String(text || '').slice(0, 300) + '»').slice(0, 1000), version: G.VERSION, device: '', target_user: id, target_msg: msgId || null } });
+  };
+  N.deleteMessage = async function (id) { await ensureFresh(); await req('/rest/v1/clan_messages?id=eq.' + id, { method: 'DELETE', auth: true, headers: { Prefer: 'return=minimal' } }); };
+  N.mute = async function (id, days) { await ensureFresh(); await rpc('admin_mute', { p_user: id, p_days: days }); };
   // find players by nickname / look at someone's village
   N.searchPlayers = async function (q) { await ensureFresh(); return (await rpc('search_players', { p_q: q })) || []; };
   N.viewBase = async function (uid) { await ensureFresh(); const r = await rpc('view_base', { p_user: uid }); return r && r[0] ? r[0] : null; };

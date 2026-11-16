@@ -23,7 +23,7 @@
         if (n <= 0) continue;
         b.flow -= n;
         const [wx, wy] = G.tileToWorld(b.x + d.size / 2, b.y + d.size / 2);
-        V.floats.push({ wx, wy: wy - Math.min(G.Art.sprite(b.type, b.level).top, 70), text: '+' + n, color: d.prod === 'scrap' ? '#ffb060' : '#ffc8a0', life: 1.8, icon: d.prod });
+        V.floats.push({ wx, wy: wy - Math.min(G.Art.sprite(b.type, b.level).top, 70), text: '+' + n, color: d.prod === 'scrap' ? '#ffb060' : d.prod === 'plasma' ? '#d9a8ff' : '#ffc8a0', life: 1.8, icon: d.prod });
       }
     }
     for (const f of V.floats) { f.life -= dt; f.wy -= 30 * dt; }
@@ -295,7 +295,7 @@
     if (V.bubbleAt(b)) {
       const [cx, cy] = G.tileToWorld(b.x + s / 2, b.y + s / 2);
       const by = cy - sp.top - 6 + Math.sin(V.t * 3 + b.id) * 3;
-      const col = d.prod === 'scrap' ? '#ff8a1f' : '#e8955a';
+      const col = d.prod === 'scrap' ? '#ff8a1f' : d.prod === 'plasma' ? '#b26bff' : '#e8955a';
       ctx.save(); ctx.fillStyle = 'rgba(10,8,22,.9)'; ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.shadowColor = col; ctx.shadowBlur = 10;
       ctx.beginPath(); ctx.arc(cx, by, 11, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); ctx.restore();
       if (d.prod === 'scrap') { ctx.save(); ctx.strokeStyle = col; ctx.lineWidth = 2.2; ctx.beginPath(); ctx.arc(cx, by, 4, 0, Math.PI * 2); ctx.stroke();

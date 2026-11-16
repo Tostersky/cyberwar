@@ -24,6 +24,10 @@
     x: '<svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" stroke="#fff" stroke-width="3" stroke-linecap="round"/></svg>',
     clan: '<svg viewBox="0 0 24 24"><path d="M12 2l8 3v6c0 5-3.5 9-8 11-4.5-2-8-6-8-11V5z" fill="none" stroke="#ff2bd6" stroke-width="2" stroke-linejoin="round"/><path d="M8 13l2.5-5 1.5 3 1.5-3L16 13" fill="none" stroke="#ff2bd6" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
     drone: '<svg viewBox="0 0 24 24"><g fill="none" stroke="#ffe14d" stroke-width="1.8"><rect x="8" y="9" width="8" height="6" rx="2"/><path d="M8 10L4 7M16 10l4-3M8 14l-4 3M16 14l4 3"/></g><circle cx="12" cy="12" r="1.3" fill="#ff3355"/></svg>',
+    plasma: '<svg viewBox="0 0 24 24"><defs><radialGradient id="gp" cx="40%" cy="35%" r="70%"><stop offset="0" stop-color="#f3d6ff"/><stop offset=".45" stop-color="#b26bff"/><stop offset="1" stop-color="#3d0f7a"/></radialGradient></defs><path d="M12 2.5c3.6 4.6 6.5 8.2 6.5 11.7a6.5 6.5 0 0 1-13 0C5.5 10.7 8.4 7.1 12 2.5z" fill="url(#gp)" stroke="#2a0a55" stroke-width=".8"/><path d="M9 13.5c0 2 1.2 3.4 3 3.6" stroke="#fff" stroke-width="1.3" fill="none" stroke-linecap="round" opacity=".6"/><circle cx="12" cy="14" r="1.6" fill="#ff7af0"/></svg>',
+    sp_heal: '<svg viewBox="0 0 24 24"><path d="M12 2l8.5 5v10L12 22l-8.5-5V7z" fill="rgba(57,255,136,.18)" stroke="#39ff88" stroke-width="1.6"/><path d="M12 7.5v9M7.5 12h9" stroke="#39ff88" stroke-width="3" stroke-linecap="round"/></svg>',
+    sp_rage: '<svg viewBox="0 0 24 24"><path d="M12 2l8.5 5v10L12 22l-8.5-5V7z" fill="rgba(255,43,214,.18)" stroke="#ff2bd6" stroke-width="1.6"/><path d="M13.5 5L8 13h4l-1.5 6L16 11h-4z" fill="#ff2bd6"/></svg>',
+    sp_jam: '<svg viewBox="0 0 24 24"><path d="M12 2l8.5 5v10L12 22l-8.5-5V7z" fill="rgba(127,216,255,.18)" stroke="#7fd8ff" stroke-width="1.6"/><path d="M8 9.5c2.2-2 5.8-2 8 0M9.6 11.7c1.3-1.1 3.5-1.1 4.8 0" stroke="#7fd8ff" stroke-width="1.8" fill="none" stroke-linecap="round"/><circle cx="12" cy="14.2" r="1.4" fill="#7fd8ff"/><path d="M6 18L18 6" stroke="#ff3355" stroke-width="2" stroke-linecap="round"/></svg>',
     gift: '<svg viewBox="0 0 24 24"><g fill="none" stroke-width="1.8" stroke-linejoin="round"><rect x="3.5" y="9" width="17" height="11.5" rx="1.5" stroke="#ff2bd6"/><path d="M2.5 9h19v3.5h-19z" stroke="#ff2bd6"/><path d="M12 9v11.5" stroke="#ffe14d"/><path d="M12 9c-1.5-4-6-4.5-6-2s4.5 2 6 2c1.5 0 6 .5 6-2s-4.5-2-6 2z" stroke="#ffe14d"/></g></svg>',
     shield: '<svg viewBox="0 0 24 24"><path d="M12 2l8 3v6c0 5.2-3.5 9.2-8 11-4.5-1.8-8-5.8-8-11V5z" fill="rgba(25,240,255,.25)" stroke="#19f0ff" stroke-width="1.8" stroke-linejoin="round"/><path d="M8.5 12l2.5 2.5 4.5-5" fill="none" stroke="#19f0ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   };
@@ -37,11 +41,11 @@
       <div id="hud-top">
         <div class="player pe" id="btn-profile"><div class="pl-name" id="pl-name"></div><div class="pl-tro">${IC.trophy}<span id="pl-tro">0</span></div></div>
         <div class="res-wrap">
-          ${['scrap', 'copper', 'chips'].map((r) => `<div class="res" data-r="${r}"><i>${IC[r]}</i><div class="bar"><b></b></div><span class="v"></span><span class="cap"></span></div>`).join('')}
+          ${['scrap', 'copper', 'plasma', 'chips'].map((r) => `<div class="res" data-r="${r}"><i>${IC[r]}</i><div class="bar"><b></b></div><span class="v"></span><span class="cap"></span></div>`).join('')}
         </div>
         <button class="icon-btn pe" id="btn-set" aria-label="settings">${IC.gear}</button>
       </div>
-      <div id="hud-builders" class="chip-info">${IC.drone}<span id="builders-v"></span></div>
+      <div id="hud-builders" class="chip-info pe">${IC.drone}<span id="builders-v"></span><b class="plus">+</b></div>
       <div id="hud-shield" class="chip-info hidden" title="">${IC.shield}<span id="shield-v"></span></div>
       <button id="btn-layout" class="chip-info pe">${IC.move}<span data-t="layout"></span></button>
       <button id="btn-quests" class="chip-info pe">${IC.gift}<span data-t="quests"></span><i class="dot hidden"></i></button>
@@ -64,6 +68,7 @@
     $('#btn-clan').onclick = () => G.Clan.open();
     $('#btn-layout').onclick = () => G.Village.setEditMode(true);
     $('#btn-quests').onclick = U.openQuests;
+    $('#hud-builders').onclick = () => { G.Sfx.play('click'); U.openBuilders(); };
     $('#edit-done').onclick = () => G.Village.setEditMode(false);
     $('#btn-attack').onclick = U.openAttack;
     $('#btn-set').onclick = U.openSettings;
@@ -147,19 +152,21 @@
     const sh = $('#hud-shield'), left = Math.ceil(((s.shieldUntil || 0) - Date.now()) / 1000);
     if (sh) { sh.classList.toggle('hidden', !(left > 0)); if (left > 0) $('#shield-v').textContent = G.fmtTime(left); }
     $('#pl-tro').textContent = s.trophies;
-    for (const r of ['scrap', 'copper', 'chips']) {
+    // plasma shows up once it matters (Core 5+ or you already have some)
+    $('.res[data-r="plasma"]').classList.toggle('hidden', !(G.coreLevel() >= 5 || s.res.plasma > 0));
+    for (const r of ['scrap', 'copper', 'plasma', 'chips']) {
       const el = $('.res[data-r="' + r + '"]');
-      const cap = G.capOf(r), v = s.res[r];
+      const cap = G.capOf(r), v = s.res[r] || 0;
       $('.v', el).textContent = G.fmt(v);
       $('.cap', el).textContent = r === 'chips' ? '' : '/ ' + G.fmt(cap);
-      $('.bar b', el).style.width = r === 'chips' ? '100%' : Math.min(100, v / cap * 100) + '%';
+      $('.bar b', el).style.width = r === 'chips' ? '100%' : (cap ? Math.min(100, v / cap * 100) : 0) + '%';
       el.classList.toggle('full', r !== 'chips' && v >= cap);
       // little bump animation whenever a resource goes up
       if (lastRes[r] != null && v > lastRes[r]) { el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump'); }
       lastRes[r] = v;
     }
-    const free = G.BUILDERS - G.buildersBusy();
-    $('#builders-v').textContent = free + '/' + G.BUILDERS;
+    const total = G.Econ.builders(s), free = total - G.buildersBusy();
+    $('#builders-v').textContent = free + '/' + total;
     $('#hud-builders').classList.toggle('free', free > 0);
     $('#btn-army').classList.toggle('busy', s.queue.length > 0);
   };
@@ -430,17 +437,54 @@
             <em>×${g.n}</em><span>${G.fmtTime(g.done)}</span></button>`).join('')}</div><p class="hint">${t('cancelTrain')}</p>`;
       }
       const heroes = G.HERO_ORDER.map((h) => {
-        const ok = G.heroUnlocked(h);
-        return `<div class="hero ${ok ? '' : 'locked'}"><span class="c-info" data-info="${h}">i</span><img src="${G.Art.unitThumb(h)}" alt=""><div><div class="c-name">${t('h_' + h)}</div><p>${t('hd_' + h)}</p>
-          <div class="${ok ? 'ok' : 'warn'}">${ok ? t('available') : t('unlockAt', { n: G.HEROES[h].unlock })}</div></div></div>`;
+        const ok = G.heroUnlocked(h), E = G.Econ, lv = E.heroLevel(s, h), hi = E.heroUpInfo(s, h);
+        const up = s.heroUp && s.heroUp.h === h, rest = (s.heroRest && s.heroRest[h]) > now;
+        let status, btn = '';
+        if (!ok) status = `<div class="warn">${t('unlockAt', { n: G.HEROES[h].unlock })}</div>`;
+        else if (up) {
+          status = `<div class="warn">${t('heroUpgrading', { n: s.heroUp.to })} · ${G.fmtTime((s.heroUp.until - now) / 1000)}</div>`;
+          btn = `<button class="btn sm primary" data-hf="${h}">${IC.bolt}${costHtml('chips', E.speedCost(s.heroUp.until - now), s.res.chips >= E.speedCost(s.heroUp.until - now))}</button>`;
+        } else if (rest) status = `<div class="warn">${t('heroResting')} · ${G.fmtTime((s.heroRest[h] - now) / 1000)}</div>`;
+        else status = `<div class="ok">${t('available')}</div>`;
+        if (ok && !up) {
+          if (hi.max) btn = `<small class="dim">${t('maxLevel')}</small>`;
+          else if (hi.blocked) btn = `<small class="dim">${t('needHq', { n: hi.needHq })}</small>`;
+          else btn = `<button class="btn sm" data-hu="${h}" ${s.heroUp ? 'disabled' : ''}>${IC.up}${t('upgrade')} ${costHtml('plasma', hi.cost, s.res.plasma >= hi.cost)} · ${G.fmtTime(hi.time)}</button>`;
+        }
+        return `<div class="hero ${ok ? '' : 'locked'}"><span class="c-info" data-info="${h}">i</span><img src="${G.Art.unitThumb(h)}" alt=""><div><div class="c-name">${t('h_' + h)} <small>${t('level')} ${lv}</small></div><p>${t('hd_' + h)}</p>
+          ${status}<div class="hero-up">${btn}</div></div></div>`;
       }).join('');
+      // battle programs (Program Forge)
+      let spells = '';
+      const fgl = G.Econ.forgeLevel(s);
+      if (fgl > 0) {
+        const scap = G.Econ.spellCap(s), sused = G.Econ.spellSpace(s);
+        const cards = G.SPELL_ORDER.map((k) => {
+          const d = G.SPELLS[k], locked = fgl < d.unlock;
+          return `<button class="card spellc ${locked ? 'locked' : ''}" data-sp="${k}" style="--sc:${d.color}"><div class="sp-ic">${IC['sp_' + k]}</div><div class="c-name">${t('sp_' + k)}</div>
+            ${locked ? `<div class="c-lock">${t('forgeAt', { n: d.unlock })}</div>` : `<div class="c-cost">${costHtml('copper', d.cost, s.res.copper >= d.cost)}</div><div class="c-time">${G.fmtTime(d.time)}</div>`}
+            <div class="c-have">${(s.spells && s.spells[k]) || 0}</div></button>`;
+        }).join('');
+        let sq = '';
+        if (s.sQueue && s.sQueue.length) {
+          let tt = Math.max(0, (s.sqStart + G.SPELLS[s.sQueue[0]].time * 1000 - now) / 1000) + s.sQueue.slice(1).reduce((m, k) => m + G.SPELLS[k].time, 0);
+          sq = `<div class="q-total">${IC.bolt}<span>${t('progsReadyIn')}</span><b>${G.fmtTime(tt)}</b></div><div class="queue">${s.sQueue.map((k, i) => `<button class="q-item sq-item" data-si="${i}" style="--sc:${G.SPELLS[k].color}">${IC['sp_' + k]}</button>`).join('')}</div>`;
+        }
+        spells = `<h3>${t('programs')} <small class="dim">${sused}/${scap}</small></h3><p class="hint">${t('programsHint')}</p><div class="grid">${cards}</div>${sq}`;
+      } else if (G.LIMITS.forge[G.coreLevel() - 1] > 0 || G.coreLevel() >= 3) spells = `<h3>${t('programs')}</h3><p class="hint">${t('needForge')}</p>`;
       return `<div class="cap-row"><span>${t('capacity')}</span><div class="bar big"><b style="width:${cap ? Math.min(100, used / cap * 100) : 0}%"></b><i style="left:${cap ? Math.min(100, used / cap * 100) : 0}%;width:${cap ? Math.min(100 - used / cap * 100, q / cap * 100) : 0}%"></i></div><b>${used + q}/${cap}</b></div>
         ${fl < 1 ? `<p class="warn">${t('needFactory')}</p>` : ''}
         <div class="grid">${units}</div>${qhtml}
+        ${spells}
         <h3>${t('heroes')}</h3><div class="heroes">${heroes}</div>`;
     };
     const bind = () => {
       document.querySelectorAll('#modal .hero .c-info').forEach((c) => { c.onclick = () => U.openUnitInfo(c.dataset.info, true); });
+      const actR = (cmd) => { const r = G.act(cmd); if (r.err) U.toast(G.t(r.err, r.p && r.p.r ? { r: t(r.p.r) } : r.p)); else G.Sfx.play('build'); refresh(); U.refreshHud(); };
+      document.querySelectorAll('#modal [data-hu]').forEach((c) => { c.onclick = () => actR({ c: 'heroUp', h: c.dataset.hu }); });
+      document.querySelectorAll('#modal [data-hf]').forEach((c) => { c.onclick = () => actR({ c: 'heroFinish' }); });
+      document.querySelectorAll('#modal .spellc').forEach((c) => { c.onclick = () => { if (!c.classList.contains('locked')) actR({ c: 'brew', sp: c.dataset.sp }); else U.toast(t('forgeAt', { n: G.SPELLS[c.dataset.sp].unlock })); }; });
+      document.querySelectorAll('#modal .sq-item').forEach((c) => { c.onclick = () => actR({ c: 'unbrew', i: +c.dataset.si }); });
       document.querySelectorAll('#modal .card.unit').forEach((c) => {
         c.onclick = (ev) => {
           if (ev.target.closest('.c-info')) { U.openUnitInfo(c.dataset.u, true); return; }
@@ -577,8 +621,9 @@
         }
       }
       if (G.Net.session) U.toast(t('noOpponents'));
-      const bot = G.genBot(G.coreLevel(), (Date.now() & 0xffffff) ^ 0x5bd1e995);
-      G.Battle.start({ mode: 'pvp', base: bot, name: bot.name });
+      const seed = ((Date.now() & 0xffffff) ^ 0x5bd1e995) | 0;
+      const bot = G.genBot(G.coreLevel(), seed);
+      G.Battle.start({ mode: 'pvp', base: bot, name: bot.name, seed });
     };
   };
 
@@ -769,21 +814,58 @@
     };
   };
 
+  // ---------- builder drones: what they're doing + buy one more ----------
+  U.openBuilders = function () {
+    const s = G.state, now = Date.now(), total = G.Econ.builders(s);
+    const busy = s.buildings.filter((b) => b.busyUntil > now).sort((a, b) => a.busyUntil - b.busyUntil);
+    const slots = [];
+    for (let i = 0; i < G.BUILDERS_MAX; i++) {
+      const b = busy[i];
+      if (i < total) slots.push(`<div class="bd-slot ${b ? 'busy' : 'free'}">${IC.drone}<div><b>${t('builderN', { n: i + 1 })}</b><small>${b ? t('b_' + b.type) + ' → ' + G.fmtTime((b.busyUntil - now) / 1000) : t('builderFree')}</small></div></div>`);
+      else slots.push(`<div class="bd-slot locked">${IC.drone}<div><b>${t('builderN', { n: i + 1 })}</b><small>${costHtml('chips', G.BUILDER_PRICE[i], s.res.chips >= G.BUILDER_PRICE[i])}</small></div></div>`);
+    }
+    const next = total < G.BUILDERS_MAX ? G.BUILDER_PRICE[total] : 0;
+    U.modal(t('builders'), `<p class="hint">${t('buildersHint')}</p><div class="bd-grid">${slots.join('')}</div>
+      ${next ? `<div class="row-btns"><button class="btn primary" id="bd-buy">${IC.drone} ${t('buyBuilder')} · ${costHtml('chips', next, s.res.chips >= next)}</button></div>` : `<p class="center ok">${t('buildersMax')}</p>`}`, { cls: 'small' });
+    if ($('#bd-buy')) $('#bd-buy').onclick = () => {
+      if (G.state.res.chips < next) { U.toast(t('noChips')); U.openChips(); return; }
+      U.confirm(t('buyBuilderQ', { n: next }), () => {
+        const r = G.act({ c: 'buyBuilder' });
+        if (r.err) U.toast(t(r.err)); else { G.Sfx.play('built'); U.notify(t('builderBought')); }
+        U.refreshHud(); U.openBuilders();
+      });
+    };
+  };
+
+  // ---------- blocked players (unblock) ----------
+  U.openBlocked = async function () {
+    U.modal(t('blockedList'), '<div class="rank" id="bl-list"><div class="spin"></div></div>', { cls: 'small' });
+    const draw = async () => {
+      let rows = [];
+      try { rows = await G.Net.blocks(); } catch (e) { U.toast(t('err_' + (e.code || 'server'))); }
+      const el = $('#bl-list'); if (!el) return;
+      el.innerHTML = rows.length ? rows.map((r) => `<div class="rk"><span class="rk-u">${escHtml(r.blocked_name || '?')}</span><button class="btn sm" data-ub="${r.blocked_id}">${t('unblock')}</button></div>`).join('')
+        : `<p class="center hint">${t('blockedNone')}</p>`;
+      el.querySelectorAll('[data-ub]').forEach((b) => { b.onclick = async () => { try { await G.Net.unblock(b.dataset.ub); } catch (_) {} draw(); }; });
+    };
+    draw();
+  };
+
   // ---------- developer: sheet of player reports (admins only; the server enforces it) ----------
   U.openReports = async function () {
     let rows = [], fKind = 'all', fStatus = 'open';
     const STAT = ['new', 'doing', 'done', 'rejected'];
-    const kindIc = { bug: '🐞', idea: '💡', other: '💬' };
+    const kindIc = { bug: '🐞', idea: '💡', other: '💬', report: '🚩' };
     const fmtD = (iso) => new Date(iso).toLocaleString(G.lang === 'en' ? 'en-GB' : 'pl-PL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
     const draw = () => {
       const list = rows.filter((r) => (fKind === 'all' || r.kind === fKind) && (fStatus === 'all' || (fStatus === 'open' ? r.status === 'new' || r.status === 'doing' : r.status === fStatus)));
       const cnt = (k) => rows.filter((r) => r.kind === k && (r.status === 'new' || r.status === 'doing')).length;
       const body = list.map((r) => `<tr class="st-${r.status}"><td>${fmtD(r.created_at)}</td><td>${escHtml(r.username || '?')}</td><td>${kindIc[r.kind] || ''}</td>
-        <td class="rp-body">${escHtml(r.body)}</td><td>${escHtml(r.version || '')}</td><td class="rp-dev" title="${escHtml(r.device || '')}">${escHtml((r.device || '').replace(/^.*?\(([^)]*)\).*\| /, '$1 | ').slice(0, 60))}</td>
+        <td class="rp-body">${escHtml(r.body)}${r.kind === 'report' ? `<div class="rp-mod">${r.target_msg ? `<button class="btn sm" data-del="${r.target_msg}">🗑 ${t('delMsg')}</button>` : ''}${r.target_user ? `<button class="btn sm danger" data-mute="${r.target_user}">🔇 ${t('mute7')}</button>` : ''}</div>` : ''}</td><td>${escHtml(r.version || '')}</td><td class="rp-dev" title="${escHtml(r.device || '')}">${escHtml((r.device || '').replace(/^.*?\(([^)]*)\).*\| /, '$1 | ').slice(0, 60))}</td>
         <td><select data-id="${r.id}">${STAT.map((s) => `<option value="${s}" ${r.status === s ? 'selected' : ''}>${t('rs_' + s)}</option>`).join('')}</select></td></tr>`).join('');
       const b = $('#modal .panel-b'); if (!b) return;
       b.innerHTML = `<div class="rp-bar">
-          <div class="seg rp-kind">${['all', 'bug', 'idea', 'other'].map((k) => `<button data-k="${k}" class="${fKind === k ? 'on' : ''}">${k === 'all' ? t('all') : kindIc[k] + ' ' + cnt(k)}</button>`).join('')}</div>
+          <div class="seg rp-kind">${['all', 'bug', 'idea', 'other', 'report'].map((k) => `<button data-k="${k}" class="${fKind === k ? 'on' : ''}">${k === 'all' ? t('all') : kindIc[k] + ' ' + cnt(k)}</button>`).join('')}</div>
           <select id="rp-st">${['open', 'all'].concat(STAT).map((s) => `<option value="${s}" ${fStatus === s ? 'selected' : ''}>${s === 'open' ? t('rs_open') : s === 'all' ? t('all') : t('rs_' + s)}</option>`).join('')}</select>
           <button class="btn sm" id="rp-ref">↻</button><button class="btn sm" id="rp-csv">⬇ CSV</button></div>
         <div class="rp-wrap"><table class="rp"><thead><tr><th>${t('rp_date')}</th><th>${t('rp_player')}</th><th></th><th>${t('rp_text')}</th><th>${t('version')}</th><th>${t('rp_device')}</th><th>${t('rp_status')}</th></tr></thead>
@@ -797,6 +879,12 @@
         const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
         a.download = 'cyberwar-zgloszenia-' + new Date().toISOString().slice(0, 10) + '.csv'; document.body.appendChild(a); a.click(); a.remove();
       };
+      document.querySelectorAll('#modal [data-del]').forEach((b) => {
+        b.onclick = () => U.confirm(t('delMsgQ'), async () => { try { await G.Net.deleteMessage(+b.dataset.del); U.notify(t('done')); } catch (e) { U.toast(t('err_' + (e.code || 'server'))); } U.openReports(); });
+      });
+      document.querySelectorAll('#modal [data-mute]').forEach((b) => {
+        b.onclick = () => U.confirm(t('muteQ'), async () => { try { await G.Net.mute(b.dataset.mute, 7); U.notify(t('done')); } catch (e) { U.toast(t('err_' + (e.code || 'server'))); } U.openReports(); });
+      });
       document.querySelectorAll('#modal .rp select[data-id]').forEach((sel) => {
         sel.onchange = async () => {
           const id = +sel.dataset.id, r = rows.find((x) => x.id === id);
@@ -821,8 +909,9 @@
         <button class="btn sm" id="s-logout">${t('logout')}</button>` : `<div><b>${t('offlineMode')}</b></div><button class="btn sm primary" id="s-login">${t('login')}</button>`}</div>
       <div class="fld">${t('language')}<div class="seg"><button data-l="pl" class="${G.lang === 'pl' ? 'on' : ''}">Polski</button><button data-l="en" class="${G.lang === 'en' ? 'on' : ''}">English</button></div></div>
       <div class="fld">${t('sounds')}<div class="seg" id="s-sfx"><button data-v="1" class="${G.state.settings.sfx ? 'on' : ''}">${t('on')}</button><button data-v="0" class="${G.state.settings.sfx ? '' : 'on'}">${t('off')}</button></div></div>
+      ${G.Net.session ? `<div class="fld">${t('notifs')}<div class="seg" id="s-push"><button data-v="1" class="${G.Net.pushIsOn() ? 'on' : ''}">${t('on')}</button><button data-v="0" class="${G.Net.pushIsOn() ? '' : 'on'}">${t('off')}</button></div></div>` : ''}
       <div class="fld">${t('music')}<div class="seg" id="s-mus"><button data-v="1" class="${G.state.settings.music ? 'on' : ''}">${t('on')}</button><button data-v="0" class="${G.state.settings.music ? '' : 'on'}">${t('off')}</button></div></div>
-      <div class="row-btns"><button class="btn primary" id="s-fb">✉ ${t('fbTitle')}</button><button class="btn" id="s-tut">${t('tutAgain')}</button></div>
+      <div class="row-btns"><button class="btn primary" id="s-fb">✉ ${t('fbTitle')}</button><button class="btn" id="s-tut">${t('tutAgain')}</button>${G.Net.session ? `<button class="btn" id="s-blk">⛔ ${t('blockedList')}</button>` : ''}</div>
       <div class="row-btns"><button class="btn danger" id="s-reset">${t('reset')}</button>${G.Net.session ? `<button class="btn danger" id="s-del">${t('deleteAccount')}</button>` : ''}</div>
       <p class="hint"><a href="privacy.html" target="_blank" rel="noopener">${t('privacyPolicy')}</a> · CyberWar ${t('version')} ${G.VERSION}</p>`, { cls: 'small' });
     if ($('#s-logout')) $('#s-logout').onclick = async () => {
@@ -831,6 +920,16 @@
     };
     if ($('#s-login')) $('#s-login').onclick = () => { U.closeModal(); G.Auth.show('login'); };
     $('#s-fb').onclick = U.openFeedback;
+    document.querySelectorAll('#s-push button').forEach((b) => {
+      b.onclick = async () => {
+        U.loading(true);
+        try {
+          if (b.dataset.v === '1') { await G.Net.pushOn(); U.notify(t('notifsOn')); } else { await G.Net.pushOffNow(); }
+        } catch (e) { U.toast(t(e.code === 'pushNo' ? 'pushNo' : e.code === 'pushDenied' ? 'pushDenied' : 'err_' + (e.code || 'server'))); }
+        U.loading(false); U.openSettings();
+      };
+    });
+    if ($('#s-blk')) $('#s-blk').onclick = U.openBlocked;
     // developer account: reports sheet
     G.Net.isAdmin().then((yes) => {
       const row = $('#s-fb') && $('#s-fb').parentElement;
@@ -896,6 +995,11 @@
       if (!((G.state.clanArmy && G.state.clanArmy[u] > 0) || b.usedClan[u] > 0)) continue;
       html += `<button class="bc clanu ${b.sel === 'c:' + u ? 'sel' : ''} ${b.availClan[u] > 0 ? '' : 'empty'}" data-cu="${u}"><img src="${G.Art.unitThumb(u)}" alt=""><span class="bc-n">x${b.availClan[u] || 0}</span></button>`;
     }
+    // battle programs
+    for (const k of G.SPELL_ORDER) {
+      if (!((G.state.spells && G.state.spells[k] > 0) || (b.usedSpells && b.usedSpells[k] > 0))) continue;
+      html += `<button class="bc spell ${b.sel === 's:' + k ? 'sel' : ''} ${b.availSpells[k] > 0 ? '' : 'empty'}" data-sp="${k}" style="--sc:${G.SPELLS[k].color}">${IC['sp_' + k]}<span class="bc-n">x${b.availSpells[k] || 0}</span></button>`;
+    }
     for (const h of Object.keys(b.heroes)) {
       const hs = b.heroes[h];
       const ab = hs.state === 'deployed' && hs.unit && !hs.unit.dead;
@@ -907,6 +1011,7 @@
       c.onclick = () => {
         if (c.dataset.u) { if (b.avail[c.dataset.u] > 0) b.sel = c.dataset.u; }
         else if (c.dataset.cu) { if (b.availClan[c.dataset.cu] > 0) b.sel = 'c:' + c.dataset.cu; }
+        else if (c.dataset.sp) { if (b.availSpells[c.dataset.sp] > 0) b.sel = 's:' + c.dataset.sp; }
         else {
           const h = c.dataset.h, hs = b.heroes[h];
           if (hs.state === 'ready') b.sel = h;
@@ -970,6 +1075,6 @@
       }
       const ac = $('#sb-acc'); if (ac) ac.textContent = Math.floor(sel.acc);
     }
-    if (U.modalRefresh && (G.state.queue.length || G.state.research)) U.modalRefresh();
+    if (U.modalRefresh && (G.state.queue.length || G.state.research || (G.state.sQueue && G.state.sQueue.length) || G.state.heroUp)) U.modalRefresh();
   };
 })();
