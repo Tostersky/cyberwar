@@ -23,6 +23,11 @@
 
   // accounts: resume the saved session, otherwise ask to log in / register
   (async function () {
+    // coming back from a password-reset email link?
+    let back = null;
+    try { back = await G.Net.consumeAuthHash(); } catch (_) { back = 'error'; }
+    if (back === 'recovery') { G.Auth.show('newpass'); return; }
+    if (back === 'error') { G.Auth.show('forgot', G.t('resetLinkExpired')); return; }
     if (!G.Net.restore()) { G.Auth.show(); return; }
     G.UI.loading(true);
     try {

@@ -63,10 +63,38 @@ G.Net = (function () {
     if (!takeSession(b)) throw new NetError('notConfirmed');
     await N.loadProfile();
   };
-  N.signIn = async function (email, password) {
+  // login = email OR username. For a username the server returns the email only if the password is right.
+  N.signIn = async function (login, password) {
+    let email = login;
+    if (!login.includes('@')) {
+      email = await req('/rest/v1/rpc/email_for_login', { method: 'POST', body: { p_username: login, p_password: password } });
+      if (!email) throw new NetError('badLogin');
+    }
     const b = await req('/auth/v1/token?grant_type=password', { method: 'POST', body: { email, password } });
     takeSession(b);
     await N.loadProfile();
+  };
+
+  // ---------- password reset ----------
+  N.GAME_URL = 'https://tostersky.github.io/cyberwar/';
+  N.requestReset = async function (email) {
+    await req('/auth/v1/recover?redirect_to=' + encodeURIComponent(N.GAME_URL), { method: 'POST', body: { email } });
+  };
+  // The reset email link brings the player back with #access_token=...&type=recovery (or #error=...).
+  // Returns 'recovery', 'error' or null.
+  N.consumeAuthHash = async function () {
+    const h = new URLSearchParams(location.hash.slice(1));
+    if (!h.get('access_token') && !h.get('error') && !h.get('error_code')) return null;
+    history.replaceState(null, '', location.pathname + location.search);
+    if (h.get('error') || h.get('error_code')) return 'error';
+    const access = h.get('access_token');
+    const user = await req('/auth/v1/user', { headers: { Authorization: 'Bearer ' + access } });
+    takeSession({ access_token: access, refresh_token: h.get('refresh_token'), expires_in: +h.get('expires_in') || 3600, user });
+    return h.get('type') === 'recovery' ? 'recovery' : 'login';
+  };
+  N.updatePassword = async function (password) {
+    await ensureFresh();
+    await req('/auth/v1/user', { method: 'PUT', auth: true, body: { password } });
   };
   N.signOut = async function () {
     try { if (N.session) await req('/auth/v1/logout', { method: 'POST', auth: true }); } catch (_) {}
