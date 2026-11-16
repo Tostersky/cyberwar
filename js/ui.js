@@ -227,8 +227,9 @@
       return `<button class="card ${locked ? 'locked' : ''}" data-type="${type}">
         <img src="${G.Art.buildThumb(type, 1)}" alt="">
         <div class="c-name">${t('b_' + type)}</div>
+        <div class="c-desc">${t('ds_' + type)}</div>
         <div class="c-cnt">${n}/${lim}</div>
-        ${locked ? `<div class="c-lock">${nextLim >= 0 ? t('needCore', { n: nextLim + 1 }) : t('maxLevel')}</div>` :
+        ${locked ? `<div class="c-lock">${nextLim >= 0 ? t('needCore', { n: nextLim + 1 }) : t('maxCount')}</div>` :
           `<div class="c-cost">${costHtml(d.res, d.cost[0], G.state.res[d.res] >= d.cost[0])}</div><div class="c-time">${d.time[0] ? G.fmtTime(d.time[0]) : t('instant')}</div>`}
       </button>`;
     }).join('');
