@@ -198,6 +198,21 @@ table.stats td.nx { color: var(--grn); font-weight: 800; width: 90px; }
 .bc.empty { opacity: .4; filter: grayscale(1); }
 .bc.abil { border-color: var(--yel); animation: blink 1s infinite; }
 
+/* ---- tutorial ---- */
+#tut { position: fixed; inset: 0; pointer-events: none; z-index: 50; }
+.tut-box { position: absolute; left: 50%; bottom: max(8px, env(safe-area-inset-bottom)); transform: translateX(-50%); width: min(380px, calc(100% - 340px));
+  min-width: 240px; pointer-events: auto; background: rgba(8,6,22,.96); border: 1px solid var(--yel); box-shadow: 0 0 20px rgba(255,225,77,.3);
+  clip-path: var(--cut); padding: 10px 12px 10px 56px; }
+#tut.battle .tut-box { bottom: auto; top: max(8px, env(safe-area-inset-top)); width: min(380px, calc(100% - 520px)); }
+.tut-bot { position: absolute; left: 10px; top: 10px; width: 36px; height: 36px; border-radius: 50%; border: 2px solid var(--cyan);
+  background: radial-gradient(circle at 50% 45%, #19f0ff 0 18%, #07202a 20% 100%); box-shadow: 0 0 12px var(--cyan); }
+.tut-t { margin: 0; font-size: 14px; font-weight: 600; line-height: 1.35; }
+.tut-btns { display: flex; justify-content: flex-end; gap: 6px; margin-top: 6px; }
+.tut-arrow { position: absolute; width: 36px; height: 40px; pointer-events: none; display: none;
+  background: var(--yel); clip-path: polygon(30% 0, 70% 0, 70% 55%, 100% 55%, 50% 100%, 0 55%, 30% 55%); filter: drop-shadow(0 0 8px var(--yel)); }
+.tut-arrow.up { transform: rotate(180deg); }
+@media (max-width: 700px) { .tut-box, #tut.battle .tut-box { width: calc(100% - 16px); } #tut:not(.bottom) .tut-box { bottom: 110px; } #tut.battle .tut-box { top: 120px; bottom: auto; } }
+
 @media (max-width: 520px) {
   .res { width: 118px; }
   .res .cap { display: none; }
