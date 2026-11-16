@@ -23,7 +23,7 @@ svg { display: block; width: 100%; height: 100%; }
 .pl-tro { display: flex; align-items: center; gap: 4px; font-weight: 700; font-size: 13px; }
 .pl-tro svg { width: 16px; height: 16px; }
 .res-wrap { margin-left: auto; display: flex; flex-direction: column; gap: 5px; align-items: flex-end; }
-.res { position: relative; width: 150px; height: 26px; display: flex; align-items: center; }
+.res { position: relative; width: auto; min-width: 150px; padding-right: 8px; height: 26px; display: flex; align-items: center; white-space: nowrap; }
 .res > i { position: absolute; left: -6px; top: -3px; width: 32px; height: 32px; z-index: 2; filter: drop-shadow(0 0 4px rgba(0,0,0,.9)); }
 .res .bar { position: absolute; inset: 3px 0 3px 10px; background: rgba(8,6,20,.9); border: 1px solid var(--line); clip-path: polygon(6px 0,100% 0,100% 100%,0 100%,0 6px); }
 .res .bar b { display: block; height: 100%; width: 0; transition: width .3s; }
@@ -503,7 +503,7 @@ table.stats td.nx { color: var(--grn); font-weight: 800; width: 90px; }
 @media (max-width: 700px) { .tut-box, #tut.battle .tut-box { width: calc(100% - 16px); } #tut:not(.bottom) .tut-box { bottom: 110px; } #tut.battle .tut-box { top: 120px; bottom: auto; } }
 
 @media (max-width: 520px) {
-  .res { width: 118px; }
+  .res { min-width: 110px; }
   .res .cap { display: none; }
   .sq-btn { width: 62px; height: 62px; }
   .btn-attack { width: 80px; height: 80px; }
@@ -511,7 +511,8 @@ table.stats td.nx { color: var(--grn); font-weight: 800; width: 90px; }
   .grid { grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); }
 }
 @media (max-height: 600px) {
-  .res-wrap { flex-direction: row; gap: 14px; }
+  .res-wrap { flex-direction: row; gap: 8px; }
+  .res { min-width: 0; } .res .v { font-size: 13px; margin-left: 30px; } .res .cap { font-size: 9px; margin-left: 3px; }
   .btn-attack { width: 76px; height: 76px; }
   .sq-btn { width: 60px; height: 60px; }
   .bc { width: 60px; height: 72px; }
