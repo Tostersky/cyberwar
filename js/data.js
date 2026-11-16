@@ -1,5 +1,5 @@
 // Game data: buildings, units, heroes, campaign. All numbers are CyberWar's own.
-G.TW = 64; G.TH = 32; G.MAP = 40; G.VERSION = '0.9.3';
+G.TW = 64; G.TH = 32; G.MAP = 40; G.VERSION = '0.9.4';
 G.BUILDERS = 2;
 
 // every array has one value per level (1..8)
@@ -66,6 +66,21 @@ G.HERO_ORDER = ['ronin', 'nyx'];
 G.BATTLE_TIME = 180;
 // creating a clan costs premium chips (500 chips = the 8,99 zł chip pack in the shop)
 G.CLAN_PRICE = 500;
+
+// chip packs sold through Google Play (ids = product ids in Play Console; prices shown from Play when available)
+G.CHIP_PACKS = [
+  { id: 'chips_120', chips: 120, price: '2,99 zł' },
+  { id: 'chips_500', chips: 500, price: '8,99 zł', tag: 'clan' },
+  { id: 'chips_1200', chips: 1200, price: '19,99 zł' },
+  { id: 'chips_2800', chips: 2800, price: '39,99 zł', tag: 'popular' },
+  { id: 'chips_7500', chips: 7500, price: '89,99 zł', tag: 'best' },
+];
+G.packById = (id) => G.CHIP_PACKS.find((p) => p.id === id);
+// rewarded ads: off until an ad account (AdSense / H5 Games Ads) is set up — then on:true + client id
+// chips come ONLY from purchases and the campaign: an ad gives resources (share of storage), never chips
+G.ADS = { on: false, client: '', resPct: 0.1, perDay: 5, cooldown: 90 };
+// chips -> resources exchange (fill 10% / 50% / to the top of storage)
+G.resChipCost = (n) => (n > 0 ? Math.ceil(n / 200) + 1 : 0);
 // full stars earned for a destruction share 0..1 (every third = one star; 33% counts as 1)
 G.starsFor = (pct) => Math.max(0, Math.min(3, Math.floor(pct * 3 + 0.02)));
 

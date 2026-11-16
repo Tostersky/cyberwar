@@ -103,7 +103,7 @@ G.Sfx = (function () {
   }
   S.updateMusic = function () {
     if (!ac || ac.state !== 'running') return;
-    const on = settings().music && !document.hidden;
+    const on = settings().music && !document.hidden && !S.adPlaying;
     musicBus.gain.setTargetAtTime(on ? 0.55 : 0, ac.currentTime, 0.3);
     if (on && !timer) { nextT = ac.currentTime + 0.1; timer = setInterval(schedule, 100); }
     if (!on && timer) { clearInterval(timer); timer = null; }

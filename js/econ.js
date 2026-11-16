@@ -32,6 +32,7 @@
     s.unitLv = s.unitLv || {}; for (const u of G.UNIT_ORDER) s.unitLv[u] = Math.max(1, Math.min(G.RESEARCH.maxLv, s.unitLv[u] | 0 || 1));
     if (s.research && !G.UNITS[s.research.u]) s.research = null;
     s.trophies = Math.max(0, Math.floor(+s.trophies || 0));
+    s.ads = s.ads && typeof s.ads.day === 'string' ? { day: s.ads.day, n: Math.max(0, s.ads.n | 0), last: +s.ads.last || 0 } : { day: '', n: 0, last: 0 };
     s.nextId = Math.max(s.nextId || 1, ...s.buildings.map((b) => b.id + 1), 1);
     for (const b of s.buildings) { if (b.last == null) b.last = now; if (b.acc == null) b.acc = 0; }
     return s;
@@ -139,6 +140,19 @@
     return { cur, next, cost: R.cost[next - 1], time: R.time[next - 1], needLab: next - 1, blocked: E.labLevel(s) < next - 1 };
   };
 
+  // how much a chip exchange adds: part 'p10' | 'p50' | 'full'
+  E.buyResAmount = function (s, r, part) {
+    const cap = E.capOf(s, r), room = Math.max(0, cap - s.res[r]);
+    const want = part === 'full' ? room : Math.floor(cap * (part === 'p50' ? 0.5 : 0.1));
+    return Math.max(0, Math.min(room, want));
+  };
+  // rewarded ads today: {left, wait (seconds)}; the counter resets every UTC day
+  E.adState = function (s, now) {
+    const day = new Date(now).toISOString().slice(0, 10);
+    if (!s.ads || s.ads.day !== day) s.ads = { day, n: 0, last: (s.ads && s.ads.last) || 0 };
+    return { left: Math.max(0, G.ADS.perDay - s.ads.n), wait: Math.max(0, Math.ceil((s.ads.last + G.ADS.cooldown * 1000 - now) / 1000)) };
+  };
+
   function pay(s, res, cost) {
     if (s.res[res] < cost) return ERR('notEnough', { r: res });
     s.res[res] -= cost;
@@ -244,6 +258,26 @@
     if (c === 'search') { // looking for a PvP opponent costs copper
       const cost = 30 * E.coreLevel(s);
       return pay(s, 'copper', cost) || { ok: true };
+    }
+    if (c === 'buyRes') { // chips -> scrap/copper: 10%, 50% of storage, or fill it up
+      const r = cmd.r;
+      if (r !== 'scrap' && r !== 'copper') return ERR('server');
+      const n = E.buyResAmount(s, r, cmd.part);
+      if (n <= 0) return ERR('storageFull');
+      const cost = G.resChipCost(n);
+      if (s.res.chips < cost) return ERR('noChips');
+      s.res.chips -= cost; E.addRes(s, r, n);
+      return { ok: true, n, cost };
+    }
+    if (c === 'adReward') { // watched a rewarded ad (capped per day, with a cooldown)
+      if (!G.ADS.on) return ERR('adsOff');
+      const st = E.adState(s, now);
+      if (st.left <= 0) return ERR('adLimit');
+      if (st.wait > 0) return ERR('adWait', { n: st.wait });
+      s.ads.n++; s.ads.last = now;
+      const gained = {};
+      for (const r of ['scrap', 'copper']) gained[r] = E.addRes(s, r, Math.floor(E.capOf(s, r) * G.ADS.resPct));
+      return { ok: true, gained };
     }
     if (c === 'battle') return battle(s, cmd, now);
     if (c === 'meta') { // harmless, non-economic preferences

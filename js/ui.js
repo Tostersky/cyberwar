@@ -63,6 +63,8 @@
     $('#btn-attack').onclick = U.openAttack;
     $('#btn-set').onclick = U.openSettings;
     $('#btn-profile').onclick = U.openSettings;
+    // tapping the chips counter opens the chip shop
+    const chipRes = $('.res[data-r="chips"]'); chipRes.classList.add('pe'); chipRes.onclick = () => { G.Sfx.play('click'); U.openChips(); };
     ui.addEventListener('click', (e) => { if (e.target.closest('button')) G.Sfx.play('click'); }, true);
     U.applyLang();
   };
@@ -274,7 +276,8 @@
           `<div class="c-cost">${costHtml(d.res, d.cost[0], G.state.res[d.res] >= d.cost[0])}</div><div class="c-time">${d.time[0] ? G.fmtTime(d.time[0]) : t('instant')}</div>`}
       </button>`;
     }).join('');
-    U.modal(t('shop'), `<div class="grid">${cards}</div>`, { cls: 'wide' });
+    U.modal(t('shop'), `<button class="chip-banner" id="shop-chips">${IC.chips}<span><b>${t('chipShop')}</b><small>${t('chipShopSub')}</small></span></button><div class="grid">${cards}</div>`, { cls: 'wide' });
+    $('#shop-chips').onclick = U.openChips;
     document.querySelectorAll('#modal .card').forEach((c) => {
       c.onclick = () => {
         const type = c.dataset.type;
@@ -283,6 +286,71 @@
         G.Village.startPlace(type);
       };
     });
+  };
+
+  // ---------- chip shop: packs (Google Play), rewarded ad, chips -> resources ----------
+  U.openChips = function () {
+    let busy = false;
+    const draw = () => {
+      const s = G.state, inApp = G.Pay.ready;
+      const packs = G.CHIP_PACKS.map((p) => `<button class="card pack ${p.tag ? 'tag-' + p.tag : ''}" data-pack="${p.id}">
+          ${p.tag ? `<div class="p-tag">${t('tag_' + p.tag)}</div>` : ''}
+          <div class="p-ic">${IC.chips}</div><div class="p-n">${G.fmt(p.chips)}</div>
+          <div class="p-price">${escHtml(G.Pay.priceOf(p))}</div></button>`).join('');
+      let ad = '';
+      if (G.Ads.enabled()) {
+        const st = G.Ads.state();
+        ad = `<div class="ad-row"><div><b>${t('adTitle', { n: Math.round(G.ADS.resPct * 100) })}</b><small>${t('adLeft', { n: st.left, m: G.ADS.perDay })}</small></div>
+          <button class="btn primary sm" id="ch-ad" ${st.left <= 0 || st.wait > 0 ? 'disabled' : ''}>${st.wait > 0 ? G.fmtTime(st.wait) : '▶ ' + t('adWatch')}</button></div>`;
+      }
+      const ex = ['scrap', 'copper'].map((r) => {
+        const btns = [['p10', '10%'], ['p50', '50%'], ['full', t('fillUp')]].map(([part, lbl]) => {
+          const n = G.Econ.buyResAmount(s, r, part), cost = G.resChipCost(n);
+          return `<button class="btn sm ex-btn" data-r="${r}" data-part="${part}" ${n <= 0 ? 'disabled' : ''}>
+            <span>${lbl}</span><span class="ex-n">+${G.fmt(n)}</span>${costHtml('chips', cost, s.res.chips >= cost)}</button>`;
+        }).join('');
+        return `<div class="ex-row">${resIc(r)}<b>${t(r)}</b><div class="ex-btns">${btns}</div></div>`;
+      }).join('');
+      U.modal(t('chipShop'), `
+        <div class="sec-h">${t('chipPacks')}</div>
+        ${inApp ? '' : `<p class="hint iap-note">${t(G.Pay.available() ? 'iapLoading' : 'iapOnlyApp')}</p>`}
+        <div class="grid packs">${packs}</div>
+        ${ad ? `<div class="sec-h">${t('freeRes')}</div>${ad}` : ''}
+        <div class="sec-h">${t('exchange')}</div>${ex}`, { cls: 'wide' });
+      document.querySelectorAll('#modal .pack').forEach((b) => {
+        b.onclick = async () => {
+          if (busy) return;
+          if (!G.Pay.available()) { U.toast(t('iapOnlyAppShort')); return; }
+          busy = true; U.loading(true);
+          const r = await G.Pay.buy(G.packById(b.dataset.pack));
+          U.loading(false); busy = false;
+          if (r.ok) { G.Sfx.play('star'); U.notify(t('iapThanks', { n: r.chips || G.packById(b.dataset.pack).chips })); U.refreshHud(); draw(); }
+          else if (r.err !== 'iapCancel') U.toast(t(r.err));
+        };
+      });
+      if ($('#ch-ad')) $('#ch-ad').onclick = async () => {
+        if (busy) return;
+        busy = true;
+        const watched = await G.Ads.showRewarded();
+        busy = false;
+        if (!watched) { U.toast(t('adNone')); draw(); return; }
+        const r = G.act({ c: 'adReward' });
+        if (r.err) U.toast(t(r.err, r.p)); else { U.notify(t('adGot', { s: G.fmt(r.gained.scrap), c: G.fmt(r.gained.copper) })); U.refreshHud(); }
+        draw();
+      };
+      document.querySelectorAll('#modal .ex-btn').forEach((b) => {
+        b.onclick = () => {
+          const n = G.Econ.buyResAmount(G.state, b.dataset.r, b.dataset.part), cost = G.resChipCost(n);
+          U.confirm(t('exchangeQ', { n: G.fmt(n), r: t(b.dataset.r), c: cost }), () => {
+            const r = G.act({ c: 'buyRes', r: b.dataset.r, part: b.dataset.part });
+            if (r.err) U.toast(t(r.err, r.p)); else { G.Sfx.play('collect'); U.refreshHud(); }
+            U.openChips();
+          });
+        };
+      });
+    };
+    draw();
+    if (G.Pay.available() && !G.Pay.ready) G.Pay.init().then((ok) => { if (ok && U.isModal() && !busy) draw(); });
   };
 
   // ---------- army ----------
