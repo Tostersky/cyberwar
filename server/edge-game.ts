@@ -3,7 +3,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 // @ts-nocheck
 const G: any = {};
 // Game data: buildings, units, heroes, campaign. All numbers are CyberWar's own.
-G.TW = 64; G.TH = 32; G.MAP = 40; G.VERSION = '0.9.4';
+G.TW = 64; G.TH = 32; G.MAP = 40; G.VERSION = '0.9.6';
 G.BUILDERS = 2;
 
 // every array has one value per level (1..8)
@@ -68,21 +68,23 @@ G.HEROES = {
 G.HERO_ORDER = ['ronin', 'nyx'];
 
 G.BATTLE_TIME = 180;
-// creating a clan costs premium chips (500 chips = the 8,99 zł chip pack in the shop)
+// creating a clan costs premium chips (500 chips = the 14,99 zł chip pack in the shop)
 G.CLAN_PRICE = 500;
 
 // chip packs sold through Google Play (ids = product ids in Play Console; prices shown from Play when available)
 G.CHIP_PACKS = [
-  { id: 'chips_120', chips: 120, price: '2,99 zł' },
-  { id: 'chips_500', chips: 500, price: '8,99 zł', tag: 'clan' },
-  { id: 'chips_1200', chips: 1200, price: '19,99 zł' },
-  { id: 'chips_2800', chips: 2800, price: '39,99 zł', tag: 'popular' },
-  { id: 'chips_7500', chips: 7500, price: '89,99 zł', tag: 'best' },
+  { id: 'chips_120', chips: 120, price: '4,99 zł' },
+  { id: 'chips_500', chips: 500, price: '14,99 zł', tag: 'clan' },
+  { id: 'chips_1200', chips: 1200, price: '29,99 zł' },
+  { id: 'chips_2800', chips: 2800, price: '59,99 zł', tag: 'popular' },
+  { id: 'chips_7500', chips: 7500, price: '129,99 zł', tag: 'best' },
 ];
 G.packById = (id) => G.CHIP_PACKS.find((p) => p.id === id);
 // rewarded ads: off until an ad account (AdSense / H5 Games Ads) is set up — then on:true + client id
 // chips come ONLY from purchases and the campaign: an ad gives resources (share of storage), never chips
 G.ADS = { on: false, client: '', resPct: 0.1, perDay: 5, cooldown: 90 };
+// VIP: monthly Google Play subscription — ad rewards without watching ads, no ads, gold badge (no chips!)
+G.VIP = { id: 'vip_monthly', price: '47 zł / mies.' };
 // chips -> resources exchange (fill 10% / 50% / to the top of storage)
 G.resChipCost = (n) => (n > 0 ? Math.ceil(n / 200) + 1 : 0);
 // full stars earned for a destruction share 0..1 (every third = one star; 33% counts as 1)
@@ -216,6 +218,7 @@ G.genBot = function (coreLv, seed) {
     s.unitLv = s.unitLv || {}; for (const u of G.UNIT_ORDER) s.unitLv[u] = Math.max(1, Math.min(G.RESEARCH.maxLv, s.unitLv[u] | 0 || 1));
     if (s.research && !G.UNITS[s.research.u]) s.research = null;
     s.trophies = Math.max(0, Math.floor(+s.trophies || 0));
+    s.vipUntil = Math.max(0, +s.vipUntil || 0); if (typeof s.vipToken !== 'string') delete s.vipToken;
     s.ads = s.ads && typeof s.ads.day === 'string' ? { day: s.ads.day, n: Math.max(0, s.ads.n | 0), last: +s.ads.last || 0 } : { day: '', n: 0, last: 0 };
     s.nextId = Math.max(s.nextId || 1, ...s.buildings.map((b) => b.id + 1), 1);
     for (const b of s.buildings) { if (b.last == null) b.last = now; if (b.acc == null) b.acc = 0; }
@@ -330,6 +333,7 @@ G.genBot = function (coreLv, seed) {
     const want = part === 'full' ? room : Math.floor(cap * (part === 'p50' ? 0.5 : 0.1));
     return Math.max(0, Math.min(room, want));
   };
+  E.isVip = (s, now) => s.vipUntil > now;
   // rewarded ads today: {left, wait (seconds)}; the counter resets every UTC day
   E.adState = function (s, now) {
     const day = new Date(now).toISOString().slice(0, 10);
@@ -453,11 +457,13 @@ G.genBot = function (coreLv, seed) {
       s.res.chips -= cost; E.addRes(s, r, n);
       return { ok: true, n, cost };
     }
-    if (c === 'adReward') { // watched a rewarded ad (capped per day, with a cooldown)
-      if (!G.ADS.on) return ERR('adsOff');
+    if (c === 'adReward' || c === 'vipReward') { // watched a rewarded ad — or VIP: the same reward without the ad
+      const vip = c === 'vipReward';
+      if (vip && !E.isVip(s, now)) return ERR('vipOnly');
+      if (!vip && !G.ADS.on) return ERR('adsOff');
       const st = E.adState(s, now);
       if (st.left <= 0) return ERR('adLimit');
-      if (st.wait > 0) return ERR('adWait', { n: st.wait });
+      if (!vip && st.wait > 0) return ERR('adWait', { n: st.wait });
       s.ads.n++; s.ads.last = now;
       const gained = {};
       for (const r of ['scrap', 'copper']) gained[r] = E.addRes(s, r, Math.floor(E.capOf(s, r) * G.ADS.resPct));
@@ -472,7 +478,7 @@ G.genBot = function (coreLv, seed) {
       return { ok: true };
     }
     if (c === 'reset') {
-      const keep = { name: s.name, owner: s.owner, trophies: s.trophies, lang: s.lang, settings: s.settings, defLog: s.defLog };
+      const keep = { name: s.name, owner: s.owner, trophies: s.trophies, lang: s.lang, settings: s.settings, defLog: s.defLog, vipUntil: s.vipUntil, vipToken: s.vipToken, vipCheck: s.vipCheck, ads: s.ads };
       const n = E.newGame(now, s.name);
       for (const k of Object.keys(s)) delete s[k];
       Object.assign(s, n, keep, { tut: 99 });
@@ -625,6 +631,35 @@ async function playPurchase(uid, s, cmd) {
   return { ok: true, chips: credited, product: pack.id };
 }
 
+// VIP subscription: verify with Google, remember the expiry, acknowledge it (Google refunds unacknowledged ones)
+const VIP_OK = ['SUBSCRIPTION_STATE_ACTIVE', 'SUBSCRIPTION_STATE_IN_GRACE_PERIOD', 'SUBSCRIPTION_STATE_CANCELED'];
+async function playVip(uid, s, token, now) {
+  token = String(token || '');
+  if (!token || token.length > 4096) return { err: 'iapBad' };
+  const at = await playAccessToken();
+  if (!at) return { err: 'iapOff' };
+  const api = 'https://androidpublisher.googleapis.com/androidpublisher/v3/applications/' + PLAY_PACKAGE + '/purchases/';
+  const r = await fetch(api + 'subscriptionsv2/tokens/' + encodeURIComponent(token), { headers: { Authorization: 'Bearer ' + at } });
+  if (!r.ok) return { err: 'iapBad' };
+  const p = await r.json();
+  const item = (p.lineItems || []).find((li) => li.productId === G.VIP.id);
+  if (!item) return { err: 'iapBad' };
+  if (p.subscriptionState === 'SUBSCRIPTION_STATE_PENDING') return { err: 'iapPending' };
+  // a canceled subscription stays valid until its expiry time
+  const expiry = Date.parse(item.expiryTime || '') || 0;
+  const active = VIP_OK.includes(p.subscriptionState) && expiry > now;
+  // one subscription = one player account
+  const { data: row } = await admin.from('subscriptions').select('user_id').eq('token', token).maybeSingle();
+  if (row && row.user_id && row.user_id !== uid) return { err: 'iapOwned' };
+  await admin.from('subscriptions').upsert({ token, user_id: uid, product: G.VIP.id, expiry: expiry ? new Date(expiry).toISOString() : null, updated_at: new Date(now).toISOString() });
+  s.vipToken = token; s.vipCheck = now; s.vipUntil = active ? expiry : 0;
+  await admin.from('profiles').update({ vip_until: active ? new Date(expiry).toISOString() : null }).eq('id', uid);
+  if (p.acknowledgementState === 'ACKNOWLEDGEMENT_STATE_PENDING') {
+    await fetch(api + 'subscriptions/' + G.VIP.id + '/tokens/' + encodeURIComponent(token) + ':acknowledge', { method: 'POST', headers: { Authorization: 'Bearer ' + at, 'Content-Type': 'application/json' }, body: '{}' }).catch(() => {});
+  }
+  return active ? { ok: true, vipUntil: expiry } : { err: 'vipExpired' };
+}
+
 const json = (o, status) => new Response(JSON.stringify(o), { status: status || 200, headers: { ...CORS, 'Content-Type': 'application/json' } });
 
 Deno.serve(async (req) => {
@@ -650,6 +685,7 @@ Deno.serve(async (req) => {
       if (!cmd || typeof cmd !== 'object') { results.push({ err: 'server' }); continue; }
       if (cmd.c === 'donate') { try { results.push(await donate(uid, prof, s, cmd, now)); } catch (e) { results.push({ err: 'server' }); } continue; }
       if (cmd.c === 'donate_out') { results.push({ err: 'server' }); continue; } // only via 'donate'
+      if (cmd.c === 'vip') { try { results.push(await playVip(uid, s, cmd.token, now)); } catch (e) { results.push({ err: 'server', message: String(e && e.message || e) }); } continue; }
       if (cmd.c === 'iap') { try { results.push(await playPurchase(uid, s, cmd)); } catch (e) { results.push({ err: 'server', message: String(e && e.message || e) }); } continue; }
       if (cmd.c === 'createClan') {
         // paid: charge the chips only if the clan was really created
@@ -674,6 +710,10 @@ Deno.serve(async (req) => {
       try { results.push(G.Econ.apply(s, cmd, now)); } catch (e) { results.push({ err: 'server' }); }
     }
     G.Econ.tick(s, now);
+    // VIP renews monthly: after the stored expiry ask Google again (at most once an hour)
+    if (s.vipToken && !(s.vipUntil > now) && !(now - (s.vipCheck || 0) < 3600000)) {
+      try { await playVip(uid, s, s.vipToken, now); } catch (_) { s.vipCheck = now; }
+    }
 
     // attacks made on this player since the last visit
     const { data: defs } = await admin.from('attacks')
