@@ -234,6 +234,31 @@ table.stats td.nx { color: var(--grn); font-weight: 800; width: 90px; }
 .spin { width: 46px; height: 46px; border: 4px solid rgba(25,240,255,.2); border-top-color: var(--cyan); border-radius: 50%; animation: spin .8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
+/* ---- chip shop ---- */
+.res[data-r="chips"] { cursor: pointer; }
+.chip-banner { display: flex; align-items: center; gap: 12px; width: 100%; margin-bottom: 10px; padding: 8px 14px; text-align: left; color: var(--txt);
+  background: linear-gradient(90deg, rgba(25,240,255,.22), rgba(255,43,214,.18)); border: 1px solid var(--cyan); clip-path: var(--cut); }
+.chip-banner svg { width: 34px; height: 34px; flex: none; filter: drop-shadow(0 0 6px var(--cyan)); }
+.chip-banner span { display: flex; flex-direction: column; } .chip-banner small { color: var(--dim); font-size: 12px; }
+.sec-h { margin: 12px 0 6px; color: var(--cyan); font-weight: 800; text-transform: uppercase; letter-spacing: 1.5px; font-size: 13px; }
+.sec-h:first-child { margin-top: 0; }
+.grid.packs { grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); }
+.pack { padding-top: 18px; gap: 2px; border-color: rgba(25,240,255,.5); }
+.pack .p-ic svg { width: 42px; height: 42px; filter: drop-shadow(0 0 8px rgba(25,240,255,.7)); }
+.pack .p-n { font-family: Orbitron, sans-serif; font-weight: 900; font-size: 18px; color: var(--cyan); }
+.pack .p-price { margin-top: 4px; padding: 4px 10px; background: var(--grn); color: #04210f; font-weight: 800; font-size: 13px; clip-path: var(--cut); }
+.pack .p-tag { position: absolute; top: 0; left: 0; right: 0; padding: 2px 4px; font-size: 10px; font-weight: 800; text-transform: uppercase; background: var(--mag); color: #fff; }
+.pack.tag-best .p-tag { background: var(--yel); color: #2a2000; }
+.pack.tag-clan .p-tag { background: #7f6bff; }
+.iap-note { margin: 0 0 8px; }
+.ad-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; background: rgba(57,255,136,.08); border: 1px solid rgba(57,255,136,.4); }
+.ad-row > div { display: flex; flex-direction: column; } .ad-row small { color: var(--dim); }
+.ex-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+.ex-row > .ri svg { width: 24px; height: 24px; } .ex-row > b { min-width: 60px; }
+.ex-btns { display: flex; gap: 6px; flex: 1; justify-content: flex-end; flex-wrap: wrap; }
+.ex-btn { flex-direction: column; gap: 0; min-width: 84px; padding: 4px 8px; line-height: 1.2; }
+.ex-btn .ex-n { font-size: 11px; color: var(--dim); }
+
 /* ---- landscape only: "rotate your phone" screen on upright touch devices ---- */
 #rotate { display: none; position: fixed; inset: 0; z-index: 9999; background: radial-gradient(circle at 50% 40%, #241047, #07060f 70%);
   flex-direction: column; align-items: center; justify-content: center; gap: 10px; text-align: center; padding: 24px; color: var(--txt); }
