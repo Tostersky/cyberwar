@@ -3,19 +3,20 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 // @ts-nocheck
 const G: any = {};
 // Game data: buildings, units, heroes, campaign. All numbers are CyberWar's own.
-G.TW = 64; G.TH = 32; G.MAP = 40; G.VERSION = '0.10.0';
+G.TW = 64; G.TH = 32; G.MAP = 40; G.VERSION = '0.10.1';
 G.BUILDERS = 2;
 
 // every array has one value per level (1..8)
 G.BUILDINGS = {
-  core:       { size: 4, res: 'scrap',  cost: [0, 2000, 8000, 25000, 60000, 120000, 220000, 400000], time: [0, 30, 120, 600, 1800, 3600, 7200, 14400],
-                hp: [1500, 1900, 2400, 3000, 3800, 4600, 5500, 6500], store: [1500, 3000, 6000, 10000, 15000, 22000, 30000, 40000] },
+  // balance rule: everything a Core level unlocks costs at most ~85% of (Core + ONE vault at that level); more vaults = extra savings room
+  core:       { size: 4, res: 'scrap',  cost: [0, 2000, 7000, 20000, 45000, 90000, 160000, 280000], time: [0, 30, 120, 600, 1800, 3600, 7200, 14400],
+                hp: [1500, 1900, 2400, 3000, 3800, 4600, 5500, 6500], store: [2000, 4000, 7000, 12000, 20000, 34000, 52000, 75000] },
   scrapyard:  { size: 3, res: 'copper', cost: [150, 300, 700, 1400, 3000, 6000, 12000, 24000], time: [10, 30, 60, 180, 600, 1200, 2400, 3600],
                 hp: [400, 450, 500, 550, 600, 650, 700, 750], prod: 'scrap', rate: [300, 500, 800, 1100, 1500, 1900, 2400, 3000], cap: [500, 1000, 2000, 3500, 5000, 7000, 9500, 12000] },
   coppermine: { size: 3, res: 'scrap',  cost: [150, 300, 700, 1400, 3000, 6000, 12000, 24000], time: [10, 30, 60, 180, 600, 1200, 2400, 3600],
                 hp: [400, 450, 500, 550, 600, 650, 700, 750], prod: 'copper', rate: [300, 500, 800, 1100, 1500, 1900, 2400, 3000], cap: [500, 1000, 2000, 3500, 5000, 7000, 9500, 12000] },
   vault:      { size: 3, res: 'copper', cost: [300, 800, 2000, 5000, 12000, 25000, 50000, 90000], time: [15, 60, 180, 600, 1200, 2400, 3600, 7200],
-                hp: [600, 700, 800, 900, 1000, 1100, 1200, 1300], store: [2000, 5000, 10000, 20000, 40000, 60000, 90000, 130000] },
+                hp: [600, 700, 800, 900, 1000, 1100, 1200, 1300], store: [2000, 5000, 17000, 42000, 85000, 152000, 272000, 300000] },
   factory:    { size: 3, res: 'scrap',  cost: [200, 1000, 2500, 6000, 15000, 30000, 60000, 100000], time: [15, 60, 180, 600, 1200, 2400, 3600, 7200],
                 hp: [500, 600, 700, 800, 900, 1000, 1100, 1200] },
   squadhq:    { size: 4, res: 'copper', cost: [250, 2000, 5000, 12000, 25000, 45000, 80000, 140000], time: [15, 90, 300, 900, 1800, 3600, 5400, 7200],
@@ -43,6 +44,9 @@ G.BUILDINGS = {
                 hp: [300, 600, 1000, 1600, 2500, 3500, 4800, 6500], wall: true },
 };
 G.MAXLV = 8;
+// "reference storage" of a Core level: Core + one vault at that level. Rewards scale with this (not with
+// the real storage), so building many vaults doesn't inflate daily rewards, missions or ad rewards.
+G.refCap = (L) => G.BUILDINGS.core.store[L - 1] + G.BUILDINGS.vault.store[L - 1];
 // How many of each building per Core level (index = core level - 1)
 G.LIMITS = {
   core: [1, 1, 1, 1, 1, 1, 1, 1], scrapyard: [2, 3, 4, 5, 6, 6, 7, 7], coppermine: [2, 3, 4, 5, 6, 6, 7, 7],
@@ -95,7 +99,7 @@ G.DAILY = [
 ];
 // daily missions: 3 a day picked from this pool; goal = fixed number or share of storage (cap)
 G.MISSIONS = {
-  collect_scrap: { cap: 0.3 }, collect_copper: { cap: 0.3 }, win: { goal: 2 }, stars: { goal: 5 },
+  collect_scrap: { hours: 3 }, collect_copper: { hours: 3 }, win: { goal: 2 }, stars: { goal: 5 },
   build: { goal: 2 }, train: { goal: 15 }, raid: { goal: 1 },
 };
 G.MISSION_REWARD = 0.12; // share of storage, scrap + copper
@@ -318,6 +322,8 @@ G.genBot = function (coreLv, seed) {
       if (moved > 0) { b.flow = (b.flow || 0) + moved; E.progress(s, now, 'collect_' + d.prod, moved); }
     }
   };
+  // total production per hour of one resource (all finished collectors)
+  E.prodRate = (s, res) => s.buildings.reduce((n, b) => n + (b.level > 0 && BD()[b.type].prod === res ? BD()[b.type].rate[b.level - 1] : 0), 0);
   E.ratePer = (b, sec) => (b.level > 0 && BD()[b.type].prod ? BD()[b.type].rate[b.level - 1] * sec / 3600 : 0);
   // finishes constructions and training up to `now`; returns events [{kind:'built', id}]
   E.tick = function (s, now) {
@@ -379,7 +385,7 @@ G.genBot = function (coreLv, seed) {
   // gives resources (share of storage) and units that fit in the squad
   function grant(s, pct, units) {
     const gained = { scrap: 0, copper: 0 }, got = {};
-    for (const r of ['scrap', 'copper']) gained[r] = E.addRes(s, r, Math.floor(E.capOf(s, r) * pct));
+    for (const r of ['scrap', 'copper']) gained[r] = E.addRes(s, r, Math.floor(G.refCap(E.coreLevel(s)) * pct));
     for (const u in units || {}) {
       for (let i = 0; i < units[u]; i++) {
         if (E.armySpace(s) + E.queueSpace(s) + G.UNITS[u].space > E.housing(s)) break;
@@ -398,7 +404,7 @@ G.genBot = function (coreLv, seed) {
     while (pick.length < 3) { const id = ids[Math.floor(r() * ids.length)]; if (!pick.includes(id)) pick.push(id); }
     const list = pick.map((id) => {
       const m = G.MISSIONS[id], res = id === 'collect_copper' ? 'copper' : 'scrap';
-      const goal = m.cap ? Math.max(500, Math.round(E.capOf(s, res) * m.cap / 100) * 100) : m.goal;
+      const goal = m.hours ? Math.max(500, Math.round(E.prodRate(s, res) * m.hours / 100) * 100) : m.goal;
       return { id, goal, n: 0, got: false };
     });
     s.mis = { day, list };
@@ -564,7 +570,7 @@ G.genBot = function (coreLv, seed) {
       if (!vip && st.wait > 0) return ERR('adWait', { n: st.wait });
       s.ads.n++; s.ads.last = now;
       const gained = {};
-      for (const r of ['scrap', 'copper']) gained[r] = E.addRes(s, r, Math.floor(E.capOf(s, r) * G.ADS.resPct));
+      for (const r of ['scrap', 'copper']) gained[r] = E.addRes(s, r, Math.floor(G.refCap(E.coreLevel(s)) * G.ADS.resPct));
       return { ok: true, gained };
     }
     if (c === 'battle') return battle(s, cmd, now);
