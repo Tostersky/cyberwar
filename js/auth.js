@@ -3,7 +3,7 @@ G.Auth = (function () {
   const A = {};
   const t = (k, p) => G.t(k, p);
   const $ = (s) => document.querySelector(s);
-  let mode = 'register', busy = false, notice = '';
+  let mode = 'register', busy = false, notice = '', pendingEmail = '', lastErr = '';
 
   A.isOpen = () => !!$('#auth') && !$('#auth').classList.contains('hidden');
 
@@ -27,6 +27,10 @@ G.Auth = (function () {
     if (mode === 'login') return `
       <label class="fld">${t('loginId')}<input id="a-login" autocomplete="username" autocapitalize="off" spellcheck="false"></label>
       <label class="fld">${t('password')}<input id="a-pass" type="password" autocomplete="current-password"></label>`;
+    if (mode === 'checkmail') return `
+      <div class="mail-ic">✉</div>
+      <p class="center">${t('checkMailText')}</p>
+      <label class="fld">E-mail<input id="a-email" type="email" autocomplete="email" inputmode="email" autocapitalize="off" spellcheck="false" value="${pendingEmail.replace(/"/g, '')}"></label>`;
     if (mode === 'forgot') return `
       <p class="hint">${t('forgotText')}</p>
       <label class="fld">E-mail<input id="a-email" type="email" autocomplete="email" inputmode="email" autocapitalize="off" spellcheck="false"></label>`;
@@ -35,7 +39,7 @@ G.Auth = (function () {
       <label class="fld">${t('newPassword')}<input id="a-pass" type="password" autocomplete="new-password" placeholder="${t('passwordHint')}"></label>
       <label class="fld">${t('repeatPassword')}<input id="a-pass2" type="password" autocomplete="new-password"></label>`;
   }
-  const submitLabel = () => ({ register: t('createAccount'), login: t('login'), forgot: t('sendResetLink'), newpass: t('savePassword') })[mode];
+  const submitLabel = () => ({ register: t('createAccount'), login: t('login'), forgot: t('sendResetLink'), newpass: t('savePassword'), checkmail: t('resendMail') })[mode];
 
   function render() {
     const el = $('#auth');
@@ -45,7 +49,7 @@ G.Auth = (function () {
         <div class="auth-logo">CYBER<span>WAR</span></div>
         <div class="auth-lang"><button data-l="pl" class="${G.lang === 'pl' ? 'on' : ''}">PL</button><button data-l="en" class="${G.lang === 'en' ? 'on' : ''}">EN</button></div>
         ${tabs ? `<div class="seg auth-tabs"><button data-m="login" class="${mode === 'login' ? 'on' : ''}">${t('login')}</button><button data-m="register" class="${mode === 'register' ? 'on' : ''}">${t('register')}</button></div>`
-          : `<h3 class="auth-h">${mode === 'forgot' ? t('resetPassword') : t('newPassword')}</h3>`}
+          : `<h3 class="auth-h">${({ forgot: t('resetPassword'), checkmail: t('confirmEmail'), newpass: t('newPassword') })[mode]}</h3>`}
         <form id="auth-form" novalidate>
           ${fields()}
           <div class="auth-ok" id="a-ok">${notice}</div>
@@ -53,7 +57,8 @@ G.Auth = (function () {
           <button class="btn primary auth-go" type="submit">${submitLabel()}</button>
         </form>
         ${mode === 'login' ? `<p class="center"><button class="link-btn" id="a-forgot">${t('forgotPassword')}</button></p>` : ''}
-        ${mode === 'forgot' ? `<p class="center"><button class="link-btn" id="a-back">← ${t('backToLogin')}</button></p>` : ''}
+        ${mode === 'forgot' || mode === 'checkmail' ? `<p class="center"><button class="link-btn" id="a-back">← ${t('backToLogin')}</button></p>` : ''}
+        ${mode === 'login' && lastErr === 'notConfirmed' ? `<p class="center"><button class="link-btn" id="a-resend">${t('resendMail')}</button></p>` : ''}
         <p class="hint"><a href="privacy.html" target="_blank" rel="noopener">${t('privacyPolicy')}</a></p>
       </div>`;
     el.querySelectorAll('.auth-tabs button').forEach((b) => { b.onclick = () => { mode = b.dataset.m; notice = ''; render(); }; });
@@ -61,7 +66,8 @@ G.Auth = (function () {
       b.onclick = () => { G.lang = b.dataset.l; if (G.state) G.state.lang = G.lang; try { localStorage.setItem('cyberwar_lang', G.lang); } catch (_) {} G.UI.applyLang(); render(); };
     });
     if ($('#a-forgot')) $('#a-forgot').onclick = () => { mode = 'forgot'; notice = ''; render(); };
-    if ($('#a-back')) $('#a-back').onclick = () => { mode = 'login'; notice = ''; render(); };
+    if ($('#a-back')) $('#a-back').onclick = () => { mode = 'login'; notice = ''; lastErr = ''; render(); };
+    if ($('#a-resend')) $('#a-resend').onclick = () => { mode = 'checkmail'; notice = ''; lastErr = ''; render(); };
     $('#auth-form').onsubmit = (e) => { e.preventDefault(); submit(); };
     const u = $('#a-user');
     if (u) {
@@ -98,7 +104,7 @@ G.Auth = (function () {
     } else if (mode === 'login') {
       if (!val('#a-login').trim()) return err(t('loginIdMissing'));
       if (!pass) return err(t('err_badLogin'));
-    } else if (mode === 'forgot') {
+    } else if (mode === 'forgot' || mode === 'checkmail') {
       if (!emailOk(val('#a-email').trim())) return err(t('err_badEmail'));
     } else {
       if (pass.length < 6) return err(t('err_weakPassword'));
@@ -110,11 +116,21 @@ G.Auth = (function () {
       if (mode === 'register') {
         const user = val('#a-user').trim();
         if (!(await G.Net.usernameAvailable(user))) throw new G.Net.NetError('usernameTaken');
-        await G.Net.signUp(val('#a-email').trim(), pass, user);
-        await finishLogin();
+        const res = await G.Net.signUp(val('#a-email').trim(), pass, user);
+        if (res === 'confirm') {
+          pendingEmail = val('#a-email').trim();
+          try { localStorage.setItem('cyberwar_had_account', '1'); } catch (_) {}
+          mode = 'checkmail'; notice = ''; render();
+        } else await finishLogin();
       } else if (mode === 'login') {
-        await G.Net.signIn(val('#a-login').trim(), pass);
+        const id = val('#a-login').trim();
+        if (id.includes('@')) pendingEmail = id;
+        await G.Net.signIn(id, pass);
         await finishLogin();
+      } else if (mode === 'checkmail') {
+        pendingEmail = val('#a-email').trim();
+        await G.Net.resendConfirm(pendingEmail);
+        ok(t('mailResent'));
       } else if (mode === 'forgot') {
         await G.Net.requestReset(val('#a-email').trim());
         mode = 'login'; notice = t('resetSent'); render();
@@ -125,7 +141,9 @@ G.Auth = (function () {
         G.UI.toast(t('passwordChanged'));
       }
     } catch (e) {
-      err(t('err_' + (e.code || 'server')));
+      lastErr = e.code || 'server';
+      if (lastErr === 'notConfirmed' && mode === 'login') { render(); }
+      err(t('err_' + lastErr));
     }
     busy = false;
     const b2 = $('.auth-go'); if (b2) { b2.disabled = false; b2.textContent = submitLabel(); }

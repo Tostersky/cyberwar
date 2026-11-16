@@ -28,6 +28,7 @@
     try { back = await G.Net.consumeAuthHash(); } catch (_) { back = 'error'; }
     if (back === 'recovery') { G.Auth.show('newpass'); return; }
     if (back === 'error') { G.Auth.show('forgot', G.t('resetLinkExpired')); return; }
+    if (back === 'login') setTimeout(() => G.UI.toast(G.t('emailConfirmed')), 1500);
     if (!G.Net.restore()) { G.Auth.show(); return; }
     G.UI.loading(true);
     try {

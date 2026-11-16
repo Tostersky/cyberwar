@@ -5,6 +5,7 @@ G.Net = (function () {
   const KEY = 'sb_publishable__NJv0uJyZVDGnHu5Jf8MzA_oEF3Cs3j';
   const SKEY = 'cyberwar_session';
   const N = { session: null, profile: null, dirty: false, lastPush: 0 };
+  N.GAME_URL = 'https://tostersky.github.io/cyberwar/';
 
   function loadSession() { try { return JSON.parse(localStorage.getItem(SKEY) || 'null'); } catch (_) { return null; } }
   function storeSession(s) { N.session = s; try { if (s) localStorage.setItem(SKEY, JSON.stringify(s)); else localStorage.removeItem(SKEY); } catch (_) {} }
@@ -58,10 +59,15 @@ G.Net = (function () {
   N.usernameAvailable = async function (name) {
     return !!(await req('/rest/v1/rpc/username_available', { method: 'POST', body: { name } }));
   };
+  // Returns 'confirm' when the player must click the link in the confirmation email first.
   N.signUp = async function (email, password, username) {
-    const b = await req('/auth/v1/signup', { method: 'POST', body: { email, password, data: { username } } });
-    if (!takeSession(b)) throw new NetError('notConfirmed');
+    const b = await req('/auth/v1/signup?redirect_to=' + encodeURIComponent(N.GAME_URL), { method: 'POST', body: { email, password, data: { username } } });
+    if (!takeSession(b)) return 'confirm';
     await N.loadProfile();
+    return 'ok';
+  };
+  N.resendConfirm = async function (email) {
+    await req('/auth/v1/resend?redirect_to=' + encodeURIComponent(N.GAME_URL), { method: 'POST', body: { type: 'signup', email } });
   };
   // login = email OR username. For a username the server returns the email only if the password is right.
   N.signIn = async function (login, password) {
@@ -76,7 +82,6 @@ G.Net = (function () {
   };
 
   // ---------- password reset ----------
-  N.GAME_URL = 'https://tostersky.github.io/cyberwar/';
   N.requestReset = async function (email) {
     await req('/auth/v1/recover?redirect_to=' + encodeURIComponent(N.GAME_URL), { method: 'POST', body: { email } });
   };
