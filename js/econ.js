@@ -32,6 +32,7 @@
     s.unitLv = s.unitLv || {}; for (const u of G.UNIT_ORDER) s.unitLv[u] = Math.max(1, Math.min(G.RESEARCH.maxLv, s.unitLv[u] | 0 || 1));
     if (s.research && !G.UNITS[s.research.u]) s.research = null;
     s.trophies = Math.max(0, Math.floor(+s.trophies || 0));
+    s.vipUntil = Math.max(0, +s.vipUntil || 0); if (typeof s.vipToken !== 'string') delete s.vipToken;
     s.ads = s.ads && typeof s.ads.day === 'string' ? { day: s.ads.day, n: Math.max(0, s.ads.n | 0), last: +s.ads.last || 0 } : { day: '', n: 0, last: 0 };
     s.nextId = Math.max(s.nextId || 1, ...s.buildings.map((b) => b.id + 1), 1);
     for (const b of s.buildings) { if (b.last == null) b.last = now; if (b.acc == null) b.acc = 0; }
@@ -146,6 +147,7 @@
     const want = part === 'full' ? room : Math.floor(cap * (part === 'p50' ? 0.5 : 0.1));
     return Math.max(0, Math.min(room, want));
   };
+  E.isVip = (s, now) => s.vipUntil > now;
   // rewarded ads today: {left, wait (seconds)}; the counter resets every UTC day
   E.adState = function (s, now) {
     const day = new Date(now).toISOString().slice(0, 10);
@@ -269,11 +271,13 @@
       s.res.chips -= cost; E.addRes(s, r, n);
       return { ok: true, n, cost };
     }
-    if (c === 'adReward') { // watched a rewarded ad (capped per day, with a cooldown)
-      if (!G.ADS.on) return ERR('adsOff');
+    if (c === 'adReward' || c === 'vipReward') { // watched a rewarded ad — or VIP: the same reward without the ad
+      const vip = c === 'vipReward';
+      if (vip && !E.isVip(s, now)) return ERR('vipOnly');
+      if (!vip && !G.ADS.on) return ERR('adsOff');
       const st = E.adState(s, now);
       if (st.left <= 0) return ERR('adLimit');
-      if (st.wait > 0) return ERR('adWait', { n: st.wait });
+      if (!vip && st.wait > 0) return ERR('adWait', { n: st.wait });
       s.ads.n++; s.ads.last = now;
       const gained = {};
       for (const r of ['scrap', 'copper']) gained[r] = E.addRes(s, r, Math.floor(E.capOf(s, r) * G.ADS.resPct));
@@ -288,7 +292,7 @@
       return { ok: true };
     }
     if (c === 'reset') {
-      const keep = { name: s.name, owner: s.owner, trophies: s.trophies, lang: s.lang, settings: s.settings, defLog: s.defLog };
+      const keep = { name: s.name, owner: s.owner, trophies: s.trophies, lang: s.lang, settings: s.settings, defLog: s.defLog, vipUntil: s.vipUntil, vipToken: s.vipToken, vipCheck: s.vipCheck, ads: s.ads };
       const n = E.newGame(now, s.name);
       for (const k of Object.keys(s)) delete s[k];
       Object.assign(s, n, keep, { tut: 99 });

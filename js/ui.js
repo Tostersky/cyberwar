@@ -136,6 +136,7 @@
   U.refreshHud = function () {
     const s = G.state;
     $('#pl-name').textContent = s.name;
+    $('#btn-profile').classList.toggle('vip', G.isVip());
     $('#pl-tro').textContent = s.trophies;
     for (const r of ['scrap', 'copper', 'chips']) {
       const el = $('.res[data-r="' + r + '"]');
@@ -297,6 +298,16 @@
           ${p.tag ? `<div class="p-tag">${t('tag_' + p.tag)}</div>` : ''}
           <div class="p-ic">${IC.chips}</div><div class="p-n">${G.fmt(p.chips)}</div>
           <div class="p-price">${escHtml(G.Pay.priceOf(p))}</div></button>`).join('');
+      // VIP: active -> claim button + manage link, otherwise the offer
+      const vipOn = G.isVip(), vst = G.Ads.state();
+      const vipHtml = vipOn
+        ? `<div class="vip-box on"><div class="vip-l"><span class="vip-badge">VIP</span><div><b>${t('vipActive', { d: new Date(s.vipUntil).toLocaleDateString(G.lang === 'en' ? 'en-GB' : 'pl-PL') })}</b>
+            <small>${t('adLeft', { n: vst.left, m: G.ADS.perDay })}</small></div></div>
+            <div class="vip-r"><button class="btn primary sm" id="vip-claim" ${vst.left <= 0 ? 'disabled' : ''}>${t('vipClaim', { n: Math.round(G.ADS.resPct * 100) })}</button>
+            ${inApp ? `<a class="link-btn" href="${G.Pay.manageVipUrl()}" target="_blank" rel="noopener">${t('vipManage')}</a>` : ''}</div></div>`
+        : `<div class="vip-box"><div class="vip-l"><span class="vip-badge">VIP</span><div><b>${t('vipTitle')}</b>
+            <ul><li>${t('vipB1', { n: G.ADS.perDay, p: Math.round(G.ADS.resPct * 100) })}</li><li>${t('vipB2')}</li><li>${t('vipB3')}</li></ul></div></div>
+            <div class="vip-r"><button class="btn primary" id="vip-buy">${escHtml(G.Pay.priceOf({ id: G.VIP.id, price: G.VIP.price }))}</button><small>${t('vipCancel')}</small></div></div>`;
       let ad = '';
       if (G.Ads.enabled()) {
         const st = G.Ads.state();
@@ -312,6 +323,7 @@
         return `<div class="ex-row">${resIc(r)}<b>${t(r)}</b><div class="ex-btns">${btns}</div></div>`;
       }).join('');
       U.modal(t('chipShop'), `
+        ${vipHtml}
         <div class="sec-h">${t('chipPacks')}</div>
         ${inApp ? '' : `<p class="hint iap-note">${t(G.Pay.available() ? 'iapLoading' : 'iapOnlyApp')}</p>`}
         <div class="grid packs">${packs}</div>
@@ -328,6 +340,20 @@
           else if (r.err !== 'iapCancel') U.toast(t(r.err));
         };
       });
+      if ($('#vip-buy')) $('#vip-buy').onclick = async () => {
+        if (busy) return;
+        if (!G.Pay.available()) { U.toast(t('iapOnlyAppShort')); return; }
+        busy = true; U.loading(true);
+        const r = await G.Pay.buyVip();
+        U.loading(false); busy = false;
+        if (r.ok) { G.Sfx.play('star'); U.notify(t('vipThanks')); U.refreshHud(); draw(); }
+        else if (r.err !== 'iapCancel') U.toast(t(r.err));
+      };
+      if ($('#vip-claim')) $('#vip-claim').onclick = () => {
+        const r = G.act({ c: 'vipReward' });
+        if (r.err) U.toast(t(r.err, r.p)); else { G.Sfx.play('collect'); U.notify(t('adGot', { s: G.fmt(r.gained.scrap), c: G.fmt(r.gained.copper) })); U.refreshHud(); }
+        draw();
+      };
       if ($('#ch-ad')) $('#ch-ad').onclick = async () => {
         if (busy) return;
         busy = true;
@@ -485,7 +511,7 @@
     const el = $('#rank-list');
     if (!el) return;
     const me = G.Net.profile && G.Net.profile.username;
-    el.innerHTML = rows.length ? rows.map((r, i) => `<div class="rk ${r.username === me ? 'me' : ''}"><span class="rk-n">${i + 1}</span><span class="rk-u">${escHtml(r.username)}</span><span class="rk-t">${IC.trophy}${r.trophies}</span></div>`).join('')
+    el.innerHTML = rows.length ? rows.map((r, i) => `<div class="rk ${r.username === me ? 'me' : ''}"><span class="rk-n">${i + 1}</span><span class="rk-u">${escHtml(r.username)}${r.vip_until && Date.parse(r.vip_until) > Date.now() ? ' <span class="vip-badge sm">VIP</span>' : ''}</span><span class="rk-t">${IC.trophy}${r.trophies}</span></div>`).join('')
       : `<p class="center hint">${t('noPlayersYet')}</p>`;
   };
 

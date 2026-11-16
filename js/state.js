@@ -51,6 +51,7 @@
   G.factoryLevel = () => E.factoryLevel(S());
   G.hqLevel = () => E.hqLevel(S());
   G.heroUnlocked = (h) => E.heroUnlocked(S(), h);
+  G.isVip = () => !!(S() && E.isVip(S(), now()));
   G.updateCollector = (b, t) => E.updateCollector(b, t || now(), S());
 
   // per-frame tick: constructions / training finish on time

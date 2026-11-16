@@ -229,7 +229,7 @@ G.Net = (function () {
   };
 
   N.leaderboard = async function () {
-    return await req('/rest/v1/profiles?select=username,trophies&order=trophies.desc,created_at.asc&limit=50', { auth: !!N.session });
+    return await req('/rest/v1/profiles?select=username,trophies,vip_until&order=trophies.desc,created_at.asc&limit=50', { auth: !!N.session });
   };
 
   N.restore = function () { N.session = loadSession(); return !!N.session; };

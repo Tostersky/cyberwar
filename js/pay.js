@@ -12,7 +12,7 @@
     try {
       P.service = await window.getDigitalGoodsService(PLAY);
       if (!P.service) return false;
-      const details = await P.service.getDetails(G.CHIP_PACKS.map((p) => p.id));
+      const details = await P.service.getDetails(G.CHIP_PACKS.map((p) => p.id).concat(G.VIP.id));
       for (const d of details || []) {
         const v = d.price;
         try { P.prices[d.itemId] = new Intl.NumberFormat(G.lang === 'en' ? 'en' : 'pl', { style: 'currency', currency: v.currency }).format(+v.value); }
@@ -30,6 +30,8 @@
     try {
       const list = await P.service.listPurchases();
       for (const p of list || []) {
+        // an active VIP subscription (e.g. bought on another account login or renewed) is re-checked by the server
+        if (p.itemId === G.VIP.id) { if (!G.isVip()) await G.Net.callNow({ c: 'vip', token: p.purchaseToken }).catch(() => {}); continue; }
         if (!G.packById(p.itemId)) continue;
         const r = await G.Net.callNow({ c: 'iap', product: p.itemId, token: p.purchaseToken });
         if (r.ok && r.chips > 0) G.UI.notify(G.t('iapThanks', { n: r.chips }));
@@ -37,19 +39,37 @@
     } catch (_) {}
   };
 
-  // returns {ok, chips} or {err}
-  P.buy = async function (pack) {
+  // Google Play payment sheet; returns the purchase token or {err}
+  async function payWithPlay(sku) {
     if (!G.Net.session) return { err: 'iapLogin' };
     if (!(await P.init())) return { err: 'iapNoApp' };
     let resp;
     try {
-      const req = new PaymentRequest([{ supportedMethods: PLAY, data: { sku: pack.id } }],
+      const req = new PaymentRequest([{ supportedMethods: PLAY, data: { sku } }],
         { total: { label: 'Total', amount: { currency: 'PLN', value: '0' } } });
       resp = await req.show();
     } catch (e) { return { err: 'iapCancel' }; }
     const token = resp.details && resp.details.purchaseToken;
     try { await resp.complete('success'); } catch (_) {}
-    if (!token) return { err: 'iapBad' };
+    return token ? { token } : { err: 'iapBad' };
+  }
+  // VIP subscription: the server verifies and acknowledges it; returns {ok, vipUntil} or {err}
+  P.buyVip = async function () {
+    const p = await payWithPlay(G.VIP.id);
+    if (p.err) return p;
+    for (let i = 0; i < 3; i++) {
+      try { const r = await G.Net.callNow({ c: 'vip', token: p.token }); if (r.err !== 'server') return r; } catch (_) {}
+      await new Promise((ok) => setTimeout(ok, 1500 * (i + 1)));
+    }
+    return { err: 'iapLater' };
+  };
+  P.manageVipUrl = () => 'https://play.google.com/store/account/subscriptions?sku=' + G.VIP.id + '&package=io.github.tostersky.cyberwar';
+
+  // returns {ok, chips} or {err}
+  P.buy = async function (pack) {
+    const p = await payWithPlay(pack.id);
+    if (p.err) return p;
+    const token = p.token;
     // the server checks the token with Google, credits the chips once and consumes the purchase
     for (let i = 0; i < 3; i++) {
       try { const r = await G.Net.callNow({ c: 'iap', product: pack.id, token }); if (r.err !== 'server') return r; } catch (_) {}
@@ -60,7 +80,8 @@
 
   // ---------- rewarded ads ----------
   const A = G.Ads = { loaded: false };
-  A.enabled = () => !!(G.ADS.on && G.ADS.client);
+  // VIP players never see ads
+  A.enabled = () => !!(G.ADS.on && G.ADS.client) && !G.isVip();
   A.load = function () {
     if (A.loaded || !A.enabled()) return;
     A.loaded = true;

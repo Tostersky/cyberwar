@@ -1,5 +1,5 @@
 // Game data: buildings, units, heroes, campaign. All numbers are CyberWar's own.
-G.TW = 64; G.TH = 32; G.MAP = 40; G.VERSION = '0.9.5';
+G.TW = 64; G.TH = 32; G.MAP = 40; G.VERSION = '0.9.6';
 G.BUILDERS = 2;
 
 // every array has one value per level (1..8)
@@ -79,6 +79,8 @@ G.packById = (id) => G.CHIP_PACKS.find((p) => p.id === id);
 // rewarded ads: off until an ad account (AdSense / H5 Games Ads) is set up — then on:true + client id
 // chips come ONLY from purchases and the campaign: an ad gives resources (share of storage), never chips
 G.ADS = { on: false, client: '', resPct: 0.1, perDay: 5, cooldown: 90 };
+// VIP: monthly Google Play subscription — ad rewards without watching ads, no ads, gold badge (no chips!)
+G.VIP = { id: 'vip_monthly', price: '47 zł / mies.' };
 // chips -> resources exchange (fill 10% / 50% / to the top of storage)
 G.resChipCost = (n) => (n > 0 ? Math.ceil(n / 200) + 1 : 0);
 // full stars earned for a destruction share 0..1 (every third = one star; 33% counts as 1)

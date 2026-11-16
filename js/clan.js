@@ -156,7 +156,7 @@ G.Clan = (function () {
       <div class="rank">${roster.map((r, i) => {
         const canKick = r.user_id !== me && (myRole === 'leader' || (myRole === 'elder' && r.role === 'member'));
         const canPro = myRole === 'leader' && r.user_id !== me;
-        return `<div class="rk ${r.user_id === me ? 'me' : ''}"><span class="rk-n">${i + 1}</span><span class="rk-u">${esc(r.username)} <small class="role ${r.role}">${roleTxt(r.role)}</small></span>
+        return `<div class="rk ${r.user_id === me ? 'me' : ''}"><span class="rk-n">${i + 1}</span><span class="rk-u">${esc(r.username)}${r.vip ? ' <span class="vip-badge sm">VIP</span>' : ''} <small class="role ${r.role}">${roleTxt(r.role)}</small></span>
           <span class="rk-t">${G.UI.IC.trophy}${r.trophies}</span>
           ${canPro ? `<button class="btn sm" data-p="${r.user_id}">▲</button>` : ''}${canPro && r.role === 'elder' ? `<button class="btn sm" data-d="${r.user_id}">▼</button>` : ''}
           ${canKick ? `<button class="btn sm danger" data-k="${r.user_id}">✖</button>` : ''}</div>`;
