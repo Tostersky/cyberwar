@@ -4,7 +4,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 // @ts-nocheck
 const G: any = {};
 // Game data: buildings, units, heroes, campaign. All numbers are CyberWar's own.
-G.TW = 64; G.TH = 32; G.MAP = 40; G.VERSION = '0.8.0';
+G.TW = 64; G.TH = 32; G.MAP = 40; G.VERSION = '0.9.0';
 G.BUILDERS = 2;
 
 // every array has one value per level (1..8)
@@ -21,6 +21,9 @@ G.BUILDINGS = {
                 hp: [500, 600, 700, 800, 900, 1000, 1100, 1200] },
   squadhq:    { size: 4, res: 'copper', cost: [250, 2000, 5000, 12000, 25000, 45000, 80000, 140000], time: [15, 90, 300, 900, 1800, 3600, 5400, 7200],
                 hp: [500, 600, 700, 800, 900, 1000, 1100, 1200], housing: [20, 30, 40, 55, 70, 85, 100, 120] },
+  // holds units donated by clan mates (housing = how much space they can fill)
+  clanhub:    { size: 3, res: 'scrap',  cost: [3000, 8000, 20000, 40000, 70000, 110000, 160000, 220000], time: [120, 600, 1800, 3600, 5400, 7200, 10800, 14400],
+                hp: [800, 950, 1100, 1250, 1400, 1550, 1700, 1850], housing: [10, 15, 20, 25, 30, 35, 40, 45], clan: true },
   lab:        { size: 3, res: 'copper', cost: [500, 2500, 6000, 12000, 25000, 45000, 75000, 110000], time: [60, 300, 900, 1800, 3600, 5400, 7200, 10800],
                 hp: [500, 600, 700, 800, 900, 1000, 1100, 1200] },
   laser:      { size: 2, res: 'scrap',  cost: [500, 1500, 4000, 9000, 20000, 35000, 60000, 100000], time: [20, 90, 300, 900, 1800, 2400, 3600, 5400],
@@ -42,10 +45,10 @@ G.MAXLV = 8;
 G.LIMITS = {
   core: [1, 1, 1, 1, 1, 1, 1, 1], scrapyard: [2, 3, 4, 5, 6, 6, 7, 7], coppermine: [2, 3, 4, 5, 6, 6, 7, 7],
   vault: [1, 1, 2, 2, 3, 3, 4, 4], factory: [1, 1, 1, 1, 1, 1, 1, 1], squadhq: [1, 1, 1, 1, 1, 1, 1, 1],
-  lab: [0, 1, 1, 1, 1, 1, 1, 1], laser: [1, 2, 3, 4, 5, 5, 6, 6], mortar: [0, 0, 1, 1, 2, 2, 3, 3],
+  lab: [0, 1, 1, 1, 1, 1, 1, 1], clanhub: [0, 0, 1, 1, 1, 1, 1, 1], laser: [1, 2, 3, 4, 5, 5, 6, 6], mortar: [0, 0, 1, 1, 2, 2, 3, 3],
   aa: [0, 0, 0, 1, 1, 2, 2, 3], mine: [0, 0, 2, 3, 4, 5, 6, 8], firewall: [25, 50, 75, 100, 150, 175, 200, 225],
 };
-G.SHOP = ['laser', 'mortar', 'aa', 'mine', 'firewall', 'scrapyard', 'coppermine', 'vault', 'factory', 'squadhq', 'lab'];
+G.SHOP = ['laser', 'mortar', 'aa', 'mine', 'firewall', 'scrapyard', 'coppermine', 'vault', 'factory', 'squadhq', 'lab', 'clanhub'];
 
 // laboratory research: unit level 2..5 (cost in copper, time in seconds); each level = +15% hitpoints and damage
 G.RESEARCH = { cost: [0, 1500, 5000, 14000, 32000], time: [0, 120, 600, 1800, 3600], maxLv: 5, bonus: 0.15 };
@@ -174,7 +177,7 @@ G.genBot = function (coreLv, seed) {
       v: 1, name: name || 'Runner' + Math.floor(1000 + Math.random() * 9000), lang: null,
       res: { scrap: 1000, copper: 1000, chips: 50 }, buildings: [],
       army: { runner: 8, gunner: 0, drone: 0, mech: 0 }, queue: [], qStart: 0,
-      trophies: 0, pve: {}, nextId: 1, created: now, unitLv: { runner: 1, gunner: 1, drone: 1, mech: 1 }, research: null,
+      trophies: 0, pve: {}, nextId: 1, created: now, unitLv: { runner: 1, gunner: 1, drone: 1, mech: 1 }, research: null, clanArmy: { runner: 0, gunner: 0, drone: 0, mech: 0 },
       settings: { sfx: true, music: true }, flags: {}, tut: 0, defLog: [],
     };
     const add = (type, x, y) => s.buildings.push({ id: s.nextId++, type, level: 1, x, y, acc: BD()[type].prod ? 150 : 0, last: now, busyUntil: 0, busyStart: 0, upTo: 0 });
@@ -191,6 +194,7 @@ G.genBot = function (coreLv, seed) {
     s.buildings = Array.isArray(s.buildings) ? s.buildings.filter((b) => b && BD()[b.type]) : [];
     s.pve = s.pve || {}; s.settings = s.settings || { sfx: true, music: true }; s.flags = s.flags || {};
     if (s.tut == null) s.tut = 0; s.defLog = Array.isArray(s.defLog) ? s.defLog.slice(0, 20) : [];
+    s.clanArmy = s.clanArmy || {}; for (const u of G.UNIT_ORDER) s.clanArmy[u] = Math.max(0, Math.floor(+s.clanArmy[u] || 0));
     s.unitLv = s.unitLv || {}; for (const u of G.UNIT_ORDER) s.unitLv[u] = Math.max(1, Math.min(G.RESEARCH.maxLv, s.unitLv[u] | 0 || 1));
     if (s.research && !G.UNITS[s.research.u]) s.research = null;
     s.trophies = Math.max(0, Math.floor(+s.trophies || 0));
@@ -284,6 +288,16 @@ G.genBot = function (coreLv, seed) {
     return ev;
   };
   E.labLevel = (s) => E.maxLevelOf(s, 'lab');
+  // clan hub: space for donated units
+  E.clanCap = (s) => s.buildings.filter((b) => b.type === 'clanhub' && b.level > 0).reduce((m, b) => m + BD().clanhub.housing[b.level - 1], 0);
+  E.clanSpace = (s) => G.UNIT_ORDER.reduce((n, u) => n + ((s.clanArmy && s.clanArmy[u]) || 0) * G.UNITS[u].space, 0);
+  // units arriving from clan mates (server side); whatever doesn't fit is lost
+  E.receiveClan = function (s, units) {
+    for (const u of units) {
+      if (!G.UNITS[u]) continue;
+      if (E.clanSpace(s) + G.UNITS[u].space <= E.clanCap(s)) s.clanArmy[u] = (s.clanArmy[u] || 0) + 1;
+    }
+  };
   // what researching unit u next would need
   E.researchInfo = function (s, u) {
     const cur = (s.unitLv && s.unitLv[u]) || 1, next = cur + 1, R = G.RESEARCH;
@@ -388,6 +402,11 @@ G.genBot = function (coreLv, seed) {
       E.tick(s, now);
       return { ok: true };
     }
+    if (c === 'donate_out') { // giving one unit to a clan mate (the server checks the request first)
+      if (!G.UNITS[cmd.u] || !(s.army[cmd.u] > 0)) return ERR('noUnit');
+      s.army[cmd.u]--;
+      return { ok: true };
+    }
     if (c === 'search') { // looking for a PvP opponent costs copper
       const cost = 30 * E.coreLevel(s);
       return pay(s, 'copper', cost) || { ok: true };
@@ -415,6 +434,8 @@ G.genBot = function (coreLv, seed) {
     const pct = Math.max(0, Math.min(1, +cmd.pct || 0));
     // units sent into battle are gone (heroes are free)
     if (cmd.used) for (const u of G.UNIT_ORDER) s.army[u] = Math.max(0, (s.army[u] || 0) - Math.max(0, cmd.used[u] | 0));
+    // donated clan units are used up once deployed
+    if (cmd.usedClan) for (const u of G.UNIT_ORDER) s.clanArmy[u] = Math.max(0, (s.clanArmy[u] || 0) - Math.max(0, cmd.usedClan[u] | 0));
     const gained = { scrap: 0, copper: 0 };
     let chips = 0;
     if (cmd.mode === 'pve') {
@@ -475,6 +496,37 @@ const CORS = {
   'Access-Control-Allow-Headers': 'authorization, apikey, content-type, x-client-info',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
+// one unit from this player to a clan mate's open request
+async function donate(uid, prof, s, cmd, now) {
+  const u = cmd.u;
+  if (!G.UNITS[u] || !(s.army[u] > 0)) return { err: 'noUnit' };
+  const [meQ, msgQ] = await Promise.all([
+    admin.from('clan_members').select('clan_id').eq('user_id', uid).maybeSingle(),
+    admin.from('clan_messages').select('id,clan_id,user_id,kind,data').eq('id', cmd.msg).maybeSingle(),
+  ]);
+  const me = meQ.data, msg = msgQ.data;
+  if (!me || !msg || msg.kind !== 'request' || msg.clan_id !== me.clan_id || msg.user_id === uid || (msg.data && msg.data.closed)) return { err: 'requestClosed' };
+  const [rsQ, inQ] = await Promise.all([
+    admin.from('saves').select('data').eq('user_id', msg.user_id).maybeSingle(),
+    admin.from('clan_inbox').select('unit').eq('user_id', msg.user_id),
+  ]);
+  if (!rsQ.data || !rsQ.data.data) return { err: 'requestClosed' };
+  const rs = G.Econ.norm(rsQ.data.data, now);
+  const pending = (inQ.data || []).reduce((n, r) => n + (G.UNITS[r.unit] ? G.UNITS[r.unit].space : 0), 0);
+  const cap = G.Econ.clanCap(rs), used = G.Econ.clanSpace(rs) + pending, sp = G.UNITS[u].space;
+  const data = Object.assign({ got: 0, donors: {} }, msg.data || {});
+  data.cap = cap;
+  if (used + sp > cap) { data.closed = true; data.got = used; await admin.from('clan_messages').update({ data }).eq('id', msg.id); return { err: 'requestFull' }; }
+  const r = G.Econ.apply(s, { c: 'donate_out', u }, now);
+  if (r.err) return r;
+  const name = (prof && prof.username) || '?';
+  await admin.from('clan_inbox').insert({ user_id: msg.user_id, unit: u, from_name: name });
+  data.got = used + sp; data.donors = data.donors || {}; data.donors[name] = (data.donors[name] || 0) + 1;
+  if (data.got >= cap) data.closed = true;
+  await admin.from('clan_messages').update({ data }).eq('id', msg.id);
+  return { ok: true };
+}
+
 const json = (o, status) => new Response(JSON.stringify(o), { status: status || 200, headers: { ...CORS, 'Content-Type': 'application/json' } });
 
 Deno.serve(async (req) => {
@@ -498,6 +550,8 @@ Deno.serve(async (req) => {
     const results = [];
     for (const cmd of cmds) {
       if (!cmd || typeof cmd !== 'object') { results.push({ err: 'server' }); continue; }
+      if (cmd.c === 'donate') { try { results.push(await donate(uid, prof, s, cmd, now)); } catch (e) { results.push({ err: 'server' }); } continue; }
+      if (cmd.c === 'donate_out') { results.push({ err: 'server' }); continue; } // only via 'donate'
       if (cmd.c === 'battle' && cmd.mode === 'pvp') {
         // loot from a real player is credited once, from our own attack record
         cmd.loot = null;
@@ -521,6 +575,12 @@ Deno.serve(async (req) => {
       G.Econ.applyDefenses(s, defs);
       await admin.from('attacks').update({ seen: true }).in('id', defs.map((d) => d.id));
     }
+    // units donated by clan mates since the last sync
+    const { data: inbox } = await admin.from('clan_inbox').select('id,unit,from_name').eq('user_id', uid);
+    if (inbox && inbox.length) {
+      G.Econ.receiveClan(s, inbox.map((r) => r.unit));
+      await admin.from('clan_inbox').delete().in('id', inbox.map((r) => r.id));
+    }
     if (prof) { s.name = prof.username; s.trophies = prof.trophies; }
     s.owner = uid; s.savedAt = now;
 
@@ -530,7 +590,7 @@ Deno.serve(async (req) => {
       const b = G.Econ.baseSnapshot(s);
       await admin.from('bases').upsert({ user_id: uid, username: prof.username, trophies: prof.trophies, core: b.core, layout: b.layout, loot_scrap: b.scrap, loot_copper: b.copper, updated_at: iso });
     }
-    return json({ state: s, results, defenses: defs || [] });
+    return json({ state: s, results, defenses: defs || [], received: (inbox || []).map((r) => ({ unit: r.unit, from: r.from_name })) });
   } catch (e) {
     return json({ error: 'server', message: String(e && e.message || e) }, 500);
   }
