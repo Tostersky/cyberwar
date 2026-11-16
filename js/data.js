@@ -1,5 +1,5 @@
 // Game data: buildings, units, heroes, campaign. All numbers are CyberWar's own.
-G.TW = 64; G.TH = 32; G.MAP = 40; G.VERSION = '0.9.6';
+G.TW = 64; G.TH = 32; G.MAP = 40; G.VERSION = '0.10.0';
 G.BUILDERS = 2;
 
 // every array has one value per level (1..8)
@@ -29,6 +29,9 @@ G.BUILDINGS = {
   // anti-air missiles: big damage, flying targets only
   aa:         { size: 2, res: 'scrap',  cost: [8000, 14000, 22000, 32000, 46000, 64000, 88000, 120000], time: [600, 900, 1800, 3600, 5400, 7200, 9000, 10800],
                 hp: [600, 700, 800, 900, 1000, 1100, 1250, 1400], dmg: [80, 100, 125, 150, 180, 210, 245, 280], interval: 1.2, range: 8, defense: true, hits: 'air' },
+  // EMP pylon: every few seconds a shock wave hurts and slows every unit around it (ground and air)
+  emp:        { size: 2, res: 'scrap',  cost: [6000, 11000, 18000, 28000, 40000, 56000, 78000, 105000], time: [600, 900, 1800, 3600, 5400, 7200, 9000, 10800],
+                hp: [650, 750, 860, 980, 1100, 1240, 1380, 1530], dmg: [14, 18, 23, 29, 36, 44, 53, 63], interval: 5, range: 4.5, slow: 2.5, defense: true, hits: 'both', pulse: true },
   // hidden trap: explodes once when a ground unit steps close
   mine:       { size: 1, res: 'scrap',  cost: [500, 800, 1200, 1800, 2600, 3600, 5000, 7000], time: [0, 0, 0, 0, 0, 0, 0, 0],
                 hp: [1, 1, 1, 1, 1, 1, 1, 1], dmg: [60, 80, 105, 135, 170, 210, 255, 305], trap: true, splash: 1.5 },
@@ -41,9 +44,9 @@ G.LIMITS = {
   core: [1, 1, 1, 1, 1, 1, 1, 1], scrapyard: [2, 3, 4, 5, 6, 6, 7, 7], coppermine: [2, 3, 4, 5, 6, 6, 7, 7],
   vault: [1, 1, 2, 2, 3, 3, 4, 4], factory: [1, 1, 1, 1, 1, 1, 1, 1], squadhq: [1, 1, 1, 1, 1, 1, 1, 1],
   lab: [0, 1, 1, 1, 1, 1, 1, 1], clanhub: [0, 0, 1, 1, 1, 1, 1, 1], laser: [1, 2, 3, 4, 5, 5, 6, 6], mortar: [0, 0, 1, 1, 2, 2, 3, 3],
-  aa: [0, 0, 0, 1, 1, 2, 2, 3], mine: [0, 0, 2, 3, 4, 5, 6, 8], firewall: [25, 50, 75, 100, 150, 175, 200, 225],
+  aa: [0, 0, 0, 1, 1, 2, 2, 3], emp: [0, 0, 0, 0, 1, 1, 2, 2], mine: [0, 0, 2, 3, 4, 5, 6, 8], firewall: [25, 50, 75, 100, 150, 175, 200, 225],
 };
-G.SHOP = ['laser', 'mortar', 'aa', 'mine', 'firewall', 'scrapyard', 'coppermine', 'vault', 'factory', 'squadhq', 'lab', 'clanhub'];
+G.SHOP = ['laser', 'mortar', 'aa', 'emp', 'mine', 'firewall', 'scrapyard', 'coppermine', 'vault', 'factory', 'squadhq', 'lab', 'clanhub'];
 
 // laboratory research: unit level 2..5 (cost in copper, time in seconds); each level = +15% hitpoints and damage
 G.RESEARCH = { cost: [0, 1500, 5000, 14000, 32000], time: [0, 120, 600, 1800, 3600], maxLv: 5, bonus: 0.15 };
@@ -54,8 +57,10 @@ G.UNITS = {
   gunner: { cost: 50,  space: 1, hp: 32,  dmg: 11,  interval: 1.0, speed: 1.6, range: 3.5, time: 6,  unlock: 2, target: 'any' },
   drone:  { cost: 120, space: 2, hp: 45,  dmg: 160, interval: 0,   speed: 2.8, range: 0.4, time: 10, unlock: 3, target: 'defense', fly: true, splash: 1.3 },
   mech:   { cost: 300, space: 5, hp: 520, dmg: 42,  interval: 1.6, speed: 0.9, range: 0.9, time: 20, unlock: 4, target: 'defense' },
+  // field medic: doesn't attack; follows the squad and heals ground units and heroes around it
+  medic:  { cost: 150, space: 3, hp: 180, dmg: 0, heal: 18, healR: 2.6, interval: 1.0, speed: 1.5, range: 1.4, time: 15, unlock: 5, target: 'heal' },
 };
-G.UNIT_ORDER = ['runner', 'gunner', 'drone', 'mech'];
+G.UNIT_ORDER = ['runner', 'gunner', 'drone', 'mech', 'medic'];
 
 G.HEROES = {
   ronin: { hp: 950, dmg: 40, interval: 0.8, speed: 1.6, range: 0.7, unlock: 2, target: 'any' },
@@ -79,6 +84,17 @@ G.packById = (id) => G.CHIP_PACKS.find((p) => p.id === id);
 // rewarded ads: off until an ad account (AdSense / H5 Games Ads) is set up — then on:true + client id
 // chips come ONLY from purchases and the campaign: an ad gives resources (share of storage), never chips
 G.ADS = { on: false, client: '', resPct: 0.1, perDay: 5, cooldown: 90 };
+// daily login reward, 7-day streak (share of storage + bonus units). Never chips.
+G.DAILY = [
+  { pct: 0.05 }, { pct: 0.08 }, { pct: 0.10, units: { runner: 5 } }, { pct: 0.12 },
+  { pct: 0.15 }, { pct: 0.18, units: { gunner: 4 } }, { pct: 0.25, units: { mech: 2 } },
+];
+// daily missions: 3 a day picked from this pool; goal = fixed number or share of storage (cap)
+G.MISSIONS = {
+  collect_scrap: { cap: 0.3 }, collect_copper: { cap: 0.3 }, win: { goal: 2 }, stars: { goal: 5 },
+  build: { goal: 2 }, train: { goal: 15 }, raid: { goal: 1 },
+};
+G.MISSION_REWARD = 0.12; // share of storage, scrap + copper
 // VIP: monthly Google Play subscription — ad rewards without watching ads, no ads, gold badge (no chips!)
 G.VIP = { id: 'vip_monthly', price: '47 zł / mies.' };
 // chips -> resources exchange (fill 10% / 50% / to the top of storage)
@@ -132,11 +148,14 @@ G.genBase = function (p, seed) {
   for (let i = 0; i < (p.mortar || 0); i++) rest.push('mortar');
   for (let i = 0; i < (p.aa || 0); i++) rest.push('aa');
   if (p.lab) rest.push('lab');
+  for (let i = 0; i < (p.emp || 0); i++) rest.push('emp');
+  // defenses are placed first so they always fit near the core
+  rest.sort((a, b) => (G.BUILDINGS[b].defense ? 1 : 0) - (G.BUILDINGS[a].defense ? 1 : 0));
   for (const type of rest) {
     const s = G.BUILDINGS[type].size, def = G.BUILDINGS[type].defense;
-    for (let tries = 0; tries < 400; tries++) {
+    for (let tries = 0; tries < 900; tries++) {
       // defenses stay close to the core, economy buildings spread out
-      const spread = (def ? 4 : 7) + Math.floor(tries / 40);
+      const spread = Math.min(17, (def ? 4 : 7) + Math.floor(tries / 40));
       const x = Math.floor(20 - s / 2 + (r() * 2 - 1) * spread), y = Math.floor(20 - s / 2 + (r() * 2 - 1) * spread);
       if (free(x, y, s, 1)) { put(type, Math.min(blv, G.MAXLV), x, y); break; }
     }
@@ -162,6 +181,19 @@ G.PVE = [
   { core: 7, lasers: 6, laserLv: 6, rings: 2, wallLv: 6, wallLv2: 5, scrap: 4, copper: 4, vault: 4, factory: 1, hq: 1, mortar: 3, aa: 2, mines: 6, lab: 1, loot: { scrap: 40000, copper: 40000 }, seed: 88 },
 ];
 
+// campaign 9..20: max-level bases that keep getting tougher (hpMul = building hitpoints); 10, 15, 20 are bosses
+for (let n = 9; n <= 20; n++) {
+  const k = n - 8, boss = n % 5 === 0;
+  G.PVE.push({
+    core: 8, blv: 8, lasers: 6, laserLv: Math.min(8, 6 + Math.ceil(k / 3)), rings: 2,
+    wallLv: Math.min(8, 6 + Math.floor(k / 4)), wallLv2: Math.min(8, 5 + Math.floor(k / 4)),
+    scrap: 5, copper: 5, vault: 4, factory: 1, hq: 1, lab: 1,
+    mortar: 3, aa: Math.min(3, 2 + Math.floor(k / 6)), mines: Math.min(8, 6 + Math.floor(k / 3)), emp: k >= 7 ? 2 : k >= 2 ? 1 : 0,
+    loot: { scrap: 45000 + k * 12000, copper: 45000 + k * 12000 }, seed: 90 + k * 11,
+    hpMul: Math.round((1 + k * 0.06 + (boss ? 0.25 : 0)) * 100) / 100, boss,
+  });
+}
+
 G.BOT_NAMES = ['Vex_77', 'NeonGhost', 'KiloByte', 'RustQueen', 'Zer0Day', 'GlitchRat', 'ChromeFox', 'NullPtr',
   'VoltaKid', 'SynthWolf', 'Hexa', 'D4rkM4tter', 'PixelMonk', 'IronLotus', 'ByteBandit', 'OverClock'];
 
@@ -173,7 +205,7 @@ G.genBot = function (coreLv, seed) {
     core: c, lasers: Math.max(1, G.LIMITS.laser[c - 1] - (r() < 0.5 ? 1 : 0)), laserLv: c,
     rings: c >= 4 ? 2 : (c >= 2 ? 1 : (r() < 0.5 ? 1 : 0)), wallLv: Math.max(1, c - 1), wallLv2: Math.max(1, c - 2),
     scrap: Math.min(6, 1 + c), copper: Math.min(6, 1 + c), vault: G.LIMITS.vault[c - 1], factory: 1, hq: 1, blv: c,
-    mortar: G.LIMITS.mortar[c - 1], aa: G.LIMITS.aa[c - 1], mines: G.LIMITS.mine[c - 1], lab: G.LIMITS.lab[c - 1],
+    mortar: G.LIMITS.mortar[c - 1], aa: G.LIMITS.aa[c - 1], emp: G.LIMITS.emp[c - 1], mines: G.LIMITS.mine[c - 1], lab: G.LIMITS.lab[c - 1],
   };
   const loot = { scrap: Math.floor((300 + r() * 500) * c * c), copper: Math.floor((300 + r() * 500) * c * c) };
   const name = G.BOT_NAMES[Math.floor(r() * G.BOT_NAMES.length)];

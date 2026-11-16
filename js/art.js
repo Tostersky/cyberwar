@@ -130,7 +130,7 @@
   const HGT = {
     core: (L) => 52 + L * 12, scrapyard: (L) => 46 + L * 4, coppermine: (L) => 58 + L * 5, vault: (L) => 34 + L * 6,
     factory: (L) => 26 + L * 3, squadhq: (L) => 22 + L * 3, laser: (L) => 12 + L * 2, firewall: (L) => 15 + L * 2,
-    mortar: (L) => 14 + L * 2, aa: (L) => 14 + L * 2, mine: () => 3, lab: (L) => 24 + L * 3, clanhub: (L) => 30 + L * 4,
+    mortar: (L) => 14 + L * 2, aa: (L) => 14 + L * 2, emp: (L) => 16 + L * 2, mine: () => 3, lab: (L) => 24 + L * 3, clanhub: (L) => 30 + L * 4,
   };
   A.laserHeight = HGT.laser;
 
@@ -398,6 +398,28 @@
       x.fillStyle = '#9aa0c0'; x.beginPath(); x.ellipse(c[0] + 14, c[1] - h - 8, 6, 3, 0.5, 0, Math.PI * 2); x.fill();
       return h + 34;
     },
+    // EMP pylon: armoured base, a tall coil with copper rings and an energy orb on top
+    emp(x, ox, oy, s, L) {
+      const h = HGT.emp(L), t = TRIM[L - 1];
+      shadow(x, ox, oy, s, h + 40); pad(x, ox, oy, s);
+      const f = box(x, ox, oy, 0.3, 0.3, s - 0.3, s - 0.3, 3, h, pal('#2a3040'));
+      faceLines(x, f, h - 4, t, 1.2);
+      const c = P(ox, oy, s / 2, s / 2), top = c[1] - h;
+      // coil column
+      x.fillStyle = '#1a1e2a'; x.fillRect(c[0] - 3.5, top - 30, 7, 30);
+      for (let i = 0; i < 4 + Math.floor(L / 3); i++) {
+        const y = top - 4 - i * 6;
+        x.fillStyle = i % 2 ? '#b8642c' : '#d88a40'; x.beginPath(); x.ellipse(c[0], y, 9 - i * 0.6, 3.2, 0, 0, Math.PI * 2); x.fill();
+        x.strokeStyle = '#4a2410'; x.lineWidth = 0.6; x.stroke();
+      }
+      // orb holder prongs
+      line(x, [c[0] - 6, top - 32], [c[0] - 8, top - 40], '#8a90a8', 1.2);
+      line(x, [c[0] + 6, top - 32], [c[0] + 8, top - 40], '#8a90a8', 1.2);
+      x.fillStyle = '#0e1220'; x.beginPath(); x.arc(c[0], top - 38, 6.5, 0, Math.PI * 2); x.fill();
+      dot(x, c[0], top - 38, 4.2, '#7fd8ff', 14);
+      dot(x, c[0] - 2, top - 15, 1.2, t, 6); dot(x, c[0] + 2, top - 21, 1.2, t, 6);
+      return h + 46;
+    },
     mine(x, ox, oy, s, L) {
       const c = P(ox, oy, 0.5, 0.5), t = TRIM[L - 1];
       x.fillStyle = 'rgba(0,0,0,.4)'; x.beginPath(); x.ellipse(c[0], c[1], 13, 6.5, 0, 0, Math.PI * 2); x.fill();
@@ -548,6 +570,19 @@
       ctx.translate(fn[0], fn[1] - h - 10); ctx.scale(1, 0.5); ctx.rotate(t * 8);
       ctx.fillStyle = '#8a8098';
       for (let k = 0; k < 4; k++) { ctx.rotate(Math.PI / 2); ctx.fillRect(-1.2, 0, 2.4, 7); }
+    } else if (type === 'emp') {
+      // charging orb + electric arcs
+      const h = HGT.emp(L), c = Pw(s / 2, s / 2), oy2 = c[1] - h - 38;
+      ctx.globalCompositeOperation = 'lighter';
+      const p = 0.5 + Math.sin(t * 4 + seed) * 0.5;
+      light(ctx, '#7fd8ff', c[0], oy2, 10 + p * 8, 0.45 + p * 0.45);
+      if (Math.random() < dt * 4) {
+        ctx.strokeStyle = 'rgba(160,230,255,.9)'; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(c[0], oy2);
+        let px = c[0], py = oy2;
+        for (let k = 0; k < 4; k++) { px += (Math.random() - 0.5) * 12; py += 5 + Math.random() * 4; ctx.lineTo(px, py); }
+        ctx.stroke();
+      }
     } else if (type === 'squadhq') {
       const h = HGT.squadhq(L), c = Pw(s / 2 + 0.2, s / 2 + (L >= 3 ? 0.6 : 0)), cy = c[1] - h;
       ctx.globalCompositeOperation = 'lighter';
@@ -579,7 +614,7 @@
   };
 
   // ---------- units ----------
-  const UCOL = { runner: '#ff2bd6', gunner: '#19f0ff', drone: '#ff3355', mech: '#ffe14d', ronin: '#ff4d4d', nyx: '#b26bff' };
+  const UCOL = { runner: '#ff2bd6', gunner: '#19f0ff', drone: '#ff3355', mech: '#ffe14d', ronin: '#ff4d4d', nyx: '#b26bff', medic: '#39ff88' };
   A.UCOL = UCOL;
   // st (optional): { moving, atk 0..1 (1 = just struck), dead 0..1 (death animation progress) }
   A.drawUnit = function (ctx, type, wx, wy, t, flip, flash, st) {
@@ -664,7 +699,12 @@
       ctx.strokeStyle = '#8a8aa0'; ctx.lineWidth = 0.7; ctx.beginPath(); ctx.moveTo(-6, -21 + by); ctx.lineTo(-7, -28 + by); ctx.stroke();
     } else {
       const by = -bob;
-      const coat = { runner: '#2a1838', gunner: '#16303a', ronin: '#e8e4ec', nyx: '#2c1640' }[type];
+      const coat = { runner: '#2a1838', gunner: '#16303a', ronin: '#e8e4ec', nyx: '#2c1640', medic: '#dfe9e4' }[type];
+      // medic: backpack with a green cross behind the body
+      if (type === 'medic') {
+        ctx.fillStyle = '#3a4a44'; ctx.fillRect(-6.5, -15 + by, 3.4, 6.5);
+        ctx.fillStyle = c; ctx.fillRect(-5.6, -12.8 + by, 1.6, 0.6); ctx.fillRect(-5.1, -13.3 + by, 0.6, 1.6);
+      }
       const trim = c;
       // capes / scarves behind the body
       if (type === 'runner') cape(-1, -14 + by, 9, 'rgba(255,43,214,.75)');
@@ -677,10 +717,11 @@
       if (type === 'gunner') { ctx.fillStyle = '#2a4a56'; ctx.fillRect(-3.8, -14.5 + by, 7.6, 4); }
       if (type === 'ronin') { ctx.fillStyle = '#c21a30'; ctx.fillRect(-3.8, -14.5 + by, 2, 8); ctx.fillStyle = '#9a9aa8'; ctx.fillRect(-4.5, -15.5 + by, 3, 2.5); ctx.fillRect(1.5, -15.5 + by, 3, 2.5); }
       if (type === 'nyx') { ctx.fillStyle = '#7a3ac0'; ctx.fillRect(-3.8, -11 + by, 7.6, 1); }
+      if (type === 'medic') { ctx.fillStyle = c; ctx.fillRect(-1.8, -13.6 + by, 3.6, 1.2); ctx.fillRect(-0.6, -14.8 + by, 1.2, 3.6); }
       // head
       const hx = 0, hy = -17.6 + by;
       if (type === 'nyx') { ctx.fillStyle = '#6a2fa8'; ctx.beginPath(); ctx.arc(hx - 0.5, hy - 0.5, 3.4, Math.PI * 0.8, Math.PI * 2.1); ctx.lineTo(hx - 5, hy + 6); ctx.closePath(); ctx.fill(); }
-      ctx.fillStyle = skin || (type === 'gunner' ? '#2f3e48' : type === 'ronin' ? '#d8d4e0' : type === 'runner' ? '#1f1428' : '#c9a98a');
+      ctx.fillStyle = skin || (type === 'gunner' ? '#2f3e48' : type === 'ronin' ? '#d8d4e0' : type === 'runner' ? '#1f1428' : type === 'medic' ? '#e8efe9' : '#c9a98a');
       ctx.beginPath(); ctx.arc(hx, hy, 3, 0, Math.PI * 2); ctx.fill();
       if (type === 'runner') { ctx.fillStyle = '#2a1838'; ctx.beginPath(); ctx.arc(hx - 0.6, hy - 0.6, 3.3, Math.PI, Math.PI * 2.2); ctx.fill(); }
       if (type === 'ronin') { ctx.fillStyle = '#b8162a'; ctx.fillRect(hx - 3.2, hy - 1.6, 6.4, 1); }
@@ -715,6 +756,11 @@
         ctx.fillStyle = '#222'; ctx.fillRect(-1, -1, 3, 2);
         ctx.globalCompositeOperation = 'lighter'; G.World.light(ctx, '#ff3048', 9, 0, 9, 3, 0.55);
         ctx.restore();
+      } else if (type === 'medic') {
+        // nano-injector with a glowing green canister; glows brighter while healing
+        ctx.fillStyle = '#9aa8a2'; ctx.fillRect(1.5, -11.5 + by, 6, 1.8);
+        ctx.fillStyle = c; ctx.fillRect(3, -13 + by, 2.4, 1.6);
+        ctx.save(); ctx.globalCompositeOperation = 'lighter'; G.World.light(ctx, c, 4.2, -12.2 + by, 4 + sw * 6, 3 + sw * 4, 0.5 + sw * 0.5); ctx.restore();
       } else if (type === 'nyx') {
         // holographic interface around the hand
         ctx.save(); ctx.translate(7, -11 + by);

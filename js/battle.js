@@ -8,7 +8,7 @@
     b.opts = opts; b.t = 0; b.time = G.BATTLE_TIME; b.ended = false; b.endDelay = 0;
     b.bs = opts.base.buildings.map((q, i) => {
       const d = BD[q.type];
-      const hp = d.hp[q.level - 1];
+      const hp = Math.round(d.hp[q.level - 1] * (opts.base.hpMul || 1)); // campaign bosses have tougher buildings
       return { i, type: q.type, level: q.level, x: q.x, y: q.y, size: d.size, hp, maxHp: hp, dead: false, wall: !!d.wall,
         trap: !!d.trap, defense: !!d.defense, cd: 0, ang: Math.random() * 6, tu: null, dis: 0, fire: 0, hitT: 0 };
     });
@@ -160,7 +160,7 @@
     // laboratory levels make units tougher and stronger
     const base = hero ? G.HEROES[type] : G.UNITS[type];
     const mul = hero ? 1 : G.unitMul(G.state.unitLv && G.state.unitLv[type]);
-    const def = Object.assign({}, base, { hp: Math.round(base.hp * mul), dmg: Math.round(base.dmg * mul) });
+    const def = Object.assign({}, base, { hp: Math.round(base.hp * mul), dmg: Math.round(base.dmg * mul), heal: Math.round((base.heal || 0) * mul) });
     const u = { type, hero, def, x: tx, y: ty, hp: def.hp, maxHp: def.hp, cd: 0.2, target: null, wall: null, path: null,
       dead: false, fly: !!def.fly, flip: false, anim: Math.random() * 5, jx: (Math.random() - 0.5) * 0.5, jy: (Math.random() - 0.5) * 0.5, storm: 0, hitT: 0 };
     Bt.units.push(u);
@@ -227,11 +227,43 @@
   Bt.wantsHold = () => !!Bt.sel && !Bt.ended && !Bt.heroes[Bt.sel];
   Bt.onTap = function (sx, sy) { Bt.deployAt(sx, sy); };
 
+  // field medic: walks behind the nearest (preferably wounded) squad member and heals everyone around
+  function stepMedic(u, dt) {
+    const b = Bt;
+    let best = null, bd = 1e9;
+    for (const v of b.units) {
+      if (v.dead || v === u || v.fly || v.def.target === 'heal') continue;
+      const d = Math.hypot(v.x - u.x, v.y - u.y) - (v.hp < v.maxHp ? 3 : 0);
+      if (d < bd) { bd = d; best = v; }
+    }
+    u.cd -= dt;
+    if (u.cd <= 0) {
+      u.cd = u.def.interval;
+      let healed = false;
+      for (const v of b.units) {
+        if (v.dead || v.fly || v.hp >= v.maxHp || Math.hypot(v.x - u.x, v.y - u.y) > u.def.healR) continue;
+        v.hp = Math.min(v.maxHp, v.hp + u.def.heal); healed = true;
+        const w = unitW(v);
+        b.fx.push({ k: 'num', x: w[0], y: w[1] - 12, text: '+' + u.def.heal, color: '#39ff88', life: 0.6, max: 0.6 });
+      }
+      if (healed) { const w = unitW(u, 4); u.atkT = 0.3; b.fx.push({ k: 'ring', x: w[0], y: w[1], r: u.def.healR * G.TW * 0.7, life: 0.5, max: 0.5, color: '#39ff88' }); }
+    }
+    if (!best || Math.hypot(best.x - u.x, best.y - u.y) <= u.def.range) return;
+    // step towards the friend, never into a building
+    const dx = best.x - u.x, dy = best.y - u.y, d = Math.hypot(dx, dy), stp = u.def.speed * dt * (u.slow > 0 ? 0.5 : 1);
+    const nx = u.x + dx / d * stp, ny = u.y + dy / d * stp, c = b.grid[Math.floor(ny) * M + Math.floor(nx)];
+    if (c != null && c >= 0 && !b.bs[c].dead) return;
+    if (Math.abs(dx - dy) > 0.01) u.flip = (dx - dy) < 0;
+    u.moving = true; u.x = nx; u.y = ny;
+  }
+
   function stepUnit(u, dt) {
     const b = Bt;
     u.anim += dt; if (u.hitT > 0) u.hitT -= dt;
     if (u.atkT > 0) u.atkT -= dt;
+    if (u.slow > 0) u.slow -= dt;
     u.moving = false;
+    if (u.def.target === 'heal') { stepMedic(u, dt); return; }
     if (u.storm > 0) {
       u.storm -= dt;
       for (const q of b.bs) if (!q.dead && distRect(u.x, u.y, q) <= 1.6) damageB(q, 70 * dt);
@@ -269,7 +301,7 @@
     if (!u.fly && u.path && u.path.length) { tx = u.path[0].x; ty = u.path[0].y; }
     else if (!u.fly && u.wall != null) { [tx, ty] = closest(u.x, u.y, b.bs[u.wall]); }
     else { [tx, ty] = closest(u.x, u.y, tq); }
-    const dx = tx - u.x, dy = ty - u.y, d = Math.hypot(dx, dy), stp = u.def.speed * dt;
+    const dx = tx - u.x, dy = ty - u.y, d = Math.hypot(dx, dy), stp = u.def.speed * dt * (u.slow > 0 ? 0.5 : 1);
     if (Math.abs(dx - dy) > 0.01) u.flip = (dx - dy) < 0;
     u.moving = true;
     if (d <= stp) { u.x = tx; u.y = ty; if (u.path && u.path.length) u.path.shift(); }
@@ -296,6 +328,20 @@
     q.cd -= dt;
     const cx = q.x + q.size / 2, cy = q.y + q.size / 2, minR = d.minRange || 0;
     const inReach = (v) => { const dd = Math.hypot(v.x - cx, v.y - cy); return dd <= d.range && dd >= minR; };
+    // EMP pylon: shock wave around itself instead of aiming at one unit
+    if (d.pulse) {
+      if (q.cd > 0) return;
+      const hit = Bt.units.filter((v) => !v.dead && canHit(d, v) && inReach(v));
+      if (!hit.length) return;
+      q.cd = d.interval; q.fire = 0.3;
+      const dmg = d.dmg[q.level - 1];
+      for (const v of hit) { hurtUnit(v, dmg); v.slow = d.slow; }
+      const w = G.tileToWorld(cx, cy);
+      Bt.fx.push({ k: 'ring', x: w[0], y: w[1] - 6, r: d.range * G.TW * 0.75, life: 0.6, max: 0.6, color: '#7fd8ff' });
+      Bt.fx.push({ k: 'flash', x: w[0], y: w[1] - 30, r: 40, life: 0.3, max: 0.3, color: '#7fd8ff' });
+      G.Sfx.play('zap');
+      return;
+    }
     let u = q.tu;
     if (!u || u.dead || !inReach(u) || !canHit(d, u)) {
       u = null; let bd = 1e9;
@@ -381,8 +427,9 @@
       for (const q of b.bs) if (q.defense && !q.dead) stepDefense(q, sdt);
       stepTraps();
     }
-    const anyAlive = b.units.some((u) => !u.dead);
-    const leftToDeploy = G.UNIT_ORDER.some((u) => b.avail[u] > 0 || b.availClan[u] > 0) || Object.values(b.heroes).some((h) => h.state === 'ready');
+    // medics alone can't win: the fight ends when no attacker is left
+    const anyAlive = b.units.some((u) => !u.dead && u.def.target !== 'heal');
+    const leftToDeploy = G.UNIT_ORDER.some((u) => G.UNITS[u].target !== 'heal' && (b.avail[u] > 0 || b.availClan[u] > 0)) || Object.values(b.heroes).some((h) => h.state === 'ready');
     if (b.destroyed >= b.total || b.time <= 0 || (!anyAlive && !leftToDeploy && b.deployed > 0)) {
       b.endDelay += dt;
       if (b.endDelay > (b.time <= 0 ? 0 : 1.2)) Bt.finish();
@@ -421,6 +468,7 @@
     G.save();
     G.UI.showResult({ stars, pct, gained, trophies: real ? null : 0, chips, mode: o.mode, bot: o.mode === 'pvp' && !real });
     if (real) {
+      s.shieldUntil = 0; // attacking a real player drops your own shield
       // the server checks the loot, moves trophies, shields the defender and returns the attack id
       G.Net.submitAttack(o.defender, stars, Math.round(pct * 100), gained.scrap, gained.copper)
         .then((res) => {

@@ -165,6 +165,7 @@ G.Auth = (function () {
       retry(15000);
     }
     A.hide();
+    G.UI.maybeDaily();
     // Play Store app: load prices and credit any purchase that was paid but not yet delivered
     if (G.Pay && G.Pay.available()) G.Pay.init().then((ok) => { if (ok) G.Pay.recover(); });
   };

@@ -24,6 +24,8 @@
     x: '<svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" stroke="#fff" stroke-width="3" stroke-linecap="round"/></svg>',
     clan: '<svg viewBox="0 0 24 24"><path d="M12 2l8 3v6c0 5-3.5 9-8 11-4.5-2-8-6-8-11V5z" fill="none" stroke="#ff2bd6" stroke-width="2" stroke-linejoin="round"/><path d="M8 13l2.5-5 1.5 3 1.5-3L16 13" fill="none" stroke="#ff2bd6" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
     drone: '<svg viewBox="0 0 24 24"><g fill="none" stroke="#ffe14d" stroke-width="1.8"><rect x="8" y="9" width="8" height="6" rx="2"/><path d="M8 10L4 7M16 10l4-3M8 14l-4 3M16 14l4 3"/></g><circle cx="12" cy="12" r="1.3" fill="#ff3355"/></svg>',
+    gift: '<svg viewBox="0 0 24 24"><g fill="none" stroke-width="1.8" stroke-linejoin="round"><rect x="3.5" y="9" width="17" height="11.5" rx="1.5" stroke="#ff2bd6"/><path d="M2.5 9h19v3.5h-19z" stroke="#ff2bd6"/><path d="M12 9v11.5" stroke="#ffe14d"/><path d="M12 9c-1.5-4-6-4.5-6-2s4.5 2 6 2c1.5 0 6 .5 6-2s-4.5-2-6 2z" stroke="#ffe14d"/></g></svg>',
+    shield: '<svg viewBox="0 0 24 24"><path d="M12 2l8 3v6c0 5.2-3.5 9.2-8 11-4.5-1.8-8-5.8-8-11V5z" fill="rgba(25,240,255,.25)" stroke="#19f0ff" stroke-width="1.8" stroke-linejoin="round"/><path d="M8.5 12l2.5 2.5 4.5-5" fill="none" stroke="#19f0ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   };
   U.IC = IC;
   const resIc = (r) => '<i class="ri">' + IC[r] + '</i>';
@@ -40,7 +42,9 @@
         <button class="icon-btn pe" id="btn-set" aria-label="settings">${IC.gear}</button>
       </div>
       <div id="hud-builders" class="chip-info">${IC.drone}<span id="builders-v"></span></div>
+      <div id="hud-shield" class="chip-info hidden" title="">${IC.shield}<span id="shield-v"></span></div>
       <button id="btn-layout" class="chip-info pe">${IC.move}<span data-t="layout"></span></button>
+      <button id="btn-quests" class="chip-info pe">${IC.gift}<span data-t="quests"></span><i class="dot hidden"></i></button>
       <div id="editbar" class="pe hidden"><span>${IC.move}</span><b data-t="layoutHint"></b><button class="btn primary sm" id="edit-done" data-t="done"></button></div>
       <div id="hud-bottom">
         <button class="btn-attack pe" id="btn-attack">${IC.sword}<span data-t="attack"></span></button>
@@ -59,6 +63,7 @@
     $('#btn-army').onclick = U.openArmy;
     $('#btn-clan').onclick = () => G.Clan.open();
     $('#btn-layout').onclick = () => G.Village.setEditMode(true);
+    $('#btn-quests').onclick = U.openQuests;
     $('#edit-done').onclick = () => G.Village.setEditMode(false);
     $('#btn-attack').onclick = U.openAttack;
     $('#btn-set').onclick = U.openSettings;
@@ -91,7 +96,7 @@
   U.showEditBar = function (on) {
     $('#editbar').classList.toggle('hidden', !on);
     $('#hud-bottom').classList.toggle('hidden', on);
-    $('#btn-layout').classList.toggle('hidden', on);
+    $('#btn-layout').classList.toggle('hidden', on); $('#btn-quests').classList.toggle('hidden', on);
     if (on) U.hideSel();
   };
   // positive message (green) — toast() is for errors
@@ -128,7 +133,7 @@
   // ---------- village HUD ----------
   U.showVillage = function () {
     $('#hud-top').classList.remove('hidden'); $('#hud-bottom').classList.remove('hidden'); $('#hud-builders').classList.remove('hidden');
-    $('#btn-layout').classList.remove('hidden'); $('#editbar').classList.add('hidden');
+    $('#btn-layout').classList.remove('hidden'); $('#btn-quests').classList.remove('hidden'); $('#editbar').classList.add('hidden');
     $('#battle-hud').classList.add('hidden'); $('#battle-hud').innerHTML = '';
     U.hideSel(); U.hidePlace(); U.closeModal();
     U.refreshHud();
@@ -137,6 +142,10 @@
     const s = G.state;
     $('#pl-name').textContent = s.name;
     $('#btn-profile').classList.toggle('vip', G.isVip());
+    $('#btn-quests .dot').classList.toggle('hidden', !G.Econ.questDot(s, Date.now()));
+    // PvP shield (set by the server after someone attacks us)
+    const sh = $('#hud-shield'), left = Math.ceil(((s.shieldUntil || 0) - Date.now()) / 1000);
+    if (sh) { sh.classList.toggle('hidden', !(left > 0)); if (left > 0) $('#shield-v').textContent = G.fmtTime(left); }
     $('#pl-tro').textContent = s.trophies;
     for (const r of ['scrap', 'copper', 'chips']) {
       const el = $('.res[data-r="' + r + '"]');
@@ -471,6 +480,7 @@
       <button class="mode-card mp" id="a-pvp"><div class="mc-t">${t('multiplayer')}</div><p>${t('mpDesc')}</p>
         <div class="mc-c">${t('findMatch')} · ${costHtml('copper', cost, G.state.res.copper >= cost)}</div></button></div>
       <div class="row-btns"><button class="btn" id="a-rank">${IC.trophy}${t('ranking')}</button><button class="btn" id="a-def">${t('defenseLog')}</button></div>
+      ${(G.state.shieldUntil || 0) > Date.now() ? `<p class="hint shield-note">${IC.shield} ${t('shieldWarn', { t: G.fmtTime(Math.ceil((G.state.shieldUntil - Date.now()) / 1000)) })}</p>` : ''}
       <p class="hint">${t(G.Net.session ? 'pvpNote' : 'pvpNoteOffline')}</p>`, { cls: 'wide' });
     $('#a-pve').onclick = U.openCampaign;
     $('#a-rank').onclick = U.openRanking;
@@ -521,10 +531,27 @@
     const rows = log.map((a, i) => {
       const stars = [0, 1, 2].map((k) => `<span class="st ${k < a.stars ? 'on' : ''}">${IC.star}</span>`).join('');
       return `<div class="dl ${i < fresh ? 'new' : ''}"><div class="dl-h"><b>${escHtml(a.name)}</b><span class="l-s">${stars}</span><small>${a.pct}% · ${ago(a.at)}</small></div>
-        <div class="dl-b">${a.stars > 0 ? `${t('stolen')}: ${costHtml('scrap', a.scrap)} ${costHtml('copper', a.copper)} · ${IC.trophy.replace('<svg', '<svg class="tro-ic"')} −${a.trophies}` : `<span class="ok">${t('defended')}</span> · ${IC.trophy.replace('<svg', '<svg class="tro-ic"')} +${-a.trophies}`}</div></div>`;
+        <div class="dl-b">${a.stars > 0 ? `${t('stolen')}: ${costHtml('scrap', a.scrap)} ${costHtml('copper', a.copper)} · ${IC.trophy.replace('<svg', '<svg class="tro-ic"')} −${a.trophies}` : `<span class="ok">${t('defended')}</span> · ${IC.trophy.replace('<svg', '<svg class="tro-ic"')} +${-a.trophies}`}</div>
+        ${a.aid && !a.rev && G.Net.session && Date.now() - new Date(a.at).getTime() < 86400000 ? `<button class="btn sm primary rev" data-aid="${a.aid}">${IC.sword}${t('revenge')}</button>` : ''}</div>`;
     }).join('');
-    U.modal(fresh ? t('youWereAttacked') : t('defenseLog'), log.length ? `<div class="levels">${rows}</div>` : `<p class="center hint">${t('noDefenses')}</p>`, { cls: 'small' });
+    const sh = Math.ceil(((G.state.shieldUntil || 0) - Date.now()) / 1000);
+    U.modal(fresh ? t('youWereAttacked') : t('defenseLog'), (sh > 0 ? `<p class="hint shield-note">${IC.shield} ${t('shieldFor', { t: G.fmtTime(sh) })}</p>` : '')
+      + (log.length ? `<div class="levels">${rows}</div>` : `<p class="center hint">${t('noDefenses')}</p>`), { cls: 'small' });
+    document.querySelectorAll('#modal .rev').forEach((b) => { b.onclick = () => U.revenge(+b.dataset.aid); });
     U.refreshHud();
+  };
+  // attack back whoever raided us (once per attack, within 24 h)
+  U.revenge = async function (aid) {
+    if (!G.Battle.hasAnything()) { U.toast(t('armyEmpty')); return; }
+    U.loading(true);
+    let opp = null, err = null;
+    try { opp = await G.Net.revengeTarget(aid); } catch (e) { err = e; }
+    U.loading(false);
+    G.act({ c: 'revenged', aid });
+    if (err || !opp) { U.toast(t(/expired/i.test(err && err.message) ? 'revengeExpired' : /used/i.test(err && err.message) ? 'revengeUsed' : 'revengeNone')); U.openDefenseLog(0); return; }
+    const buildings = G.Battle.baseFromLayout(opp.layout);
+    U.closeModal();
+    G.Battle.start({ mode: 'pvp', base: { buildings, loot: { scrap: opp.loot_scrap, copper: opp.loot_copper } }, name: opp.username, defender: opp.user_id, trophies: opp.trophies, revenge: true });
   };
   U.openCampaign = function () {
     const s = G.state;
@@ -532,7 +559,7 @@
       const n = i + 1, rec = s.pve[n] || { stars: 0, taken: { scrap: 0, copper: 0 } };
       const unlocked = n === 1 || (s.pve[n - 1] && s.pve[n - 1].stars > 0);
       const stars = [0, 1, 2].map((k) => `<span class="st ${k < rec.stars ? 'on' : ''}">${IC.star}</span>`).join('');
-      return `<div class="lvl ${unlocked ? '' : 'locked'}"><div class="l-n">${n}</div><div class="l-b"><div class="c-name">${t('pve_' + n)}</div>
+      return `<div class="lvl ${unlocked ? '' : 'locked'} ${L.boss ? 'boss' : ''}"><div class="l-n">${n}</div><div class="l-b"><div class="c-name">${L.boss ? '<span class="boss-tag">BOSS</span> ' : ''}${t('pve_' + n)}</div>
         <div class="l-s">${stars}</div><div class="l-loot">${t('remainingLoot')}: ${costHtml('scrap', L.loot.scrap - rec.taken.scrap)} ${costHtml('copper', L.loot.copper - rec.taken.copper)}</div></div>
         <button class="btn primary" data-l="${n}" ${unlocked ? '' : 'disabled'}>${unlocked ? IC.sword + t('attack') : t('locked')}</button></div>`;
     }).join('');
@@ -542,9 +569,141 @@
         if (!G.Battle.hasAnything()) { U.toast(t('armyEmpty')); return; }
         const n = +b.dataset.l, L = G.PVE[n - 1];
         U.closeModal();
-        G.Battle.start({ mode: 'pve', level: n, base: { buildings: G.genBase(L, L.seed), loot: L.loot }, name: t('pve_' + n) });
+        G.Battle.start({ mode: 'pve', level: n, base: { buildings: G.genBase(L, L.seed), loot: L.loot, hpMul: L.hpMul }, name: t('pve_' + n) });
       };
     });
+  };
+
+  // ---------- daily reward + daily missions ----------
+  const rewardTxt = (g, units) => {
+    const parts = [];
+    if (g && g.scrap) parts.push(`+${G.fmt(g.scrap)} ${t('scrap').toLowerCase()}`);
+    if (g && g.copper) parts.push(`+${G.fmt(g.copper)} ${t('copper').toLowerCase()}`);
+    for (const u in units || {}) parts.push(`+${units[u]} ${t('u_' + u)}`);
+    return parts.join(', ');
+  };
+  U.openQuests = function () {
+    const draw = () => {
+      const s = G.state, now = Date.now(), ds = G.Econ.dailyState(s, now);
+      const capS = G.capOf('scrap'), capC = G.capOf('copper');
+      const days = G.DAILY.map((D, i) => {
+        const n = i + 1, past = ds.claimable ? n < ds.day : n <= ds.day, cur = ds.claimable && n === ds.day;
+        const units = Object.keys(D.units || {}).map((u) => `<img src="${G.Art.unitThumb(u)}" alt="">×${D.units[u]}`).join('');
+        return `<div class="dday ${past ? 'got' : ''} ${cur ? 'cur' : ''}"><div class="dd-n">${t('dayN', { n })}</div>
+          <div class="dd-r">${resIc('scrap')}${G.fmt(Math.floor(capS * D.pct))}</div><div class="dd-r">${resIc('copper')}${G.fmt(Math.floor(capC * D.pct))}</div>
+          ${units ? `<div class="dd-u">${units}</div>` : ''}${past ? `<div class="dd-ok">${IC.check}</div>` : ''}</div>`;
+      }).join('');
+      const ms = G.Econ.missions(s, now).map((m, i) => {
+        const done = m.n >= m.goal, pct = Math.min(100, m.n / m.goal * 100);
+        return `<div class="mis ${m.got ? 'got' : ''}"><div class="mis-b"><b>${t('mis_' + m.id, { n: G.fmt(m.goal) })}</b>
+          <div class="mis-bar"><i style="width:${pct}%"></i><span>${G.fmt(m.n)} / ${G.fmt(m.goal)}</span></div></div>
+          ${m.got ? `<span class="ok">${t('claimed')}</span>` : `<button class="btn sm ${done ? 'primary' : ''}" data-m="${i}" ${done ? '' : 'disabled'}>${t('claim')}</button>`}</div>`;
+      }).join('');
+      const resetIn = Math.ceil((Date.parse(G.Econ.today(now) + 'T00:00:00Z') + 86400000 - now) / 1000);
+      return `<div class="sec-h">${t('dailyReward')}</div>
+        <div class="days">${days}</div>
+        <div class="row-btns"><button class="btn primary" id="q-daily" ${ds.claimable ? '' : 'disabled'}>${ds.claimable ? t('claimDay', { n: ds.day }) : t('dailyCome')}</button></div>
+        <div class="sec-h">${t('dailyMissions')} <small class="hint">· ${t('newIn', { t: G.fmtTime(resetIn) })}</small></div>
+        <p class="hint mis-rw">${t('missionReward', { p: Math.round(G.MISSION_REWARD * 100) })}</p>${ms}`;
+    };
+    const bind = () => {
+      const d = $('#q-daily');
+      if (d) d.onclick = () => {
+        const r = G.act({ c: 'daily' });
+        if (r.err) { U.toast(t(r.err)); return; }
+        G.Sfx.play('star'); U.notify(t('dayGot', { n: r.day }) + ' ' + rewardTxt(r.gained, r.units));
+        refresh(); U.refreshHud();
+      };
+      document.querySelectorAll('#modal .mis .btn').forEach((b) => {
+        b.onclick = () => {
+          const r = G.act({ c: 'mission', i: +b.dataset.m });
+          if (r.err) { U.toast(t(r.err)); return; }
+          G.Sfx.play('collect'); U.notify(rewardTxt(r.gained));
+          refresh(); U.refreshHud();
+        };
+      });
+    };
+    const refresh = () => { const b = $('#modal .panel-b'); if (!b) return; b.innerHTML = draw(); bind(); };
+    U.modal(t('quests'), draw(), { cls: 'wide' });
+    bind();
+  };
+  // after logging in: show the daily reward once if it's waiting (not during the tutorial)
+  U.maybeDaily = function () {
+    setTimeout(() => {
+      if (G.scene !== G.Village || U.isModal() || (G.Tut && G.Tut.active && G.Tut.active())) return;
+      if (G.Econ.dailyState(G.state, Date.now()).claimable) U.openQuests();
+    }, 1500);
+  };
+
+  // ---------- report a bug / idea ----------
+  U.openFeedback = function () {
+    if (!G.Net.session) { U.toast(t('fbLogin')); return; }
+    let kind = 'bug';
+    U.modal(t('fbTitle'), `
+      <p class="hint">${t('fbHint')}</p>
+      <div class="seg fb-kind"><button data-k="bug" class="on">🐞 ${t('fbBug')}</button><button data-k="idea">💡 ${t('fbIdea')}</button><button data-k="other">💬 ${t('fbOther')}</button></div>
+      <textarea id="fb-text" class="fb-text" maxlength="1000" placeholder="${t('fbPlaceholder')}"></textarea>
+      <div class="fb-cnt"><span id="fb-n">0</span>/1000</div>
+      <div class="row-btns"><button class="btn primary" id="fb-send">${t('fbSend')}</button></div>`, { cls: 'small' });
+    document.querySelectorAll('#modal .fb-kind button').forEach((b) => {
+      b.onclick = () => { kind = b.dataset.k; document.querySelectorAll('#modal .fb-kind button').forEach((x) => x.classList.toggle('on', x === b)); };
+    });
+    const ta = $('#fb-text');
+    ta.oninput = () => { $('#fb-n').textContent = ta.value.length; };
+    let busy = false;
+    $('#fb-send').onclick = async () => {
+      const body = ta.value.trim();
+      if (body.length < 3) { U.toast(t('fbShort')); return; }
+      if (busy) return;
+      busy = true; U.loading(true);
+      try { await G.Net.sendFeedback(kind, body); U.closeModal(); U.notify(t('fbThanks')); }
+      catch (e) { U.toast(/limit/i.test(e.message || '') ? t('fbLimit') : t('err_' + (e.code || 'server'))); }
+      finally { U.loading(false); busy = false; }
+    };
+  };
+
+  // ---------- developer: sheet of player reports (admins only; the server enforces it) ----------
+  U.openReports = async function () {
+    let rows = [], fKind = 'all', fStatus = 'open';
+    const STAT = ['new', 'doing', 'done', 'rejected'];
+    const kindIc = { bug: '🐞', idea: '💡', other: '💬' };
+    const fmtD = (iso) => new Date(iso).toLocaleString(G.lang === 'en' ? 'en-GB' : 'pl-PL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+    const draw = () => {
+      const list = rows.filter((r) => (fKind === 'all' || r.kind === fKind) && (fStatus === 'all' || (fStatus === 'open' ? r.status === 'new' || r.status === 'doing' : r.status === fStatus)));
+      const cnt = (k) => rows.filter((r) => r.kind === k && (r.status === 'new' || r.status === 'doing')).length;
+      const body = list.map((r) => `<tr class="st-${r.status}"><td>${fmtD(r.created_at)}</td><td>${escHtml(r.username || '?')}</td><td>${kindIc[r.kind] || ''}</td>
+        <td class="rp-body">${escHtml(r.body)}</td><td>${escHtml(r.version || '')}</td><td class="rp-dev" title="${escHtml(r.device || '')}">${escHtml((r.device || '').replace(/^.*?\(([^)]*)\).*\| /, '$1 | ').slice(0, 60))}</td>
+        <td><select data-id="${r.id}">${STAT.map((s) => `<option value="${s}" ${r.status === s ? 'selected' : ''}>${t('rs_' + s)}</option>`).join('')}</select></td></tr>`).join('');
+      const b = $('#modal .panel-b'); if (!b) return;
+      b.innerHTML = `<div class="rp-bar">
+          <div class="seg rp-kind">${['all', 'bug', 'idea', 'other'].map((k) => `<button data-k="${k}" class="${fKind === k ? 'on' : ''}">${k === 'all' ? t('all') : kindIc[k] + ' ' + cnt(k)}</button>`).join('')}</div>
+          <select id="rp-st">${['open', 'all'].concat(STAT).map((s) => `<option value="${s}" ${fStatus === s ? 'selected' : ''}>${s === 'open' ? t('rs_open') : s === 'all' ? t('all') : t('rs_' + s)}</option>`).join('')}</select>
+          <button class="btn sm" id="rp-ref">↻</button><button class="btn sm" id="rp-csv">⬇ CSV</button></div>
+        <div class="rp-wrap"><table class="rp"><thead><tr><th>${t('rp_date')}</th><th>${t('rp_player')}</th><th></th><th>${t('rp_text')}</th><th>${t('version')}</th><th>${t('rp_device')}</th><th>${t('rp_status')}</th></tr></thead>
+        <tbody>${body || `<tr><td colspan="7" class="center hint">${t('rp_empty')}</td></tr>`}</tbody></table></div>`;
+      document.querySelectorAll('#modal .rp-kind button').forEach((x) => { x.onclick = () => { fKind = x.dataset.k; draw(); }; });
+      $('#rp-st').onchange = (e) => { fStatus = e.target.value; draw(); };
+      $('#rp-ref').onclick = load;
+      $('#rp-csv').onclick = () => {
+        const q = (v) => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+        const csv = '﻿' + ['data;gracz;typ;tresc;wersja;urzadzenie;status'].concat(rows.map((r) => [r.created_at, r.username, r.kind, r.body, r.version, r.device, r.status].map(q).join(';'))).join('\r\n');
+        const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+        a.download = 'cyberwar-zgloszenia-' + new Date().toISOString().slice(0, 10) + '.csv'; document.body.appendChild(a); a.click(); a.remove();
+      };
+      document.querySelectorAll('#modal .rp select[data-id]').forEach((sel) => {
+        sel.onchange = async () => {
+          const id = +sel.dataset.id, r = rows.find((x) => x.id === id);
+          try { await G.Net.feedbackUpdate(id, { status: sel.value }); r.status = sel.value; draw(); } catch (e) { U.toast(t('err_' + (e.code || 'server'))); }
+        };
+      });
+    };
+    const load = async () => {
+      const b = $('#modal .panel-b'); if (b) b.innerHTML = '<div class="spin"></div>';
+      try { rows = await G.Net.feedbackList() || []; } catch (e) { U.toast(t('err_' + (e.code || 'server'))); rows = []; }
+      draw();
+    };
+    U.modal(t('reports'), '<div class="spin"></div>', { cls: 'wide' });
+    load();
   };
 
   // ---------- settings ----------
@@ -556,7 +715,7 @@
       <div class="fld">${t('language')}<div class="seg"><button data-l="pl" class="${G.lang === 'pl' ? 'on' : ''}">Polski</button><button data-l="en" class="${G.lang === 'en' ? 'on' : ''}">English</button></div></div>
       <div class="fld">${t('sounds')}<div class="seg" id="s-sfx"><button data-v="1" class="${G.state.settings.sfx ? 'on' : ''}">${t('on')}</button><button data-v="0" class="${G.state.settings.sfx ? '' : 'on'}">${t('off')}</button></div></div>
       <div class="fld">${t('music')}<div class="seg" id="s-mus"><button data-v="1" class="${G.state.settings.music ? 'on' : ''}">${t('on')}</button><button data-v="0" class="${G.state.settings.music ? '' : 'on'}">${t('off')}</button></div></div>
-      <div class="row-btns"><button class="btn" id="s-tut">${t('tutAgain')}</button></div>
+      <div class="row-btns"><button class="btn primary" id="s-fb">✉ ${t('fbTitle')}</button><button class="btn" id="s-tut">${t('tutAgain')}</button></div>
       <div class="row-btns"><button class="btn danger" id="s-reset">${t('reset')}</button>${G.Net.session ? `<button class="btn danger" id="s-del">${t('deleteAccount')}</button>` : ''}</div>
       <p class="hint"><a href="privacy.html" target="_blank" rel="noopener">${t('privacyPolicy')}</a> · CyberWar ${t('version')} ${G.VERSION}</p>`, { cls: 'small' });
     if ($('#s-logout')) $('#s-logout').onclick = async () => {
@@ -564,6 +723,14 @@
       await G.Net.signOut(); U.closeModal(); G.Auth.show('login');
     };
     if ($('#s-login')) $('#s-login').onclick = () => { U.closeModal(); G.Auth.show('login'); };
+    $('#s-fb').onclick = U.openFeedback;
+    // developer account: reports sheet
+    G.Net.isAdmin().then((yes) => {
+      const row = $('#s-fb') && $('#s-fb').parentElement;
+      if (!yes || !row || $('#s-reports')) return;
+      const b = document.createElement('button'); b.className = 'btn'; b.id = 's-reports'; b.textContent = '📋 ' + t('reports');
+      b.onclick = U.openReports; row.appendChild(b);
+    });
     if ($('#s-del')) $('#s-del').onclick = () => U.confirm(t('deleteConfirm'), async () => {
       try { await G.Net.deleteAccount(); } catch (e) { U.toast(t('err_' + (e.code || 'server'))); return; }
       try { localStorage.removeItem('cyberwar_save_v1'); localStorage.removeItem('cyberwar_had_account'); } catch (_) {}
@@ -585,7 +752,7 @@
   U.showBattle = function () {
     U.closeModal(); U.hideSel(); U.hidePlace();
     $('#hud-top').classList.add('hidden'); $('#hud-bottom').classList.add('hidden'); $('#hud-builders').classList.add('hidden');
-    $('#btn-layout').classList.add('hidden'); $('#editbar').classList.add('hidden');
+    $('#btn-layout').classList.add('hidden'); $('#btn-quests').classList.add('hidden'); $('#hud-shield').classList.add('hidden'); $('#editbar').classList.add('hidden');
     const b = G.Battle, el = $('#battle-hud');
     const loot = b.opts.mode === 'pve' ? (() => { const L = G.PVE[b.opts.level - 1], rec = G.state.pve[b.opts.level]; const tk = rec ? rec.taken : { scrap: 0, copper: 0 }; return { scrap: L.loot.scrap - tk.scrap, copper: L.loot.copper - tk.copper }; })() : b.opts.base.loot;
     el.innerHTML = `

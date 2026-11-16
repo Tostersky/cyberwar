@@ -8,7 +8,7 @@ G.Net = (function () {
   N.GAME_URL = 'https://tostersky.github.io/cyberwar/';
 
   function loadSession() { try { return JSON.parse(localStorage.getItem(SKEY) || 'null'); } catch (_) { return null; } }
-  function storeSession(s) { N.session = s; try { if (s) localStorage.setItem(SKEY, JSON.stringify(s)); else localStorage.removeItem(SKEY); } catch (_) {} }
+  function storeSession(s) { if (!s || !N.session || N.session.user.id !== s.user.id) N.admin = null; N.session = s; try { if (s) localStorage.setItem(SKEY, JSON.stringify(s)); else localStorage.removeItem(SKEY); } catch (_) {} }
   N.uid = () => (N.session && N.session.user ? N.session.user.id : null);
   N.email = () => (N.session && N.session.user ? N.session.user.email : '');
 
@@ -103,7 +103,7 @@ G.Net = (function () {
   };
   N.signOut = async function () {
     try { if (N.session) await req('/auth/v1/logout', { method: 'POST', auth: true }); } catch (_) {}
-    storeSession(null); N.profile = null;
+    storeSession(null); N.profile = null; N.admin = null;
   };
   N.deleteAccount = async function () {
     await ensureFresh();
@@ -228,6 +228,35 @@ G.Net = (function () {
     },
   };
 
+  // "report a bug / idea" — goes to the feedback table (players can write, only the developer can read)
+  N.sendFeedback = async function (kind, body) {
+    await ensureFresh();
+    const device = (navigator.userAgent || '').slice(0, 220) + ' | ' + window.innerWidth + 'x' + window.innerHeight;
+    await req('/rest/v1/feedback', { method: 'POST', auth: true, headers: { Prefer: 'return=minimal' },
+      body: { user_id: N.uid(), kind, body: String(body).slice(0, 1000), version: G.VERSION, device } });
+  };
+  // developer tools: is this account an admin? (RLS lets you see only your own admin row)
+  N.isAdmin = async function () {
+    if (!N.session) return false;
+    if (N.admin != null) return N.admin;
+    try { await ensureFresh(); const r = await req('/rest/v1/admins?select=user_id&user_id=eq.' + N.uid(), { auth: true }); N.admin = !!(r && r.length); }
+    catch (_) { N.admin = false; }
+    return N.admin;
+  };
+  N.feedbackList = async function () {
+    await ensureFresh();
+    return await req('/rest/v1/feedback?select=id,created_at,username,kind,body,version,device,status,note&order=created_at.desc&limit=500', { auth: true });
+  };
+  N.feedbackUpdate = async function (id, fields) {
+    await ensureFresh();
+    await req('/rest/v1/feedback?id=eq.' + id, { method: 'PATCH', auth: true, headers: { Prefer: 'return=minimal' }, body: fields });
+  };
+  // revenge: the attacker's base (once per attack, within 24 h)
+  N.revengeTarget = async function (attackId) {
+    await ensureFresh();
+    const r = await rpc('revenge_target', { p_attack: attackId });
+    return r && r[0] ? r[0] : null;
+  };
   N.leaderboard = async function () {
     return await req('/rest/v1/profiles?select=username,trophies,vip_until&order=trophies.desc,created_at.asc&limit=50', { auth: !!N.session });
   };
