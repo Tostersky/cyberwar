@@ -1,5 +1,5 @@
 // Game data: buildings, units, heroes, campaign. All numbers are CyberWar's own.
-G.TW = 64; G.TH = 32; G.MAP = 40; G.VERSION = '0.9.1';
+G.TW = 64; G.TH = 32; G.MAP = 40; G.VERSION = '0.9.2';
 G.BUILDERS = 2;
 
 // every array has one value per level (1..8)
@@ -64,6 +64,10 @@ G.HEROES = {
 G.HERO_ORDER = ['ronin', 'nyx'];
 
 G.BATTLE_TIME = 180;
+// creating a clan costs premium chips (500 chips = the 8,99 zł chip pack in the shop)
+G.CLAN_PRICE = 500;
+// full stars earned for a destruction share 0..1 (every third = one star; 33% counts as 1)
+G.starsFor = (pct) => Math.max(0, Math.min(3, Math.floor(pct * 3 + 0.02)));
 
 // Seeded random (mulberry32)
 G.rng = function (seed) {

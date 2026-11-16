@@ -77,6 +77,14 @@
     el.classList.toggle('hidden', !on);
   };
 
+  // three stars filled in proportion to destruction: 33% = 1 star, 50% = 1.5, 100% = 3
+  U.starBar = function (pct, big) {
+    const fill = Math.max(0, Math.min(3, pct * 3));
+    return [0, 1, 2].map((k) => {
+      const f = Math.max(0, Math.min(1, fill - k));
+      return `<span class="st part ${big ? 'big' : ''} ${f >= 0.99 ? 'on' : ''}">${IC.star}<i style="width:${Math.round(f * 100)}%">${IC.star}</i></span>`;
+    }).join('');
+  };
   // layout mode bar: hides the normal bottom HUD while you drag buildings around
   U.showEditBar = function (on) {
     $('#editbar').classList.toggle('hidden', !on);
@@ -535,7 +543,7 @@
     if (el) el.textContent = delta == null ? t('err_server') : (delta >= 0 ? '+' : '') + delta;
   };
   U.showResult = function (r) {
-    const stars = [0, 1, 2].map((k) => `<span class="st big ${k < r.stars ? 'on' : ''}">${IC.star}</span>`).join('');
+    const stars = U.starBar(r.pct, true);
     const win = r.stars > 0;
     U.modal(win ? t('victory') : t('defeat'), `
       <div class="res-stars">${stars}</div>
@@ -566,7 +574,8 @@
       const te = $('#bh-time'); if (te) { te.textContent = Math.floor(tt / 60) + ':' + String(tt % 60).padStart(2, '0'); te.classList.toggle('low', tt <= 30); }
       const r = b.result();
       const pe = $('#bh-pct'); if (pe) pe.textContent = Math.round(r.pct * 100) + '%';
-      const se = $('#bh-stars'); if (se && se.dataset.n !== String(r.stars)) { se.dataset.n = r.stars; se.innerHTML = [0, 1, 2].map((k) => `<span class="st ${k < r.stars ? 'on' : ''}">${IC.star}</span>`).join(''); }
+      const pk = String(Math.round(r.pct * 100));
+      const se = $('#bh-stars'); if (se && se.dataset.n !== pk) { se.dataset.n = pk; se.innerHTML = U.starBar(r.pct, false); }
       const hint = $('#bh-hint'); if (hint && b.deployed > 0) hint.remove();
       if (acc > 0.5) { acc = 0; const heroDead = Object.values(b.heroes).some((h) => h.unit && h.unit.dead && !h.deadShown); if (heroDead) { Object.values(b.heroes).forEach((h) => { if (h.unit && h.unit.dead) h.deadShown = true; }); U.battleCards(); } }
       return;

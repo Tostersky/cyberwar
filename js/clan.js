@@ -38,7 +38,8 @@ G.Clan = (function () {
         <label class="fld">${t('clanDesc')}<input id="cl-desc" maxlength="120"></label>
         <label class="fld">${t('clanMin')}<input id="cl-min" type="number" min="0" max="5000" value="0" inputmode="numeric"></label>
         <div class="fld">${t('clanEmblem')}<div class="emb-pick">${EMBLEMS.map((_, i) => `<button data-e="${i}" class="${i === 0 ? 'on' : ''}">${emblem(i, 28)}</button>`).join('')}</div></div>
-        <div class="row-btns"><button class="btn primary" id="cl-create">${t('clanCreate')}</button></div>
+        <p class="hint">${t('clanPrice', { n: G.CLAN_PRICE })}</p>
+        <div class="row-btns"><button class="btn primary" id="cl-create">${t('clanCreate')} · ${G.UI.IC.chips.replace('<svg', '<svg class="tro-ic"')} ${G.CLAN_PRICE}</button></div>
       </div>`;
     let pickE = 0;
     body.querySelectorAll('.emb-pick button').forEach((b) => { b.onclick = () => { pickE = +b.dataset.e; body.querySelectorAll('.emb-pick button').forEach((x) => x.classList.toggle('on', x === b)); }; });
@@ -47,8 +48,17 @@ G.Clan = (function () {
     $('#cl-create').onclick = async () => {
       const name = $('#cl-name').value.trim();
       if (!/^[A-Za-z0-9 _-]{3,20}$/.test(name)) { G.UI.toast(t('clanErrName')); return; }
-      try { await G.Net.clan.create(name, $('#cl-desc').value.trim(), pickE, Math.max(0, Math.min(5000, +$('#cl-min').value || 0))); G.Sfx.play('built'); C.open(); }
-      catch (e) { fail(e); }
+      if (G.state.res.chips < G.CLAN_PRICE) { G.UI.toast(t('clanNeedChips', { n: G.CLAN_PRICE })); return; }
+      // read the form now: the confirm dialog replaces it
+      const desc = $('#cl-desc').value.trim(), min = Math.max(0, Math.min(5000, +$('#cl-min').value || 0)), emb = pickE;
+      const go = async () => {
+        try {
+          const r = await G.Net.callNow({ c: 'createClan', name, desc, emblem: emb, min });
+          if (r.err) { if (r.err === 'clan') fail({ message: r.message }); else G.UI.toast(t(r.err)); return; }
+          G.Sfx.play('built'); C.open();
+        } catch (e) { fail(e); }
+      };
+      G.UI.confirm(t('clanBuyQ', { n: G.CLAN_PRICE }), go);
     };
     let list = [];
     try { list = await G.Net.clan.search(q); } catch (e) { fail(e); }

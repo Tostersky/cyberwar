@@ -390,12 +390,9 @@
   };
 
   Bt.result = function () {
+    // stars follow destruction: every third of the base = one full star (33% = 1, 67% = 2, 100% = 3)
     const pct = Bt.total ? Bt.destroyed / Bt.total : 0;
-    let stars = 0;
-    if (pct >= 0.5) stars++;
-    if (Bt.coreDown) stars++;
-    if (pct >= 1) stars++;
-    return { pct, stars };
+    return { pct, stars: G.starsFor(pct) };
   };
 
   Bt.finish = function () {

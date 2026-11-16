@@ -170,6 +170,13 @@ G.Net = (function () {
     if (r.defenses && r.defenses.length && G.UI && G.scene === G.Village && !G.UI.isModal()) G.UI.openDefenseLog(r.defenses.length);
     if (r.received && r.received.length && G.UI) G.UI.notify(G.t('gotDonations', { n: r.received.length, who: [...new Set(r.received.map((x) => x.from))].join(', ') }));
   };
+  // run one command on the server right now and return its result (used for paid actions)
+  N.callNow = async function (cmd) {
+    await N.flush().catch(() => {});
+    const r = await callGame([cmd]);
+    N.adopt(r);
+    return (r.results && r.results[0]) || { err: 'server' };
+  };
   // first contact after login: the server's save becomes the game
   N.sync = async function () {
     const r = await callGame([]);

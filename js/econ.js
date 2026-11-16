@@ -276,7 +276,7 @@
       const L = G.PVE[(cmd.level | 0) - 1]; if (!L) return ERR('server');
       if (cmd.level > 1 && !(s.pve[cmd.level - 1] && s.pve[cmd.level - 1].stars > 0)) return ERR('beatPrev');
       // stars can't exceed what the destruction allows (+1 for a destroyed core)
-      const stars = Math.max(0, Math.min(cmd.stars | 0, (pct >= 0.5 ? 1 : 0) + (pct >= 1 ? 1 : 0) + 1, 3));
+      const stars = Math.max(0, Math.min(cmd.stars | 0, G.starsFor(pct)));
       const rec = s.pve[cmd.level] || { stars: 0, taken: { scrap: 0, copper: 0 } };
       for (const r of ['scrap', 'copper']) {
         const want = Math.min(L.loot[r], Math.floor(L.loot[r] * pct)) - rec.taken[r];
