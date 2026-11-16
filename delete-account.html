@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>CyberWar — Usuń konto / Delete account</title>
+<style>
+  :root { --bg: #07060f; --txt: #e9e6ff; --dim: #9a93c4; --cyan: #19f0ff; --mag: #ff2bd6; --red: #ff3355; --grn: #39ff88; }
+  body { margin: 0; background: var(--bg); color: var(--txt); font: 15px/1.6 "Segoe UI", system-ui, -apple-system, Roboto, sans-serif; }
+  main { max-width: 560px; margin: 0 auto; padding: 24px 16px 48px; }
+  h1 { color: var(--cyan); font-size: 24px; margin: 0 0 8px; }
+  h2 { color: var(--mag); font-size: 17px; margin: 24px 0 6px; }
+  a { color: var(--cyan); }
+  .dim { color: var(--dim); font-size: 13px; }
+  form { display: grid; gap: 10px; margin-top: 16px; padding: 16px; border: 1px solid #3b2f6e; background: #110d24; }
+  input { font: inherit; padding: 10px; background: #07060f; color: var(--txt); border: 1px solid #3b2f6e; }
+  button { font: inherit; font-weight: 700; padding: 12px; border: 0; background: var(--red); color: #fff; cursor: pointer; }
+  button:disabled { opacity: .5; }
+  label { display: flex; gap: 8px; align-items: flex-start; font-size: 14px; }
+  #msg { min-height: 1.6em; font-weight: 600; }
+  #msg.err { color: var(--red); } #msg.ok { color: var(--grn); }
+</style>
+</head>
+<body>
+<main>
+<h1>Usuń konto CyberWar / Delete your CyberWar account</h1>
+
+<h2>W grze / In the game</h2>
+<p>Ustawienia (ikona zębatki) → <b>Usuń konto</b>.<br><span class="dim">Settings (gear icon) → <b>Delete account</b>.</span></p>
+
+<h2>Na tej stronie / On this page</h2>
+<p>Zaloguj się i potwierdź. Usunięte zostaną: konto (e-mail, nazwa, hasło), postęp gry, baza PvP, historia ataków, członkostwo w klanie i wiadomości. Usunięcie jest natychmiastowe i nieodwracalne. Zakupione czipy przepadają.</p>
+<p class="dim">Log in and confirm. This deletes your account (email, username, password), game progress, PvP base, attack history, clan membership and messages. Deletion is immediate and permanent. Purchased chips are lost.</p>
+
+<form id="f">
+  <input id="login" autocomplete="username" placeholder="E-mail lub nazwa / email or username" required>
+  <input id="pass" type="password" autocomplete="current-password" placeholder="Hasło / password" required>
+  <label><input type="checkbox" id="sure" required> Rozumiem, że tego nie da się cofnąć. / I understand this cannot be undone.</label>
+  <button id="go">Usuń konto na zawsze / Delete account forever</button>
+  <div id="msg"></div>
+</form>
+
+<p class="dim">Nie pamiętasz hasła? Użyj „Nie pamiętam hasła” w grze. / Forgot your password? Use "Forgot password" in the game.<br>
+<a href="./">← CyberWar</a> · <a href="privacy.html">Polityka prywatności / Privacy policy</a></p>
+</main>
+<script>
+(function () {
+  const URL_ = 'https://cpwfatmoztysettztnyo.supabase.co';
+  const KEY = 'sb_publishable__NJv0uJyZVDGnHu5Jf8MzA_oEF3Cs3j';
+  const $ = (id) => document.getElementById(id);
+  const say = (t, cls) => { $('msg').textContent = t; $('msg').className = cls || ''; };
+  async function call(path, body, token) {
+    const h = { apikey: KEY, 'Content-Type': 'application/json' };
+    if (token) h.Authorization = 'Bearer ' + token;
+    const r = await fetch(URL_ + path, { method: 'POST', headers: h, body: JSON.stringify(body || {}) });
+    const txt = await r.text(); let b = null; try { b = txt ? JSON.parse(txt) : null; } catch (_) { b = txt; }
+    if (!r.ok) throw new Error((b && (b.msg || b.message || b.error_description)) || ('HTTP ' + r.status));
+    return b;
+  }
+  $('f').onsubmit = async (e) => {
+    e.preventDefault();
+    const login = $('login').value.trim(), password = $('pass').value;
+    $('go').disabled = true; say('…');
+    try {
+      let email = login;
+      if (!login.includes('@')) {
+        email = await call('/rest/v1/rpc/email_for_login', { p_username: login, p_password: password });
+        if (!email) throw new Error('bad login');
+      }
+      const s = await call('/auth/v1/token?grant_type=password', { email, password });
+      await call('/rest/v1/rpc/delete_my_account', {}, s.access_token);
+      try { localStorage.removeItem('cyberwar_session'); localStorage.removeItem('cyberwar_save_v1'); localStorage.removeItem('cyberwar_had_account'); } catch (_) {}
+      $('f').reset(); say('Konto zostało usunięte. / Your account has been deleted.', 'ok');
+    } catch (err) {
+      const m = String(err.message || err);
+      say(/invalid|bad login|credentials/i.test(m) ? 'Zły login lub hasło. / Wrong login or password.'
+        : /confirm/i.test(m) ? 'Konto niepotwierdzone — nie ma czego usuwać po stronie gry. / Account not confirmed.'
+        : 'Błąd: ' + m, 'err');
+    } finally { $('go').disabled = false; }
+  };
+})();
+</script>
+</body>
+</html>
