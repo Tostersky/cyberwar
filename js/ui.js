@@ -54,6 +54,7 @@
     $('#btn-attack').onclick = U.openAttack;
     $('#btn-set').onclick = U.openSettings;
     $('#btn-profile').onclick = U.openSettings;
+    ui.addEventListener('click', (e) => { if (e.target.closest('button')) G.Sfx.play('click'); }, true);
     U.applyLang();
   };
   U.applyLang = function () {
@@ -63,6 +64,7 @@
 
   let toastT = null;
   U.toast = function (msg) {
+    G.Sfx.play('error');
     const el = $('#toast');
     el.textContent = msg; el.classList.add('show');
     clearTimeout(toastT); toastT = setTimeout(() => el.classList.remove('show'), 2200);
@@ -73,6 +75,7 @@
     opts = opts || {};
     const m = $('#modal');
     m.innerHTML = `<div class="modal-bg"></div><div class="panel ${opts.cls || ''}"><div class="panel-h"><h2>${title}</h2>${opts.noClose ? '' : '<button class="x-btn" id="m-close">' + IC.x + '</button>'}</div><div class="panel-b">${html}</div></div>`;
+    if (m.classList.contains('hidden')) G.Sfx.play('open');
     m.classList.remove('hidden');
     if (!opts.noClose) { $('#m-close').onclick = U.closeModal; $('.modal-bg', m).onclick = U.closeModal; }
     U.modalRefresh = opts.refresh || null;
@@ -313,13 +316,21 @@
     U.modal(t('settings'), `
       <label class="fld">${t('name')}<input id="s-name" maxlength="16" value="${G.state.name.replace(/"/g, '')}"></label>
       <div class="fld">${t('language')}<div class="seg"><button data-l="pl" class="${G.lang === 'pl' ? 'on' : ''}">Polski</button><button data-l="en" class="${G.lang === 'en' ? 'on' : ''}">English</button></div></div>
+      <div class="fld">${t('sounds')}<div class="seg" id="s-sfx"><button data-v="1" class="${G.state.settings.sfx ? 'on' : ''}">${t('on')}</button><button data-v="0" class="${G.state.settings.sfx ? '' : 'on'}">${t('off')}</button></div></div>
+      <div class="fld">${t('music')}<div class="seg" id="s-mus"><button data-v="1" class="${G.state.settings.music ? 'on' : ''}">${t('on')}</button><button data-v="0" class="${G.state.settings.music ? '' : 'on'}">${t('off')}</button></div></div>
+      <div class="row-btns"><button class="btn" id="s-tut">${t('tutAgain')}</button></div>
       <div class="row-btns"><button class="btn danger" id="s-reset">${t('reset')}</button></div>
       <p class="hint">CyberWar · ${t('version')} ${G.VERSION}</p>`, { cls: 'small' });
     const nm = $('#s-name');
     nm.onchange = nm.onblur = () => { const v = nm.value.trim().slice(0, 16); if (v) { G.state.name = v; G.save(); U.refreshHud(); } };
-    document.querySelectorAll('#modal .seg button').forEach((b) => {
+    document.querySelectorAll('#modal .seg button[data-l]').forEach((b) => {
       b.onclick = () => { G.lang = b.dataset.l; G.state.lang = G.lang; G.save(); U.applyLang(); U.openSettings(); U.refreshHud(); };
     });
+    const tog = (id, key) => document.querySelectorAll('#' + id + ' button').forEach((b) => {
+      b.onclick = () => { G.state.settings[key] = b.dataset.v === '1'; G.save(); G.Sfx.updateMusic(); U.openSettings(); };
+    });
+    tog('s-sfx', 'sfx'); tog('s-mus', 'music');
+    $('#s-tut').onclick = () => { G.state.tut = 0; G.state.flags = {}; G.save(); U.closeModal(); };
     $('#s-reset').onclick = () => U.confirm(t('resetConfirm'), () => { G.resetGame(); G.Village.camInit = false; G.Village.enter(); });
   };
 

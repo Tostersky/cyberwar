@@ -15,6 +15,7 @@
   G.state.lang = G.lang;
   G.tick();
   G.UI.init();
+  G.Tut.init();
   G.Input.init(cv);
   G.Village.enter();
 
@@ -27,6 +28,7 @@
     G.scene.update(dt);
     G.scene.render(ctx);
     G.UI.frame(dt);
+    G.Tut.frame();
     requestAnimationFrame(loop);
   }
   requestAnimationFrame(loop);

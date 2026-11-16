@@ -28,6 +28,8 @@
     b.sel = G.UNIT_ORDER.find((u) => b.avail[u] > 0) || Object.keys(b.heroes)[0] || null;
     b.holdAcc = 0;
     b.cam.center(); b.cam.z *= 1.05;
+    G.state.flags.battled = true;
+    G.Sfx.play('open');
     G.scene = b;
     G.UI.showBattle();
   };
@@ -121,6 +123,7 @@
       if (!q.wall) { Bt.destroyed++; if (q.type === 'core') Bt.coreDown = true; }
       const c = centerW(q, 8);
       Bt.fx.push({ k: 'boom', x: c[0], y: c[1], r: q.wall ? 12 : 16 + q.size * 8, life: 0.5, max: 0.5, color: '#ff8a1f' });
+      G.Sfx.play(q.wall ? 'small' : 'boom');
       for (const u of Bt.units) if (u.wall === q.i) { u.wall = null; u.path = null; }
     }
   }
@@ -155,6 +158,7 @@
       spawn(b.sel, tx, ty, false);
       if (b.avail[b.sel] <= 0) b.sel = G.UNIT_ORDER.find((u) => b.avail[u] > 0) || Object.keys(b.heroes).find((h) => b.heroes[h].state === 'ready') || null;
     }
+    G.Sfx.play('deploy');
     G.UI.battleCards();
     return true;
   };
@@ -166,9 +170,11 @@
     const u = hs.unit, w = unitW(u, 6);
     if (h === 'ronin') {
       u.storm = 3; u.hp = Math.min(u.maxHp, u.hp + u.maxHp * 0.35);
+      G.Sfx.play('storm');
       Bt.fx.push({ k: 'ring', x: w[0], y: w[1], r: 40, life: 0.6, max: 0.6, color: '#ff4d4d' });
     } else if (h === 'nyx') {
       for (const q of Bt.bs) if (q.defense && !q.dead && distRect(u.x, u.y, q) <= 6) q.dis = 6;
+      G.Sfx.play('zap');
       Bt.fx.push({ k: 'ring', x: w[0], y: w[1], r: 6 * G.TW * 0.7, life: 0.8, max: 0.8, color: '#19f0ff' });
     }
     G.UI.battleCards();
@@ -207,6 +213,7 @@
         u.cd = u.def.interval;
         damageB(goal, u.def.dmg);
         const from = unitW(u), to = centerW(goal);
+        G.Sfx.play(u.def.range > 1.5 ? 'shot' : 'hit');
         if (u.def.range > 1.5) b.fx.push({ k: 'beam', x1: from[0], y1: from[1], x2: to[0], y2: to[1], color: G.Art.UCOL[u.type], life: 0.1, max: 0.1, w: 1.6 });
         else { const p = G.tileToWorld(cx, cy); b.fx.push({ k: 'spark', x: p[0], y: p[1] - 10, life: 0.2, max: 0.2, color: G.Art.UCOL[u.type] }); }
       }
@@ -240,9 +247,11 @@
     if (q.cd <= 0) {
       q.cd = d.interval; q.fire = 0.1;
       u.hp -= d.dmg[q.level - 1]; u.hitT = 0.08;
+      G.Sfx.play('laser');
       Bt.fx.push({ k: 'beam', x1: 0, y1: 0, from: q, x2: tw[0], y2: tw[1], color: G.Art.TRIM[q.level - 1], life: 0.12, max: 0.12, w: 2.4 });
       if (u.hp <= 0) {
         u.dead = true;
+        G.Sfx.play('small');
         Bt.fx.push({ k: 'boom', x: tw[0], y: tw[1], r: 12, life: 0.35, max: 0.35, color: G.Art.UCOL[u.type] });
       }
     }
@@ -307,6 +316,8 @@
       trophies = stars > 0 ? 8 + stars * 6 : -Math.min(s.trophies, 10);
       s.trophies += trophies;
     }
+    s.flags.battleDone = true;
+    G.Sfx.play(stars > 0 ? 'win' : 'lose');
     G.save();
     G.UI.showResult({ stars, pct, gained, trophies, chips, mode: o.mode });
   };

@@ -16,6 +16,7 @@
     while (G.events.length) {
       const e = G.events.shift();
       if (e.kind === 'built') {
+        G.Sfx.play('built');
         const [wx, wy] = G.tileToWorld(e.b.x + B[e.b.type].size / 2, e.b.y + B[e.b.type].size / 2);
         V.floats.push({ wx, wy: wy - 50, text: G.t('b_' + e.b.type) + ' ' + G.t('built'), color: '#39ff88', life: 2 });
         if (V.sel === e.b) G.UI.showSel(e.b);
@@ -50,6 +51,7 @@
     if (!b) { V.select(null); return; }
     if (B[b.type].prod && b.level > 0) {
       G.updateCollector(b);
+      G.state.flags.collected = true;
       if (b.acc >= 1) {
         const got = G.collect(b);
         const [wx, wy] = G.tileToWorld(b.x + 1.5, b.y + 1.5);

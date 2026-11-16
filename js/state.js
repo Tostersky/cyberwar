@@ -8,17 +8,18 @@
     const t = now();
     const s = {
       v: 1, name: 'Runner' + Math.floor(1000 + Math.random() * 9000), lang: null,
-      res: { scrap: 1500, copper: 1500, chips: 50 }, buildings: [],
+      res: { scrap: 1000, copper: 1000, chips: 50 }, buildings: [],
       army: { runner: 8, gunner: 0, drone: 0, mech: 0 }, queue: [], qStart: 0,
       trophies: 0, pve: {}, nextId: 1, created: t,
+      settings: { sfx: true, music: true }, flags: {}, tut: 0,
     };
-    const add = (type, x, y) => s.buildings.push({ id: s.nextId++, type, level: 1, x, y, acc: 0, last: t, busyUntil: 0, busyStart: 0, upTo: 0 });
+    const add = (type, x, y) => s.buildings.push({ id: s.nextId++, type, level: 1, x, y, acc: B[type].prod ? 150 : 0, last: t, busyUntil: 0, busyStart: 0, upTo: 0 });
     add('core', 18, 18); add('scrapyard', 13, 18); add('coppermine', 23, 18); add('factory', 18, 13); add('squadhq', 18, 23);
     add('laser', 14, 14);
     return s;
   };
   G.load = function () {
-    try { const raw = localStorage.getItem(KEY); if (raw) { const s = JSON.parse(raw); if (s && s.v === 1) return s; } } catch (_) {}
+    try { const raw = localStorage.getItem(KEY); if (raw) { const s = JSON.parse(raw); if (s && s.v === 1) { s.settings = s.settings || { sfx: true, music: true }; s.flags = s.flags || {}; if (s.tut == null) s.tut = 0; return s; } } } catch (_) {}
     return null;
   };
   G.save = function () { try { localStorage.setItem(KEY, JSON.stringify(G.state)); } catch (_) {} };
@@ -59,6 +60,7 @@
     const d = B[b.type];
     const got = G.addRes(d.prod, Math.floor(b.acc));
     b.acc -= got;
+    if (got > 0) { S().flags.collected = true; G.Sfx.play('collect'); }
     return got;
   };
 
@@ -112,6 +114,7 @@
     const t = now();
     const b = { id: S().nextId++, type, level: dur > 0 ? 0 : 1, x, y, acc: 0, last: t, busyUntil: dur > 0 ? t + dur * 1000 : 0, busyStart: t, upTo: dur > 0 ? 1 : 0 };
     S().buildings.push(b);
+    G.Sfx.play('build');
     G.save();
     return null;
   };
@@ -134,6 +137,7 @@
     const t = now();
     if (u.time > 0) { b.busyUntil = t + u.time * 1000; b.busyStart = t; b.upTo = u.next; }
     else b.level = u.next;
+    G.Sfx.play('build');
     G.save();
     return null;
   };
@@ -168,6 +172,8 @@
     const s = S();
     if (!s.queue.length) s.qStart = now();
     s.queue.push(u);
+    s.flags.trained = true;
+    G.Sfx.play('train');
     G.save();
     return null;
   };
