@@ -12,10 +12,30 @@
   V.update = function (dt) {
     V.t += dt; V.lastDt = dt;
     G.World.update(dt, V.t);
+    // every 5 s show how much each mine has delivered to storage
+    V.flowT = (V.flowT || 0) + dt;
+    if (V.flowT >= 5) {
+      V.flowT = 0;
+      for (const b of G.state.buildings) {
+        const d = B[b.type];
+        if (!d.prod || b.level <= 0) continue;
+        const n = Math.floor(b.flow || 0);
+        if (n <= 0) continue;
+        b.flow -= n;
+        const [wx, wy] = G.tileToWorld(b.x + d.size / 2, b.y + d.size / 2);
+        V.floats.push({ wx, wy: wy - Math.min(G.Art.sprite(b.type, b.level).top, 70), text: '+' + n, color: d.prod === 'scrap' ? '#ffb060' : '#ffc8a0', life: 1.8, icon: d.prod });
+      }
+    }
     for (const f of V.floats) { f.life -= dt; f.wy -= 30 * dt; }
     V.floats = V.floats.filter((f) => f.life > 0);
     while (G.events.length) {
       const e = G.events.shift();
+      if (e.kind === 'researched') {
+        G.Sfx.play('built');
+        const lab = G.state.buildings.find((q) => q.type === 'lab');
+        if (lab) { const [wx, wy] = G.tileToWorld(lab.x + 1.5, lab.y + 1.5); V.floats.push({ wx, wy: wy - 60, text: G.t('u_' + e.u) + ' ' + G.t('level') + ' ' + e.to + '!', color: '#19f0ff', life: 2.5 }); }
+        continue;
+      }
       if (e.kind === 'built') {
         G.Sfx.play('built');
         const [wx, wy] = G.tileToWorld(e.b.x + B[e.b.type].size / 2, e.b.y + B[e.b.type].size / 2);
@@ -74,7 +94,8 @@
   // collector bubbles: visible when enough has piled up; returns the collector under the finger
   V.bubbleAt = function (b) {
     const d = B[b.type];
-    if (!d.prod || b.level <= 0 || b.acc < Math.max(10, d.cap[b.level - 1] * 0.08)) return null;
+    // resources flow into storage by themselves; a bubble only appears when storage is full and the mine fills up
+    if (!d.prod || b.level <= 0 || b.acc < Math.max(10, d.cap[b.level - 1] * 0.5)) return null;
     const s = d.size, [cx, cy] = G.tileToWorld(b.x + s / 2, b.y + s / 2);
     return [cx, cy - G.Art.sprite(b.type, b.level).top - 6];
   };
@@ -100,6 +121,7 @@
   }
   V.select = function (b) {
     V.sel = b;
+    if (b && B[b.type].prod && G.state.flags && !G.state.flags.collected) { G.state.flags.collected = true; G.save(); }
     if (b) G.UI.showSel(b); else G.UI.hideSel();
   };
 
@@ -204,7 +226,7 @@
       G.R.bar(ctx, cx, cy - Math.min(sp.top, 90) - 8, 46, frac, '#ffe14d');
       G.R.text(ctx, G.fmtTime((b.busyUntil - t) / 1000), cx, cy - Math.min(sp.top, 90) - 18, '#fff', 11);
     }
-    if (d.prod && b.level > 0 && b.acc >= Math.max(10, d.cap[b.level - 1] * 0.08)) {
+    if (V.bubbleAt(b)) {
       const [cx, cy] = G.tileToWorld(b.x + s / 2, b.y + s / 2);
       const by = cy - sp.top - 6 + Math.sin(V.t * 3 + b.id) * 3;
       const col = d.prod === 'scrap' ? '#ff8a1f' : '#e8955a';

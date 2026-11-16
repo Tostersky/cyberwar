@@ -11,7 +11,7 @@
       v: 1, name: name || 'Runner' + Math.floor(1000 + Math.random() * 9000), lang: null,
       res: { scrap: 1000, copper: 1000, chips: 50 }, buildings: [],
       army: { runner: 8, gunner: 0, drone: 0, mech: 0 }, queue: [], qStart: 0,
-      trophies: 0, pve: {}, nextId: 1, created: now,
+      trophies: 0, pve: {}, nextId: 1, created: now, unitLv: { runner: 1, gunner: 1, drone: 1, mech: 1 }, research: null,
       settings: { sfx: true, music: true }, flags: {}, tut: 0, defLog: [],
     };
     const add = (type, x, y) => s.buildings.push({ id: s.nextId++, type, level: 1, x, y, acc: BD()[type].prod ? 150 : 0, last: now, busyUntil: 0, busyStart: 0, upTo: 0 });
@@ -28,6 +28,8 @@
     s.buildings = Array.isArray(s.buildings) ? s.buildings.filter((b) => b && BD()[b.type]) : [];
     s.pve = s.pve || {}; s.settings = s.settings || { sfx: true, music: true }; s.flags = s.flags || {};
     if (s.tut == null) s.tut = 0; s.defLog = Array.isArray(s.defLog) ? s.defLog.slice(0, 20) : [];
+    s.unitLv = s.unitLv || {}; for (const u of G.UNIT_ORDER) s.unitLv[u] = Math.max(1, Math.min(G.RESEARCH.maxLv, s.unitLv[u] | 0 || 1));
+    if (s.research && !G.UNITS[s.research.u]) s.research = null;
     s.trophies = Math.max(0, Math.floor(+s.trophies || 0));
     s.nextId = Math.max(s.nextId || 1, ...s.buildings.map((b) => b.id + 1), 1);
     for (const b of s.buildings) { if (b.last == null) b.last = now; if (b.acc == null) b.acc = 0; }
@@ -79,24 +81,31 @@
   E.finishCost = (b, now) => Math.max(1, Math.ceil((b.busyUntil - now) / 60000));
 
   // ---------- time ----------
-  E.updateCollector = function (b, now) {
+  // production flows straight into storage; only what doesn't fit waits inside the building (up to its cap)
+  E.updateCollector = function (b, now, s) {
     const d = BD()[b.type];
     if (!d.prod) return;
     if (b.level === 0) { b.last = now; return; }
     const dt = Math.max(0, now - (b.last || now));
     b.acc = Math.min(d.cap[b.level - 1], (b.acc || 0) + d.rate[b.level - 1] * dt / 3600000);
     b.last = now;
+    if (s) {
+      const moved = E.addRes(s, d.prod, Math.floor(b.acc));
+      b.acc -= moved;
+      if (moved > 0) b.flow = (b.flow || 0) + moved;
+    }
   };
+  E.ratePer = (b, sec) => (b.level > 0 && BD()[b.type].prod ? BD()[b.type].rate[b.level - 1] * sec / 3600 : 0);
   // finishes constructions and training up to `now`; returns events [{kind:'built', id}]
   E.tick = function (s, now) {
     const ev = [];
     for (const b of s.buildings) {
       if (b.busyUntil && b.busyUntil <= now) {
-        E.updateCollector(b, b.busyUntil);
+        E.updateCollector(b, b.busyUntil, s);
         b.level = b.upTo; b.busyUntil = 0; b.upTo = 0;
         ev.push({ kind: 'built', id: b.id });
       }
-      E.updateCollector(b, now);
+      E.updateCollector(b, now, s);
     }
     while (s.queue.length) {
       const dur = G.UNITS[s.queue[0]].time * 1000;
@@ -104,7 +113,19 @@
       else break;
     }
     if (!s.queue.length) s.qStart = 0;
+    if (s.research && s.research.until <= now) {
+      s.unitLv[s.research.u] = s.research.to;
+      ev.push({ kind: 'researched', u: s.research.u, to: s.research.to });
+      s.research = null;
+    }
     return ev;
+  };
+  E.labLevel = (s) => E.maxLevelOf(s, 'lab');
+  // what researching unit u next would need
+  E.researchInfo = function (s, u) {
+    const cur = (s.unitLv && s.unitLv[u]) || 1, next = cur + 1, R = G.RESEARCH;
+    if (cur >= R.maxLv) return { max: true, cur };
+    return { cur, next, cost: R.cost[next - 1], time: R.time[next - 1], needLab: next - 1, blocked: E.labLevel(s) < next - 1 };
   };
 
   function pay(s, res, cost) {
@@ -139,7 +160,7 @@
       if (u.blocked) return ERR('needCore', { n: u.needCore });
       if (u.time > 0 && E.buildersBusy(s, now) >= G.BUILDERS) return ERR('noBuilder');
       const e = pay(s, u.res, u.cost); if (e) return e;
-      E.updateCollector(b, now);
+      E.updateCollector(b, now, s);
       if (u.time > 0) { b.busyUntil = now + u.time * 1000; b.busyStart = now; b.upTo = u.next; }
       else b.level = u.next;
       return { ok: true };
@@ -155,7 +176,7 @@
     }
     if (c === 'collect') {
       const b = E.findB(s, cmd.id); if (!b || !BD()[b.type].prod) return { ok: true, got: 0 };
-      E.updateCollector(b, now);
+      E.updateCollector(b, now, s);
       const got = E.addRes(s, BD()[b.type].prod, Math.floor(b.acc));
       b.acc -= got;
       return { ok: true, got };
@@ -182,6 +203,26 @@
       E.addRes(s, 'copper', G.UNITS[u].cost);
       s.queue.splice(i, 1);
       if (i === 0) s.qStart = s.queue.length ? now : 0;
+      return { ok: true };
+    }
+    if (c === 'research') {
+      const d = G.UNITS[cmd.u]; if (!d) return ERR('server');
+      if (E.labLevel(s) < 1) return ERR('needLab');
+      if (s.research) return ERR('labBusy');
+      if (E.factoryLevel(s) < d.unlock) return ERR('factoryAt', { n: d.unlock });
+      const ri = E.researchInfo(s, cmd.u);
+      if (ri.max) return ERR('maxLevel');
+      if (ri.blocked) return ERR('labAt', { n: ri.needLab });
+      const e = pay(s, 'copper', ri.cost); if (e) return e;
+      s.research = { u: cmd.u, to: ri.next, start: now, until: now + ri.time * 1000 };
+      return { ok: true };
+    }
+    if (c === 'finishResearch') {
+      if (!s.research || s.research.until <= now) return { ok: true };
+      const cost = Math.max(1, Math.ceil((s.research.until - now) / 60000));
+      if (s.res.chips < cost) return ERR('noChips');
+      s.res.chips -= cost; s.research.until = now;
+      E.tick(s, now);
       return { ok: true };
     }
     if (c === 'search') { // looking for a PvP opponent costs copper
@@ -227,7 +268,7 @@
       s.pve[cmd.level] = rec;
     } else if (cmd.mode === 'bot') {
       // training fight against a bot: loot is capped by what the strongest possible bot could hold
-      const c = Math.min(5, E.coreLevel(s) + 1), max = 800 * c * c;
+      const c = Math.min(G.MAXLV, E.coreLevel(s) + 1), max = 800 * c * c;
       for (const r of ['scrap', 'copper']) gained[r] = E.addRes(s, r, Math.floor(Math.min(max, Math.max(0, cmd.loot && cmd.loot[r] | 0)) * pct));
     } else if (cmd.mode === 'pvp') {
       // the server fills cmd.loot from the attack record (submit_attack already capped it)

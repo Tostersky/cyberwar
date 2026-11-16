@@ -4,7 +4,8 @@
   const TW = G.TW, TH = G.TH, SS = 2, HEAD = 190, PADX = 22;
   const A = G.Art = {};
   const cache = new Map();
-  const TRIM = ['#2be3ff', '#39ff88', '#ff2bd6', '#ffe14d', '#ff5a3c'];
+  // neon trim colour per level (1..8)
+  const TRIM = ['#2be3ff', '#39ff88', '#ff2bd6', '#ffe14d', '#ff5a3c', '#b26bff', '#ffffff', '#ffb000'];
   A.TRIM = TRIM;
 
   function mk(w, h, ss) {
@@ -129,6 +130,7 @@
   const HGT = {
     core: (L) => 52 + L * 12, scrapyard: (L) => 46 + L * 4, coppermine: (L) => 58 + L * 5, vault: (L) => 34 + L * 6,
     factory: (L) => 26 + L * 3, squadhq: (L) => 22 + L * 3, laser: (L) => 12 + L * 2, firewall: (L) => 15 + L * 2,
+    mortar: (L) => 14 + L * 2, aa: (L) => 14 + L * 2, mine: () => 3, lab: (L) => 24 + L * 3,
   };
   A.laserHeight = HGT.laser;
 
@@ -352,6 +354,77 @@
       const c = P(ox, oy, 0.5, 0.5);
       dot(x, c[0], c[1] - h - 1, 2.2, '#ff3355', 10);
       return h + 6;
+    },
+    mortar(x, ox, oy, s, L) {
+      const h = HGT.mortar(L), t = TRIM[L - 1];
+      shadow(x, ox, oy, s, h + 10); pad(x, ox, oy, s);
+      // sandbagged emplacement ring
+      const c = P(ox, oy, s / 2, s / 2);
+      for (let a = 0; a < Math.PI * 2; a += 0.35) {
+        x.fillStyle = a % 0.7 < 0.35 ? '#4a4630' : '#3c3826';
+        x.beginPath(); x.ellipse(c[0] + Math.cos(a) * 34, c[1] + Math.sin(a) * 17 - 4, 7, 4, 0, 0, Math.PI * 2); x.fill();
+      }
+      const f = box(x, ox, oy, 0.9, 0.9, s - 0.9, s - 0.9, 3, h, pal('#2c3040'));
+      faceLines(x, f, h - 4, t, 1.2);
+      // squat dome + angled plasma barrel
+      x.fillStyle = '#3a4058'; x.beginPath(); x.ellipse(c[0], c[1] - h, 17, 10, 0, Math.PI, 0); x.fill();
+      x.fillStyle = '#4a5270'; x.beginPath(); x.ellipse(c[0], c[1] - h, 17, 8.5, 0, 0, Math.PI * 2); x.fill();
+      x.save(); x.translate(c[0] + 2, c[1] - h - 6); x.rotate(-0.9);
+      x.fillStyle = '#1c1f2c'; x.fillRect(-4, -4, 26, 8);
+      x.fillStyle = '#5a6080'; x.fillRect(-4, -4, 26, 2);
+      x.fillStyle = t; x.fillRect(19, -4, 3, 8);
+      x.restore();
+      dot(x, c[0] + 15, c[1] - h - 22, 2.5, t, 10);
+      return h + 30;
+    },
+    aa(x, ox, oy, s, L) {
+      const h = HGT.aa(L), t = TRIM[L - 1];
+      shadow(x, ox, oy, s, h + 20); pad(x, ox, oy, s);
+      const f = box(x, ox, oy, 0.28, 0.28, s - 0.28, s - 0.28, 3, h, pal('#33283c'));
+      faceLines(x, f, h - 4, t, 1.2);
+      // tilted missile pod with 2x3 tubes
+      const c = P(ox, oy, s / 2, s / 2);
+      x.save(); x.translate(c[0], c[1] - h - 4); x.rotate(-0.45);
+      x.fillStyle = '#20202c'; x.fillRect(-12, -14, 24, 18);
+      x.strokeStyle = '#6a6a86'; x.lineWidth = 0.8; x.strokeRect(-12, -14, 24, 18);
+      for (let i = 0; i < 3; i++) for (let j = 0; j < 2; j++) {
+        x.fillStyle = '#0c0c12'; x.beginPath(); x.arc(-7 + i * 7, -9 + j * 8, 2.6, 0, Math.PI * 2); x.fill();
+        x.fillStyle = '#ff3355'; x.beginPath(); x.arc(-7 + i * 7, -9 + j * 8, 1.2, 0, Math.PI * 2); x.fill();
+      }
+      x.restore();
+      line(x, [c[0] - 14, c[1] - h + 2], [c[0] - 14, c[1] - h - 14], '#8a8aa0', 1);
+      dot(x, c[0] - 14, c[1] - h - 15, 1.8, '#ff3355', 8);
+      // radar dish
+      x.fillStyle = '#9aa0c0'; x.beginPath(); x.ellipse(c[0] + 14, c[1] - h - 8, 6, 3, 0.5, 0, Math.PI * 2); x.fill();
+      return h + 34;
+    },
+    mine(x, ox, oy, s, L) {
+      const c = P(ox, oy, 0.5, 0.5), t = TRIM[L - 1];
+      x.fillStyle = 'rgba(0,0,0,.4)'; x.beginPath(); x.ellipse(c[0], c[1], 13, 6.5, 0, 0, Math.PI * 2); x.fill();
+      x.fillStyle = '#2a2d3a'; x.beginPath(); x.ellipse(c[0], c[1] - 2, 11, 5.5, 0, 0, Math.PI * 2); x.fill();
+      x.fillStyle = '#3c4152'; x.beginPath(); x.ellipse(c[0], c[1] - 4, 9, 4.5, 0, 0, Math.PI * 2); x.fill();
+      x.strokeStyle = '#ffe14d'; x.lineWidth = 1; x.setLineDash([3, 3]); x.beginPath(); x.ellipse(c[0], c[1] - 4, 9, 4.5, 0, 0, Math.PI * 2); x.stroke(); x.setLineDash([]);
+      dot(x, c[0], c[1] - 5, 2, t, 8);
+      return 10;
+    },
+    lab(x, ox, oy, s, L, r) {
+      const h = HGT.lab(L), t = TRIM[L - 1];
+      shadow(x, ox, oy, s, h + 20); pad(x, ox, oy, s);
+      const f = box(x, ox, oy, 0.3, 0.3, s - 0.3, s - 0.3, 3, h, { top: '#2a3a52', left: '#121a28', right: '#1a2638', edge: '#4a7aa8' });
+      windows(x, f, 'L', h * 0.35, h * 0.85, 2, 5, r, 'rgba(120,240,255,.85)');
+      windows(x, f, 'R', h * 0.35, h * 0.85, 2, 5, r, 'rgba(120,240,255,.85)');
+      faceLines(x, f, h * 0.2, '#19f0ff', 1.2);
+      sign(x, f, 'R', 0.5, h * 0.18, 'LAB', '#19f0ff', 6);
+      // glass dome on the roof
+      const c = P(ox, oy, s / 2, s / 2), cy = c[1] - h;
+      const g = x.createRadialGradient(c[0] - 6, cy - 14, 2, c[0], cy - 6, 24);
+      g.addColorStop(0, 'rgba(220,250,255,.75)'); g.addColorStop(0.5, 'rgba(25,240,255,.25)'); g.addColorStop(1, 'rgba(25,240,255,.08)');
+      x.fillStyle = g; x.beginPath(); x.ellipse(c[0], cy, 22, 11, 0, Math.PI, 0); x.ellipse(c[0], cy, 22, 24, 0, 0, Math.PI, true); x.fill();
+      x.strokeStyle = 'rgba(25,240,255,.6)'; x.lineWidth = 1; x.stroke();
+      // tanks of green goo
+      for (const [px, py] of [[0.6, s - 0.6], [s - 0.6, 0.6]]) { const q = P(ox, oy, px, py); cyl(x, q[0], q[1], 5, 3, 18, '#1e5a3a', '#39ff88'); }
+      dot(x, c[0], cy - 26, 2, t, 10);
+      return h + 34;
     },
     rubble(x, ox, oy, s, _L, r) {
       box(x, ox, oy, 0.1, 0.1, s - 0.1, s - 0.1, 0, 2, { top: '#141221', left: '#0a0912', right: '#0f0d19', edge: '#221e38' }, true);

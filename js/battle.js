@@ -10,14 +10,15 @@
       const d = BD[q.type];
       const hp = d.hp[q.level - 1];
       return { i, type: q.type, level: q.level, x: q.x, y: q.y, size: d.size, hp, maxHp: hp, dead: false, wall: !!d.wall,
-        defense: !!d.defense, cd: 0, ang: Math.random() * 6, tu: null, dis: 0, fire: 0, hitT: 0 };
+        trap: !!d.trap, defense: !!d.defense, cd: 0, ang: Math.random() * 6, tu: null, dis: 0, fire: 0, hitT: 0 };
     });
-    b.total = b.bs.filter((q) => !q.wall).length;
+    // traps are invisible, can't be targeted and don't count towards destruction
+    b.total = b.bs.filter((q) => !q.wall && !q.trap).length;
     b.destroyed = 0; b.coreDown = false;
     b.grid = new Int16Array(M * M).fill(-1);
-    for (const q of b.bs) for (let y = q.y; y < q.y + q.size; y++) for (let x = q.x; x < q.x + q.size; x++) b.grid[y * M + x] = q.i;
+    for (const q of b.bs) if (!q.trap) for (let y = q.y; y < q.y + q.size; y++) for (let x = q.x; x < q.x + q.size; x++) b.grid[y * M + x] = q.i;
     b.noDeploy = new Uint8Array(M * M);
-    for (const q of b.bs) for (let y = q.y - 1; y < q.y + q.size + 1; y++) for (let x = q.x - 1; x < q.x + q.size + 1; x++) {
+    for (const q of b.bs) if (!q.trap) for (let y = q.y - 1; y < q.y + q.size + 1; y++) for (let x = q.x - 1; x < q.x + q.size + 1; x++) {
       if (x >= 0 && y >= 0 && x < M && y < M) b.noDeploy[y * M + x] = 1;
     }
     b.showZone = 2.5;
@@ -104,7 +105,7 @@
     let best = null, bd = 1e9;
     for (let pass = 0; pass < 2 && best == null; pass++) {
       for (const q of Bt.bs) {
-        if (q.dead || q.wall) continue;
+        if (q.dead || q.wall || q.trap) continue;
         if (pass === 0 && pref && !q.defense) continue;
         const d = distRect(u.x, u.y, q);
         if (d < bd) { bd = d; best = q.i; }
@@ -154,7 +155,10 @@
   }
 
   function spawn(type, tx, ty, hero) {
-    const def = hero ? G.HEROES[type] : G.UNITS[type];
+    // laboratory levels make units tougher and stronger
+    const base = hero ? G.HEROES[type] : G.UNITS[type];
+    const mul = hero ? 1 : G.unitMul(G.state.unitLv && G.state.unitLv[type]);
+    const def = Object.assign({}, base, { hp: Math.round(base.hp * mul), dmg: Math.round(base.dmg * mul) });
     const u = { type, hero, def, x: tx, y: ty, hp: def.hp, maxHp: def.hp, cd: 0.2, target: null, wall: null, path: null,
       dead: false, fly: !!def.fly, flip: false, anim: Math.random() * 5, jx: (Math.random() - 0.5) * 0.5, jy: (Math.random() - 0.5) * 0.5, storm: 0, hitT: 0 };
     Bt.units.push(u);
@@ -257,31 +261,72 @@
     else { u.x += dx / d * stp; u.y += dy / d * stp; }
   }
 
+  function hurtUnit(u, dmg) {
+    if (u.dead) return;
+    u.hp -= dmg; u.hitT = 0.08;
+    if (u.hp <= 0) {
+      u.dead = true; u.deadAt = Bt.t;
+      G.Sfx.play('small');
+      const w = unitW(u);
+      Bt.fx.push({ k: 'boom', x: w[0], y: w[1], r: 12, life: 0.35, max: 0.35, color: G.Art.UCOL[u.type] });
+    }
+  }
+  // which units a defense can shoot at
+  const canHit = (d, v) => (d.hits === 'air' ? v.fly : d.hits === 'ground' ? !v.fly : true);
+
   function stepDefense(q, dt) {
     const d = BD[q.type];
     if (q.fire > 0) q.fire -= dt;
     if (q.dis > 0) { q.dis -= dt; return; }
     q.cd -= dt;
-    const cx = q.x + q.size / 2, cy = q.y + q.size / 2;
+    const cx = q.x + q.size / 2, cy = q.y + q.size / 2, minR = d.minRange || 0;
+    const inReach = (v) => { const dd = Math.hypot(v.x - cx, v.y - cy); return dd <= d.range && dd >= minR; };
     let u = q.tu;
-    if (!u || u.dead || Math.hypot(u.x - cx, u.y - cy) > d.range) {
-      u = null; let bd = d.range;
-      for (const v of Bt.units) { if (v.dead) continue; const dd = Math.hypot(v.x - cx, v.y - cy); if (dd <= bd) { bd = dd; u = v; } }
+    if (!u || u.dead || !inReach(u) || !canHit(d, u)) {
+      u = null; let bd = 1e9;
+      for (const v of Bt.units) {
+        if (v.dead || !canHit(d, v) || !inReach(v)) continue;
+        const dd = Math.hypot(v.x - cx, v.y - cy); if (dd < bd) { bd = dd; u = v; }
+      }
       q.tu = u;
     }
     if (!u) { q.ang += dt * 0.4; return; }
     const tw = unitW(u), cw = G.tileToWorld(cx, cy);
     q.ang = Math.atan2((tw[1] - cw[1] + 20) * 2, tw[0] - cw[0]);
-    if (q.cd <= 0) {
-      q.cd = d.interval; q.fire = 0.1;
-      u.hp -= d.dmg[q.level - 1]; u.hitT = 0.08;
+    if (q.cd > 0) return;
+    q.cd = d.interval; q.fire = 0.15;
+    const dmg = d.dmg[q.level - 1], col = G.Art.TRIM[q.level - 1];
+    if (q.type === 'mortar') {
+      // lobbed plasma shell: lands where the unit was ~1 s ago, hurts every ground unit around
+      const from = centerW(q, G.Art.laserHeight(q.level) + 26);
+      const gw = G.tileToWorld(u.x, u.y);
+      Bt.fx.push({ k: 'shell', x1: from[0], y1: from[1], x2: gw[0], y2: gw[1], tx: u.x, ty: u.y, dmg, splash: d.splash, color: col, life: 1.1, max: 1.1 });
+      G.Sfx.play('deploy');
+    } else if (q.type === 'aa') {
+      const from = centerW(q, 26);
+      hurtUnit(u, dmg);
+      Bt.fx.push({ k: 'bolt', x1: from[0], y1: from[1], x2: tw[0], y2: tw[1], color: '#ff3355', life: 0.22, max: 0.22 });
+      G.Sfx.play('shot');
+    } else {
+      hurtUnit(u, dmg);
       G.Sfx.play('laser');
-      Bt.fx.push({ k: 'beam', x1: 0, y1: 0, from: q, x2: tw[0], y2: tw[1], color: G.Art.TRIM[q.level - 1], life: 0.12, max: 0.12, w: 2.4 });
-      if (u.hp <= 0) {
-        u.dead = true; u.deadAt = Bt.t;
-        G.Sfx.play('small');
-        Bt.fx.push({ k: 'boom', x: tw[0], y: tw[1], r: 12, life: 0.35, max: 0.35, color: G.Art.UCOL[u.type] });
-      }
+      Bt.fx.push({ k: 'beam', x1: 0, y1: 0, from: q, x2: tw[0], y2: tw[1], color: col, life: 0.12, max: 0.12, w: 2.4 });
+    }
+  }
+
+  // hidden mines go off when a ground unit comes close
+  function stepTraps() {
+    for (const q of Bt.bs) {
+      if (!q.trap || q.dead) continue;
+      const cx = q.x + 0.5, cy = q.y + 0.5, d = BD[q.type];
+      if (!Bt.units.some((v) => !v.dead && !v.fly && Math.hypot(v.x - cx, v.y - cy) < 0.9)) continue;
+      q.dead = true; q.deadAt = Bt.t;
+      for (const v of Bt.units) if (!v.dead && !v.fly && Math.hypot(v.x - cx, v.y - cy) <= d.splash) hurtUnit(v, d.dmg[q.level - 1]);
+      const w = G.tileToWorld(cx, cy);
+      Bt.fx.push({ k: 'flash', x: w[0], y: w[1] - 4, r: 60, life: 0.45, max: 0.45, color: '#19f0ff' });
+      Bt.fx.push({ k: 'ring', x: w[0], y: w[1], r: d.splash * G.TW * 0.8, life: 0.5, max: 0.5, color: '#19f0ff' });
+      Bt.shake = Math.max(Bt.shake || 0, 0.25);
+      G.Sfx.play('zap');
     }
   }
 
@@ -291,13 +336,22 @@
     G.World.update(dt, b.t);
     if (b.shake > 0) b.shake = Math.max(0, b.shake - dt * 1.6);
     // smouldering ruins
-    for (const q of b.bs) if (q.dead && !q.wall && b.t - q.deadAt < 8 && Math.random() < dt * 2.5) {
+    for (const q of b.bs) if (q.dead && !q.wall && !q.trap && b.t - q.deadAt < 8 && Math.random() < dt * 2.5) {
       const c = centerW(q, 4);
       G.World.emit({ k: 'smoke', x: c[0] + (Math.random() - 0.5) * q.size * 18, y: c[1], vx: 6 + Math.random() * 6, vy: -14 - Math.random() * 8, r: 3 + q.size, gr: 7, life: 2.4, max: 2.4, c: '40,36,48', a: 0.4 });
       if (Math.random() < 0.3) G.World.emit({ k: 'spark', x: c[0] + (Math.random() - 0.5) * q.size * 14, y: c[1], vx: (Math.random() - 0.5) * 10, vy: -30 - Math.random() * 20, g: 0, r: 1.5, life: 0.8, max: 0.8, c: '#ff7a30' });
     }
     if (b.showZone > 0) b.showZone -= dt;
-    for (const f of b.fx) f.life -= dt;
+    for (const f of b.fx) {
+      f.life -= dt;
+      // mortar shell lands: splash damage to ground units
+      if (f.k === 'shell' && f.life <= 0 && !f.done) {
+        f.done = true;
+        for (const v of b.units) if (!v.dead && !v.fly && Math.hypot(v.x - f.tx, v.y - f.ty) <= f.splash) hurtUnit(v, f.dmg);
+        b.fx.push({ k: 'flash', x: f.x2, y: f.y2 - 4, r: 50, life: 0.35, max: 0.35, color: f.color });
+        G.Sfx.play('small');
+      }
+    }
     b.fx = b.fx.filter((f) => f.life > 0);
     for (const q of b.bs) if (q.hitT > 0) q.hitT -= dt;
     if (b.ended) return;
@@ -310,6 +364,7 @@
     for (let k = 0; k < sub; k++) {
       for (const u of b.units) if (!u.dead) stepUnit(u, sdt);
       for (const q of b.bs) if (q.defense && !q.dead) stepDefense(q, sdt);
+      stepTraps();
     }
     const anyAlive = b.units.some((u) => !u.dead);
     const leftToDeploy = G.UNIT_ORDER.some((u) => b.avail[u] > 0) || Object.values(b.heroes).some((h) => h.state === 'ready');
@@ -410,6 +465,7 @@
       if (it.prop) { G.World.drawProp(ctx, it.prop); continue; }
       if (it.q) {
         const q = it.q, p = G.tileToWorld(q.x, q.y);
+        if (q.trap) continue; // mines stay hidden (their blast is drawn as an effect)
         if (q.dead) { G.Art.drawSprite(ctx, G.Art.sprite('rubble', q.size), p[0], p[1]); continue; }
         G.Art.drawSprite(ctx, G.Art.sprite(q.type, q.level), p[0], p[1]);
         if (!q.wall) G.Art.anim(ctx, q.type, q.level, p[0], p[1], b.t, b.lastDt || 0.016, q.i);
@@ -463,6 +519,16 @@
         ctx.globalAlpha = 1; ctx.strokeStyle = '#fff'; ctx.lineWidth = 1; ctx.stroke();
         L(f.color, hx, hy, 8, 0.9);
         if (a < 0.15) L(f.color, f.x2, f.y2, 14, 0.8);
+      } else if (f.k === 'shell') {
+        // lobbed plasma ball on a high arc
+        const p = 1 - a, hx = f.x1 + (f.x2 - f.x1) * p, hy = f.y1 + (f.y2 - f.y1) * p - Math.sin(Math.PI * p) * 140;
+        const p0 = Math.max(0, p - 0.08), tx = f.x1 + (f.x2 - f.x1) * p0, ty = f.y1 + (f.y2 - f.y1) * p0 - Math.sin(Math.PI * p0) * 140;
+        ctx.globalAlpha = 0.6; ctx.strokeStyle = f.color; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(tx, ty); ctx.lineTo(hx, hy); ctx.stroke();
+        ctx.globalAlpha = 1;
+        L(f.color, hx, hy, 12, 1); L('#ffffff', hx, hy, 5, 1);
+        // landing marker on the ground
+        ctx.globalAlpha = 0.25 + p * 0.4; ctx.strokeStyle = f.color; ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.ellipse(f.x2, f.y2, f.splash * G.TW * 0.7, f.splash * G.TH * 0.7, 0, 0, Math.PI * 2); ctx.stroke();
       } else if (f.k === 'boom') {
         const r = f.r * (1.25 - a * 0.6);
         L('#ffffff', f.x, f.y, r * 0.5, a);

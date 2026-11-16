@@ -51,12 +51,15 @@
   G.factoryLevel = () => E.factoryLevel(S());
   G.hqLevel = () => E.hqLevel(S());
   G.heroUnlocked = (h) => E.heroUnlocked(S(), h);
-  G.updateCollector = (b, t) => E.updateCollector(b, t || now());
+  G.updateCollector = (b, t) => E.updateCollector(b, t || now(), S());
 
   // per-frame tick: constructions / training finish on time
   G.events = [];
   G.tick = function () {
-    for (const e of E.tick(S(), now())) if (e.kind === 'built') G.events.push({ kind: 'built', b: E.findB(S(), e.id) });
+    for (const e of E.tick(S(), now())) {
+      if (e.kind === 'built') G.events.push({ kind: 'built', b: E.findB(S(), e.id) });
+      if (e.kind === 'researched') G.events.push(e);
+    }
   };
 
   // actions (return an error message or null)

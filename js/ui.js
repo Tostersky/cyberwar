@@ -129,7 +129,10 @@
     const busy = b.busyUntil > now;
     let status = '';
     if (busy) status = `<div class="sb-status">${t(b.level === 0 ? 'building' : 'upgrading')} · <b id="sb-time">${G.fmtTime((b.busyUntil - now) / 1000)}</b></div>`;
-    else if (d.prod && b.level > 0) status = `<div class="sb-status">${t('stored')}: <b id="sb-acc">${Math.floor(b.acc)}</b> / ${d.cap[b.level - 1]}</div>`;
+    else if (d.prod && b.level > 0) {
+      const per5 = G.Econ.ratePer(b, 5), full = G.state.res[d.prod] >= G.capOf(d.prod);
+      status = `<div class="sb-status">${t('mining')}: <b>+${per5.toLocaleString(G.lang, { maximumFractionDigits: 1 })} ${t(d.prod).toLowerCase()} / 5 s</b> (${d.rate[b.level - 1]} / h)${full ? ` · <b class="warn">${t('storageFull')}</b>` : ''}</div>`;
+    }
     const btn = (id, ic, label, extra) => `<button class="sb-btn" id="${id}"><span class="sb-ic">${ic}</span><span class="sb-l">${label}</span>${extra || ''}</button>`;
     let btns = btn('sb-info', IC.info, t('info'));
     if (!busy) {
@@ -139,8 +142,9 @@
       btns += btn('sb-fin', IC.bolt, t('finish'), `<span class="sb-c">${resIc('chips')}<span id="sb-fc">${G.finishCost(b)}</span></span>`);
     }
     if (b.type !== 'core' || true) btns += btn('sb-move', IC.move, t('move'));
-    if (d.prod && b.level > 0) btns += btn('sb-col', IC[d.prod], t('collect'));
+    if (d.prod && b.level > 0 && b.acc >= 1) btns += btn('sb-col', IC[d.prod], t('collect'));
     if ((b.type === 'factory' || b.type === 'squadhq') && b.level > 0) btns += btn('sb-army', IC.army, t('army'));
+    if (b.type === 'lab' && b.level > 0) btns += btn('sb-lab', IC.up, t('research'));
     el.innerHTML = `<div class="sb-title">${t('b_' + b.type)} <small>${b.level > 0 ? t('level') + ' ' + b.level : ''}</small></div>${status}<div class="sb-btns">${btns}</div>`;
     el.classList.remove('hidden');
     el.dataset.id = b.id;
@@ -159,6 +163,7 @@
       U.showSel(b); U.refreshHud();
     };
     if ($('#sb-army')) $('#sb-army').onclick = U.openArmy;
+    if ($('#sb-lab')) $('#sb-lab').onclick = U.openLab;
     $('#hud-bottom').classList.add('dim');
   };
   U.hideSel = function () { $('#selbar').classList.add('hidden'); $('#hud-bottom').classList.remove('dim'); };
@@ -192,7 +197,10 @@
     if (d.prod) { row(t('production'), v(d.rate, lv), nextLv && v(d.rate, nextLv)); row(t('storage'), v(d.cap, lv), nextLv && v(d.cap, nextLv)); }
     if (d.store) row(t('storage'), G.fmt(v(d.store, lv)), nextLv && G.fmt(v(d.store, nextLv)));
     if (d.housing) row(t('capacity'), v(d.housing, lv), nextLv && v(d.housing, nextLv));
-    if (d.dmg) { row(t('damage'), v(d.dmg, lv), nextLv && v(d.dmg, nextLv)); row(t('range'), d.range, d.range); }
+    if (d.dmg) row(t('damage'), v(d.dmg, lv), nextLv && v(d.dmg, nextLv));
+    if (d.range) row(t('range'), (d.minRange ? d.minRange + '–' : '') + d.range, (d.minRange ? d.minRange + '–' : '') + d.range);
+    if (d.hits) row(t('targets'), t('hits_' + d.hits), t('hits_' + d.hits));
+    if (d.splash) row(t('splash'), d.splash, d.splash);
     return `<table class="stats">${rows.join('')}</table>`;
   }
   U.openInfo = function (b) {
@@ -255,7 +263,7 @@
           <img src="${G.Art.unitThumb(u)}" alt=""><div class="c-name">${t('u_' + u)}</div>
           ${locked ? `<div class="c-lock">${t('factoryAt', { n: d.unlock })}</div>` :
             `<div class="c-cost">${costHtml('copper', d.cost, s.res.copper >= d.cost)}</div><div class="c-time">${d.space} ${t('housing').toLowerCase()} · ${d.time}s</div>`}
-          <div class="c-have">${s.army[u]}</div>
+          <div class="c-have">${s.army[u]}</div><div class="c-cnt">${t('level')} ${(s.unitLv && s.unitLv[u]) || 1}</div>
         </button>`;
       }).join('');
       let qhtml = '';
@@ -285,6 +293,46 @@
     };
     const refresh = () => { const b = $('#modal .panel-b'); if (!b) return; const st = b.scrollTop; b.innerHTML = draw(); b.scrollTop = st; bind(); };
     U.modal(t('army'), draw(), { cls: 'wide', refresh });
+    bind();
+  };
+
+  // ---------- laboratory ----------
+  U.openLab = function () {
+    const draw = () => {
+      const s = G.state, now = Date.now(), R = s.research;
+      let cur = '';
+      if (R) {
+        const left = Math.max(0, (R.until - now) / 1000), cost = Math.max(1, Math.ceil(left / 60));
+        cur = `<div class="lab-cur"><img src="${G.Art.unitThumb(R.u)}" alt=""><div><b>${t('u_' + R.u)} → ${t('level')} ${R.to}</b>
+          <div class="bar big"><b style="width:${Math.min(100, (now - R.start) / (R.until - R.start) * 100)}%"></b></div><small>${G.fmtTime(left)}</small></div>
+          <button class="btn sm primary" id="lab-fin">${IC.bolt}${costHtml('chips', cost, s.res.chips >= cost)}</button></div>`;
+      }
+      const cards = G.UNIT_ORDER.map((u) => {
+        const ri = G.Econ.researchInfo(s, u), lv = ri.cur, locked = G.factoryLevel() < G.UNITS[u].unlock;
+        const pct = Math.round(G.RESEARCH.bonus * 100);
+        let foot;
+        if (locked) foot = `<div class="c-lock">${t('factoryAt', { n: G.UNITS[u].unlock })}</div>`;
+        else if (ri.max) foot = `<div class="c-lock">${t('maxLevel')}</div>`;
+        else if (ri.blocked) foot = `<div class="c-lock">${t('labAt', { n: ri.needLab })}</div>`;
+        else foot = `<div class="c-cost">${costHtml('copper', ri.cost, s.res.copper >= ri.cost)}</div><div class="c-time">${G.fmtTime(ri.time)} · +${pct}%</div>`;
+        return `<button class="card unit ${locked || ri.max || ri.blocked || R ? 'locked' : ''}" data-u="${u}">
+          <img src="${G.Art.unitThumb(u)}" alt=""><div class="c-name">${t('u_' + u)}</div><div class="c-cnt">${t('level')} ${lv}</div>${foot}</button>`;
+      }).join('');
+      return `<p class="hint">${t('labHint', { p: Math.round(G.RESEARCH.bonus * 100) })}</p>${cur}<div class="grid">${cards}</div>`;
+    };
+    const bind = () => {
+      document.querySelectorAll('#modal .card.unit').forEach((c) => {
+        c.onclick = () => {
+          const r = G.act({ c: 'research', u: c.dataset.u });
+          if (r.err) U.toast(G.t(r.err, r.p && r.p.r ? { r: t(r.p.r) } : r.p)); else G.Sfx.play('build');
+          refresh(); U.refreshHud();
+        };
+      });
+      const f = $('#lab-fin');
+      if (f) f.onclick = () => { const r = G.act({ c: 'finishResearch' }); if (r.err) U.toast(t(r.err)); refresh(); U.refreshHud(); };
+    };
+    const refresh = () => { const b = $('#modal .panel-b'); if (!b) return; b.innerHTML = draw(); bind(); };
+    U.modal(t('b_lab'), draw(), { cls: 'wide', refresh });
     bind();
   };
 
@@ -503,6 +551,6 @@
       }
       const ac = $('#sb-acc'); if (ac) ac.textContent = Math.floor(sel.acc);
     }
-    if (U.modalRefresh && G.state.queue.length) U.modalRefresh();
+    if (U.modalRefresh && (G.state.queue.length || G.state.research)) U.modalRefresh();
   };
 })();
