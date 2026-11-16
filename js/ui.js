@@ -40,6 +40,8 @@
         <button class="icon-btn pe" id="btn-set" aria-label="settings">${IC.gear}</button>
       </div>
       <div id="hud-builders" class="chip-info">${IC.drone}<span id="builders-v"></span></div>
+      <button id="btn-layout" class="chip-info pe">${IC.move}<span data-t="layout"></span></button>
+      <div id="editbar" class="pe hidden"><span>${IC.move}</span><b data-t="layoutHint"></b><button class="btn primary sm" id="edit-done" data-t="done"></button></div>
       <div id="hud-bottom">
         <button class="btn-attack pe" id="btn-attack">${IC.sword}<span data-t="attack"></span></button>
         <div class="hb-right">
@@ -56,6 +58,8 @@
     $('#btn-shop').onclick = U.openShop;
     $('#btn-army').onclick = U.openArmy;
     $('#btn-clan').onclick = () => G.Clan.open();
+    $('#btn-layout').onclick = () => G.Village.setEditMode(true);
+    $('#edit-done').onclick = () => G.Village.setEditMode(false);
     $('#btn-attack').onclick = U.openAttack;
     $('#btn-set').onclick = U.openSettings;
     $('#btn-profile').onclick = U.openSettings;
@@ -73,6 +77,13 @@
     el.classList.toggle('hidden', !on);
   };
 
+  // layout mode bar: hides the normal bottom HUD while you drag buildings around
+  U.showEditBar = function (on) {
+    $('#editbar').classList.toggle('hidden', !on);
+    $('#hud-bottom').classList.toggle('hidden', on);
+    $('#btn-layout').classList.toggle('hidden', on);
+    if (on) U.hideSel();
+  };
   // positive message (green) — toast() is for errors
   U.notify = function (msg) {
     const el = $('#toast');
@@ -107,6 +118,7 @@
   // ---------- village HUD ----------
   U.showVillage = function () {
     $('#hud-top').classList.remove('hidden'); $('#hud-bottom').classList.remove('hidden'); $('#hud-builders').classList.remove('hidden');
+    $('#btn-layout').classList.remove('hidden'); $('#editbar').classList.add('hidden');
     $('#battle-hud').classList.add('hidden'); $('#battle-hud').innerHTML = '';
     U.hideSel(); U.hidePlace(); U.closeModal();
     U.refreshHud();
@@ -471,6 +483,7 @@
   U.showBattle = function () {
     U.closeModal(); U.hideSel(); U.hidePlace();
     $('#hud-top').classList.add('hidden'); $('#hud-bottom').classList.add('hidden'); $('#hud-builders').classList.add('hidden');
+    $('#btn-layout').classList.add('hidden'); $('#editbar').classList.add('hidden');
     const b = G.Battle, el = $('#battle-hud');
     const loot = b.opts.mode === 'pve' ? (() => { const L = G.PVE[b.opts.level - 1], rec = G.state.pve[b.opts.level]; const tk = rec ? rec.taken : { scrap: 0, copper: 0 }; return { scrap: L.loot.scrap - tk.scrap, copper: L.loot.copper - tk.copper }; })() : b.opts.base.loot;
     el.innerHTML = `

@@ -6,7 +6,7 @@
   V.enter = function () {
     G.scene = V;
     if (!V.camInit) { V.cam.center(); V.camInit = true; }
-    V.sel = null; V.ghost = null;
+    V.sel = null; V.ghost = null; V.editMode = false; V.drag = null;
     G.UI.showVillage();
   };
   V.update = function (dt) {
@@ -77,6 +77,7 @@
   }
 
   V.onTap = function (sx, sy) {
+    if (V.editMode) return; // in layout mode buildings are dragged, not opened
     if (V.ghost) {
       const [tx, ty] = V.cam.toTile(sx, sy);
       const s = B[V.ghost.type].size;
@@ -183,7 +184,25 @@
   };
   V.cancelGhost = function () { V.ghost = null; G.UI.hidePlace(); };
 
+  // ---- layout mode: drag any building straight to a new spot ----
+  V.editMode = false;
+  V.setEditMode = function (on) {
+    V.editMode = !!on; V.drag = null;
+    V.select(null); V.ghost = null;
+    G.UI.showEditBar(V.editMode);
+  };
+  function startDrag(sx, sy) {
+    const b = hitBuilding(sx, sy);
+    if (!b) return false;
+    const [tx, ty] = V.cam.toTile(sx, sy);
+    V.drag = { b, x: b.x, y: b.y, off: [tx - b.x, ty - b.y] };
+    G.Sfx.play('click');
+    return true;
+  }
+  V.dragValid = () => V.drag && G.canPlace(V.drag.b.type, V.drag.x, V.drag.y, V.drag.b.id);
+
   V.onPointerDown = function (sx, sy) {
+    if (V.editMode) return startDrag(sx, sy);
     if (!V.ghost) return false;
     const [tx, ty] = V.cam.toTile(sx, sy);
     const g = V.ghost, s = B[g.type].size;
@@ -191,12 +210,26 @@
     return false;
   };
   V.onDragMove = function (sx, sy) {
+    if (V.drag) {
+      const [tx, ty] = V.cam.toTile(sx, sy), s = B[V.drag.b.type].size;
+      V.drag.x = G.clamp(Math.round(tx - V.drag.off[0]), 2, G.MAP - 2 - s);
+      V.drag.y = G.clamp(Math.round(ty - V.drag.off[1]), 2, G.MAP - 2 - s);
+      return;
+    }
     if (!V.ghost) return;
     const [tx, ty] = V.cam.toTile(sx, sy);
     V.ghost.x = Math.round(tx - V.dragOff[0]); V.ghost.y = Math.round(ty - V.dragOff[1]);
     clampGhost();
   };
-  V.onPointerUp = function () {};
+  V.onPointerUp = function () {
+    const d = V.drag;
+    if (!d) return;
+    V.drag = null;
+    if (d.x === d.b.x && d.y === d.b.y) return;
+    if (!G.canPlace(d.b.type, d.x, d.y, d.b.id)) { G.Sfx.play('error'); return; } // snaps back
+    const err = G.moveBuilding(d.b, d.x, d.y);
+    if (err) G.UI.toast(err); else G.Sfx.play('deploy');
+  };
 
   // ---- render ----
   function drawBuilding(ctx, b, t, walls, alpha) {
@@ -245,7 +278,17 @@
     const walls = new Map();
     for (const b of G.state.buildings) if (b.type === 'firewall') walls.set(b.x * 100 + b.y, b);
     if (V.ghost && V.ghost.moveId) walls.delete(G.state.buildings.find((b) => b.id === V.ghost.moveId).x * 100 + G.state.buildings.find((b) => b.id === V.ghost.moveId).y);
-    const list = G.state.buildings.filter((b) => !(V.ghost && V.ghost.moveId === b.id));
+    const dragId = V.drag && V.drag.b.id;
+    const list = G.state.buildings.filter((b) => !(V.ghost && V.ghost.moveId === b.id) && b.id !== dragId);
+    if (V.editMode) {
+      // building grid so it's easy to line things up
+      ctx.save(); ctx.strokeStyle = 'rgba(25,240,255,.12)'; ctx.lineWidth = 1;
+      for (let i = 2; i <= G.MAP - 2; i++) {
+        let a = G.tileToWorld(i, 2), b = G.tileToWorld(i, G.MAP - 2); ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke();
+        a = G.tileToWorld(2, i); b = G.tileToWorld(G.MAP - 2, i); ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke();
+      }
+      ctx.restore();
+    }
     list.sort((a, b) => (a.x + a.y + B[a.type].size) - (b.x + b.y + B[b.type].size));
     if (V.sel) {
       const s = B[V.sel.type].size, pulse = 0.5 + Math.sin(V.t * 5) * 0.3;
@@ -255,6 +298,13 @@
     const items = list.map((b) => ({ d: b.x + b.y + B[b.type].size, b })).concat(G.World.propItems());
     items.sort((a, b) => a.d - b.d);
     for (const it of items) { if (it.b) drawBuilding(ctx, it.b, t, walls); else G.World.drawProp(ctx, it.prop); }
+    if (V.drag) {
+      // the building being dragged, lifted slightly, with a green/red footprint
+      const d = V.drag, s = B[d.b.type].size, ok = V.dragValid();
+      G.R.diamond(ctx, d.x, d.y, s, ok ? 'rgba(57,255,136,.28)' : 'rgba(255,51,85,.32)', ok ? '#39ff88' : '#ff3355', 2);
+      const [wx, wy] = G.tileToWorld(d.x, d.y);
+      G.Art.drawSprite(ctx, G.Art.sprite(d.b.type, Math.max(1, d.b.level || d.b.upTo)), wx, wy - 6, 0.85);
+    }
     if (V.ghost) {
       const g = V.ghost, s = B[g.type].size, ok = V.ghostValid();
       G.R.diamond(ctx, g.x, g.y, s, ok ? 'rgba(57,255,136,.25)' : 'rgba(255,51,85,.3)', ok ? '#39ff88' : '#ff3355', 2);
