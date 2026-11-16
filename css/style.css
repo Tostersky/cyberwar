@@ -287,6 +287,18 @@ table.stats td.nx { color: var(--grn); font-weight: 800; width: 90px; }
 .fb-kind { margin: 8px 0; }
 .fb-text { width: 100%; min-height: 110px; resize: vertical; padding: 10px; font: inherit; color: var(--txt); background: #07060f; border: 1px solid var(--line); box-sizing: border-box; }
 .fb-cnt { text-align: right; font-size: 11px; color: var(--dim); }
+/* player search */
+.ps-row { display: flex; gap: 8px; margin-bottom: 8px; }
+.ps-row input { flex: 1; font: inherit; padding: 9px 10px; color: var(--txt); background: #07060f; border: 1px solid var(--line); }
+.ps-item { width: 100%; text-align: left; color: var(--txt); cursor: pointer; }
+.ps-item .rk-u small { display: block; font-size: 11px; color: var(--dim); font-weight: 400; }
+/* "i" stats button on unit / hero cards */
+.c-info { position: absolute; top: 4px; left: 50%; transform: translateX(-50%); width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center;
+  font: 800 12px/1 Georgia, serif; font-style: italic; color: #031018; background: var(--cyan); box-shadow: 0 0 8px rgba(25,240,255,.6); cursor: pointer; }
+.card.unit .c-info { top: auto; bottom: 26px; left: auto; right: 4px; transform: none; }
+.hero { position: relative; } .hero .c-info { top: 6px; left: auto; right: 6px; transform: none; }
+.stats small { display: block; font-size: 10px; color: var(--dim); }
+.stats th { font-size: 11px; color: var(--cyan); text-align: left; padding: 2px 6px; }
 /* developer: reports sheet */
 .rp-bar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; }
 .rp-bar select, .rp select { font: inherit; font-size: 12px; padding: 4px 6px; color: var(--txt); background: #120d26; border: 1px solid var(--line); }
