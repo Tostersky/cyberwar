@@ -25,6 +25,7 @@
   };
   U.IC = IC;
   const resIc = (r) => '<i class="ri">' + IC[r] + '</i>';
+  const escHtml = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 
   U.init = function () {
     const ui = $('#ui');
@@ -285,16 +286,60 @@
       <button class="mode-card" id="a-pve"><div class="mc-t">${t('campaign')}</div><p>${t('campaignDesc')}</p></button>
       <button class="mode-card mp" id="a-pvp"><div class="mc-t">${t('multiplayer')}</div><p>${t('mpDesc')}</p>
         <div class="mc-c">${t('findMatch')} · ${costHtml('copper', cost, G.state.res.copper >= cost)}</div></button></div>
-      <p class="hint">${t('pvpNote')}</p>`, { cls: 'wide' });
+      <div class="row-btns"><button class="btn" id="a-rank">${IC.trophy}${t('ranking')}</button><button class="btn" id="a-def">${t('defenseLog')}</button></div>
+      <p class="hint">${t(G.Net.session ? 'pvpNote' : 'pvpNoteOffline')}</p>`, { cls: 'wide' });
     $('#a-pve').onclick = U.openCampaign;
-    $('#a-pvp').onclick = () => {
+    $('#a-rank').onclick = U.openRanking;
+    $('#a-def').onclick = () => U.openDefenseLog(0);
+    let searching = false;
+    $('#a-pvp').onclick = async () => {
+      if (searching) return;
       if (!G.Battle.hasAnything()) { U.toast(t('armyEmpty')); return; }
       if (G.state.res.copper < cost) { U.toast(t('notEnough', { r: t('copper') })); return; }
-      G.state.res.copper -= cost;
-      const bot = G.genBot(G.coreLevel(), (Date.now() & 0xffffff) ^ 0x5bd1e995);
+      searching = true;
+      let opp = null;
+      if (G.Net.session) {
+        U.loading(true);
+        try { opp = await G.Net.findOpponent(); } catch (_) { opp = null; }
+        U.loading(false);
+      }
+      searching = false;
+      G.state.res.copper -= cost; G.save();
       U.closeModal();
+      if (opp) {
+        const buildings = G.Battle.baseFromLayout(opp.layout);
+        if (buildings.some((q) => q.type !== 'firewall')) {
+          G.Battle.start({ mode: 'pvp', base: { buildings, loot: { scrap: opp.loot_scrap, copper: opp.loot_copper } }, name: opp.username, defender: opp.user_id, trophies: opp.trophies });
+          return;
+        }
+      }
+      if (G.Net.session) U.toast(t('noOpponents'));
+      const bot = G.genBot(G.coreLevel(), (Date.now() & 0xffffff) ^ 0x5bd1e995);
       G.Battle.start({ mode: 'pvp', base: bot, name: bot.name });
     };
+  };
+
+  U.openRanking = async function () {
+    U.modal(t('ranking'), `<div class="rank" id="rank-list"><div class="spin"></div></div>`, { cls: 'small' });
+    let rows;
+    try { rows = await G.Net.leaderboard(); } catch (e) { const el = $('#rank-list'); if (el) el.innerHTML = `<p class="center warn">${t('err_' + (e.code || 'server'))}</p>`; return; }
+    const el = $('#rank-list');
+    if (!el) return;
+    const me = G.Net.profile && G.Net.profile.username;
+    el.innerHTML = rows.length ? rows.map((r, i) => `<div class="rk ${r.username === me ? 'me' : ''}"><span class="rk-n">${i + 1}</span><span class="rk-u">${escHtml(r.username)}</span><span class="rk-t">${IC.trophy}${r.trophies}</span></div>`).join('')
+      : `<p class="center hint">${t('noPlayersYet')}</p>`;
+  };
+
+  U.openDefenseLog = function (fresh) {
+    const log = G.state.defLog || [];
+    const ago = (iso) => { const m = Math.max(1, Math.round((Date.now() - new Date(iso).getTime()) / 60000)); return m < 60 ? m + ' min' : m < 1440 ? Math.round(m / 60) + ' h' : Math.round(m / 1440) + ' d'; };
+    const rows = log.map((a, i) => {
+      const stars = [0, 1, 2].map((k) => `<span class="st ${k < a.stars ? 'on' : ''}">${IC.star}</span>`).join('');
+      return `<div class="dl ${i < fresh ? 'new' : ''}"><div class="dl-h"><b>${escHtml(a.name)}</b><span class="l-s">${stars}</span><small>${a.pct}% · ${ago(a.at)}</small></div>
+        <div class="dl-b">${a.stars > 0 ? `${t('stolen')}: ${costHtml('scrap', a.scrap)} ${costHtml('copper', a.copper)} · ${IC.trophy.replace('<svg', '<svg class="tro-ic"')} −${a.trophies}` : `<span class="ok">${t('defended')}</span> · ${IC.trophy.replace('<svg', '<svg class="tro-ic"')} +${-a.trophies}`}</div></div>`;
+    }).join('');
+    U.modal(fresh ? t('youWereAttacked') : t('defenseLog'), log.length ? `<div class="levels">${rows}</div>` : `<p class="center hint">${t('noDefenses')}</p>`, { cls: 'small' });
+    U.refreshHud();
   };
   U.openCampaign = function () {
     const s = G.state;
@@ -358,7 +403,7 @@
     const b = G.Battle, el = $('#battle-hud');
     const loot = b.opts.mode === 'pve' ? (() => { const L = G.PVE[b.opts.level - 1], rec = G.state.pve[b.opts.level]; const tk = rec ? rec.taken : { scrap: 0, copper: 0 }; return { scrap: L.loot.scrap - tk.scrap, copper: L.loot.copper - tk.copper }; })() : b.opts.base.loot;
     el.innerHTML = `
-      <div class="bh-tl"><div class="bh-name">${b.opts.name}${b.opts.mode === 'pvp' ? ' <small>(bot)</small>' : ''}</div>
+      <div class="bh-tl"><div class="bh-name">${escHtml(b.opts.name)}${b.opts.mode === 'pvp' && !b.opts.defender ? ' <small>(bot)</small>' : ''}${b.opts.defender ? ` <small>${IC.trophy.replace('<svg', '<svg class="tro-ic"')} ${b.opts.trophies}</small>` : ''}</div>
         <div class="bh-loot">${t('loot')}: ${costHtml('scrap', loot.scrap)} ${costHtml('copper', loot.copper)}</div>
         <button class="btn danger sm pe" id="bh-end">${t('endBattle')}</button></div>
       <div class="bh-tr"><div class="bh-time" id="bh-time">3:00</div><div class="bh-pct"><span id="bh-pct">0%</span><span class="bh-stars" id="bh-stars"></span></div></div>
@@ -395,6 +440,10 @@
       };
     });
   };
+  U.setResultTrophies = function (delta) {
+    const el = $('#res-tro');
+    if (el) el.textContent = delta == null ? t('err_server') : (delta >= 0 ? '+' : '') + delta;
+  };
   U.showResult = function (r) {
     const stars = [0, 1, 2].map((k) => `<span class="st big ${k < r.stars ? 'on' : ''}">${IC.star}</span>`).join('');
     const win = r.stars > 0;
@@ -402,7 +451,7 @@
       <div class="res-stars">${stars}</div>
       <div class="res-pct">${t('destruction')}: <b>${Math.round(r.pct * 100)}%</b></div>
       <div class="res-loot">${t('loot')}: ${costHtml('scrap', r.gained.scrap)} ${costHtml('copper', r.gained.copper)} ${r.chips ? costHtml('chips', r.chips) : ''}</div>
-      ${r.mode === 'pvp' ? `<div class="res-tro">${IC.trophy} ${r.trophies >= 0 ? '+' : ''}${r.trophies}</div>` : ''}
+      ${r.mode === 'pvp' ? (r.bot ? `<p class="hint">${t('botNoTrophies')}</p>` : `<div class="res-tro">${IC.trophy} <span id="res-tro">${r.trophies == null ? '…' : (r.trophies >= 0 ? '+' : '') + r.trophies}</span></div>`) : ''}
       <div class="row-btns"><button class="btn primary" id="r-home">${t('returnHome')}</button></div>`, { cls: 'small result ' + (win ? 'win' : 'lose'), noClose: true });
     $('#r-home').onclick = () => { U.closeModal(); G.Village.enter(); };
   };

@@ -313,14 +313,38 @@
       s.pve[o.level] = rec;
     } else {
       for (const r of ['scrap', 'copper']) gained[r] = G.addRes(r, Math.floor(o.base.loot[r] * pct));
-      trophies = stars > 0 ? 8 + stars * 6 : -Math.min(s.trophies, 10);
-      s.trophies += trophies;
     }
     s.flags.battleDone = true;
     G.Sfx.play(stars > 0 ? 'win' : 'lose');
     G.save();
-    G.Net.pushSave().catch(() => {});
-    G.UI.showResult({ stars, pct, gained, trophies, chips, mode: o.mode });
+    const real = o.mode === 'pvp' && o.defender;
+    G.UI.showResult({ stars, pct, gained, trophies: real ? null : trophies, chips, mode: o.mode, bot: o.mode === 'pvp' && !real });
+    if (real) {
+      // the server checks the loot, moves trophies and protects the defender with a shield
+      G.Net.submitAttack(o.defender, stars, Math.round(pct * 100), gained.scrap, gained.copper)
+        .then((delta) => { s.trophies = Math.max(0, s.trophies + delta); G.save(); G.UI.setResultTrophies(delta); })
+        .catch(() => G.UI.setResultTrophies(null))
+        .then(() => G.Net.pushSave().catch(() => {}));
+    } else G.Net.pushSave().catch(() => {});
+  };
+
+  // Turns an untrusted layout from the server ([type, level, x, y] rows) into a safe base.
+  Bt.baseFromLayout = function (layout) {
+    const out = [], M = G.MAP, occ = new Uint8Array(M * M);
+    if (!Array.isArray(layout)) return out;
+    for (const row of layout.slice(0, 400)) {
+      if (!Array.isArray(row)) continue;
+      const [type, level, x, y] = row, d = BD[type];
+      if (!d || !Number.isInteger(level) || !Number.isInteger(x) || !Number.isInteger(y)) continue;
+      const lv = Math.max(1, Math.min(G.MAXLV, level)), sz = d.size;
+      if (x < 0 || y < 0 || x + sz > M || y + sz > M) continue;
+      let free = true;
+      for (let j = y; j < y + sz && free; j++) for (let i = x; i < x + sz; i++) if (occ[j * M + i]) { free = false; break; }
+      if (!free) continue;
+      for (let j = y; j < y + sz; j++) for (let i = x; i < x + sz; i++) occ[j * M + i] = 1;
+      out.push({ type, level: lv, x, y });
+    }
+    return out;
   };
 
   Bt.render = function (ctx) {

@@ -91,7 +91,7 @@ G.Auth = (function () {
     const s = await G.Net.resolveState(G.load());
     G.applyState(s);
     A.hide();
-    G.Net.pushSave().catch(() => {});
+    G.Net.pushSave().catch(() => {}).then(() => G.Net.checkDefenses());
   };
 
   return A;

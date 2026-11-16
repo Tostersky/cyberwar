@@ -94,12 +94,63 @@ G.Net = (function () {
     G.state.owner = N.uid(); G.state.savedAt = Date.now();
     await req('/rest/v1/saves', { method: 'POST', auth: true, keepalive, headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
       body: { user_id: N.uid(), data: G.state, updated_at: new Date().toISOString() } });
-    if (N.profile && N.profile.trophies !== G.state.trophies) {
-      await req('/rest/v1/profiles?id=eq.' + N.uid(), { method: 'PATCH', auth: true, keepalive, headers: { Prefer: 'return=minimal' }, body: { trophies: G.state.trophies } });
-      N.profile.trophies = G.state.trophies;
-    }
+    await N.publishBase(keepalive);
     N.dirty = false; N.lastPush = Date.now();
   };
+
+  // ---------- PvP ----------
+  const rpc = (name, body, keepalive) => req('/rest/v1/rpc/' + name, { method: 'POST', auth: true, keepalive, body: body || {} });
+  // what other players attack: finished buildings + 20% of stored resources as loot
+  N.publishBase = async function (keepalive) {
+    const s = G.state;
+    const layout = s.buildings.filter((b) => b.level > 0).map((b) => [b.type, b.level, b.x, b.y]);
+    await rpc('publish_base', { p_layout: layout, p_core: G.coreLevel(), p_scrap: Math.floor(s.res.scrap * 0.2), p_copper: Math.floor(s.res.copper * 0.2) }, keepalive);
+  };
+  N.findOpponent = async function () {
+    await ensureFresh();
+    const r = await rpc('find_opponent');
+    return r && r[0] ? r[0] : null;
+  };
+  N.submitAttack = async function (defender, stars, pct, scrap, copper) {
+    await ensureFresh();
+    return await rpc('submit_attack', { p_defender: defender, p_stars: stars, p_pct: pct, p_scrap: scrap, p_copper: copper });
+  };
+  N.fetchDefenses = async function () {
+    await ensureFresh();
+    return await req('/rest/v1/attacks?select=attacker_name,stars,pct,loot_scrap,loot_copper,trophies,created_at&seen=is.false&order=created_at.asc&defender=eq.' + N.uid(), { auth: true });
+  };
+  N.markSeen = async function () { await ensureFresh(); await rpc('mark_attacks_seen'); };
+  N.leaderboard = async function () {
+    return await req('/rest/v1/profiles?select=username,trophies&order=trophies.desc,created_at.asc&limit=50', { auth: !!N.session });
+  };
+
+  // Applies attacks made on this player while away: lost loot, trophies, defense report.
+  let checking = false;
+  N.checkDefenses = async function () {
+    if (!N.session || checking) return;
+    checking = true;
+    try {
+      const list = await N.fetchDefenses();
+      if (list && list.length) {
+        const s = G.state;
+        s.defLog = s.defLog || [];
+        for (const a of list) {
+          s.res.scrap = Math.max(0, s.res.scrap - a.loot_scrap);
+          s.res.copper = Math.max(0, s.res.copper - a.loot_copper);
+          s.defLog.unshift({ name: a.attacker_name, stars: a.stars, pct: a.pct, scrap: a.loot_scrap, copper: a.loot_copper, trophies: a.trophies, at: a.created_at });
+        }
+        s.defLog = s.defLog.slice(0, 20);
+        await N.markSeen();
+        await N.loadProfile();
+        if (N.profile) s.trophies = N.profile.trophies;
+        G.save();
+        await N.pushSave();
+        if (G.UI && G.scene === G.Village) G.UI.openDefenseLog(list.length);
+      }
+    } catch (_) {}
+    checking = false;
+  };
+  setInterval(() => { if (G.scene === G.Village && !document.hidden) N.checkDefenses(); }, 60000);
   N.markDirty = () => { N.dirty = true; };
   // background sync: every 20 s if something changed, and right away when the app goes to background
   setInterval(() => { if (N.dirty && N.session) N.pushSave().catch(() => {}); }, 20000);
@@ -114,7 +165,7 @@ G.Net = (function () {
     else if (cloud) s = cloud;
     else if (local && (!local.owner || local.owner === N.uid())) s = local;
     else s = G.newGame();
-    if (N.profile) s.name = N.profile.username;
+    if (N.profile) { s.name = N.profile.username; s.trophies = N.profile.trophies; }
     s.owner = N.uid();
     return s;
   };
