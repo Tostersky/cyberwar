@@ -23,10 +23,11 @@
     }
     b.showZone = 2.5;
     b.avail = Object.assign({}, G.state.army); b.used = {};
+    b.availClan = Object.assign({}, G.state.clanArmy || {}); b.usedClan = {};
     b.heroes = {};
     for (const h of G.HERO_ORDER) if (G.heroUnlocked(h)) b.heroes[h] = { state: 'ready', unit: null, abil: 'ready' };
     b.units = []; b.fx = []; b.deployed = 0;
-    b.sel = G.UNIT_ORDER.find((u) => b.avail[u] > 0) || Object.keys(b.heroes)[0] || null;
+    b.sel = nextSel();
     b.holdAcc = 0;
     b.cam.center(); b.cam.z *= 1.05;
     G.state.flags.battled = true;
@@ -37,6 +38,7 @@
 
   Bt.hasAnything = function () {
     for (const u in G.state.army) if (G.state.army[u] > 0) return true;
+    for (const u in (G.state.clanArmy || {})) if (G.state.clanArmy[u] > 0) return true;
     return G.HERO_ORDER.some((h) => G.heroUnlocked(h));
   };
 
@@ -180,17 +182,30 @@
       const h = b.heroes[b.sel];
       if (h.state !== 'ready') return false;
       h.state = 'deployed'; h.unit = spawn(b.sel, tx, ty, true);
-      b.sel = G.UNIT_ORDER.find((u) => b.avail[u] > 0) || null;
+      b.sel = nextSel();
+    } else if (b.sel.startsWith('c:')) {
+      // donated clan unit: used up once deployed
+      const u = b.sel.slice(2);
+      if (!(b.availClan[u] > 0)) return false;
+      b.availClan[u]--; b.usedClan[u] = (b.usedClan[u] || 0) + 1;
+      spawn(u, tx, ty, false).clan = true;
+      if (b.availClan[u] <= 0) b.sel = nextSel();
     } else {
       if (!(b.avail[b.sel] > 0)) return false;
       b.avail[b.sel]--; b.used[b.sel] = (b.used[b.sel] || 0) + 1;
       spawn(b.sel, tx, ty, false);
-      if (b.avail[b.sel] <= 0) b.sel = G.UNIT_ORDER.find((u) => b.avail[u] > 0) || Object.keys(b.heroes).find((h) => b.heroes[h].state === 'ready') || null;
+      if (b.avail[b.sel] <= 0) b.sel = nextSel();
     }
     G.Sfx.play('deploy');
     G.UI.battleCards();
     return true;
   };
+
+  function nextSel() {
+    const b = Bt;
+    return G.UNIT_ORDER.find((u) => b.avail[u] > 0) || (G.UNIT_ORDER.filter((u) => b.availClan[u] > 0).map((u) => 'c:' + u)[0])
+      || Object.keys(b.heroes).find((h) => b.heroes[h].state === 'ready') || null;
+  }
 
   Bt.useAbility = function (h) {
     const hs = Bt.heroes[h];
@@ -367,7 +382,7 @@
       stepTraps();
     }
     const anyAlive = b.units.some((u) => !u.dead);
-    const leftToDeploy = G.UNIT_ORDER.some((u) => b.avail[u] > 0) || Object.values(b.heroes).some((h) => h.state === 'ready');
+    const leftToDeploy = G.UNIT_ORDER.some((u) => b.avail[u] > 0 || b.availClan[u] > 0) || Object.values(b.heroes).some((h) => h.state === 'ready');
     if (b.destroyed >= b.total || b.time <= 0 || (!anyAlive && !leftToDeploy && b.deployed > 0)) {
       b.endDelay += dt;
       if (b.endDelay > (b.time <= 0 ? 0 : 1.2)) Bt.finish();
@@ -391,16 +406,17 @@
     const s = G.state, o = b.opts;
     // only units that died are lost; survivors (and units never deployed) stay in the army
     const used = {};
-    for (const u of b.units) if (!u.hero && u.dead) used[u.type] = (used[u.type] || 0) + 1;
+    for (const u of b.units) if (!u.hero && !u.clan && u.dead) used[u.type] = (used[u.type] || 0) + 1;
+    const usedClan = b.usedClan;
     const real = o.mode === 'pvp' && o.defender;
     let r;
     // loot and chips are decided by the shared economy rules (again on the server)
-    if (o.mode === 'pve') r = G.act({ c: 'battle', mode: 'pve', level: o.level, stars, pct, used });
-    else if (!real) r = G.act({ c: 'battle', mode: 'bot', loot: o.base.loot, pct, used });
+    if (o.mode === 'pve') r = G.act({ c: 'battle', mode: 'pve', level: o.level, stars, pct, used, usedClan });
+    else if (!real) r = G.act({ c: 'battle', mode: 'bot', loot: o.base.loot, pct, used, usedClan });
     else {
       // real player: show the loot now; the server credits it from the attack record it creates
       const want = { scrap: Math.floor(o.base.loot.scrap * pct), copper: Math.floor(o.base.loot.copper * pct) };
-      r = G.Econ.apply(s, { c: 'battle', mode: 'pvp', loot: want, used }, Date.now());
+      r = G.Econ.apply(s, { c: 'battle', mode: 'pvp', loot: want, used, usedClan }, Date.now());
     }
     const gained = (r && r.gained) || { scrap: 0, copper: 0 }, chips = (r && r.chips) || 0;
     s.flags.battleDone = true;
@@ -412,9 +428,9 @@
       G.Net.submitAttack(o.defender, stars, Math.round(pct * 100), gained.scrap, gained.copper)
         .then((res) => {
           s.trophies = Math.max(0, s.trophies + res.delta); G.save(true); G.UI.setResultTrophies(res.delta);
-          G.Net.queue({ c: 'battle', mode: 'pvp', attack: res.id, used, pct });
+          G.Net.queue({ c: 'battle', mode: 'pvp', attack: res.id, used, usedClan, pct });
         })
-        .catch(() => { G.UI.setResultTrophies(null); G.Net.queue({ c: 'battle', mode: 'pvp', used, pct }); });
+        .catch(() => { G.UI.setResultTrophies(null); G.Net.queue({ c: 'battle', mode: 'pvp', used, usedClan, pct }); });
     }
   };
 

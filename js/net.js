@@ -168,6 +168,7 @@ G.Net = (function () {
     if (selId != null) { const b = G.Econ.findB(s, selId); if (b && G.scene === G.Village) G.Village.select(b); else G.Village.select(null); }
     if (G.UI) G.UI.refreshHud();
     if (r.defenses && r.defenses.length && G.UI && G.scene === G.Village && !G.UI.isModal()) G.UI.openDefenseLog(r.defenses.length);
+    if (r.received && r.received.length && G.UI) G.UI.notify(G.t('gotDonations', { n: r.received.length, who: [...new Set(r.received.map((x) => x.from))].join(', ') }));
   };
   // first contact after login: the server's save becomes the game
   N.sync = async function () {
@@ -191,6 +192,35 @@ G.Net = (function () {
     await ensureFresh();
     return await rpc('submit_attack', { p_defender: defender, p_stars: stars, p_pct: pct, p_scrap: scrap, p_copper: copper });
   };
+  // ---------- clans ----------
+  const crpc = async (name, body) => { await ensureFresh(); return rpc(name, body); };
+  N.clan = {
+    mine: async () => {
+      await ensureFresh();
+      const m = await req('/rest/v1/clan_members?select=clan_id,role&user_id=eq.' + N.uid(), { auth: true });
+      if (!m || !m[0]) return null;
+      const c = await req('/rest/v1/clans?select=id,name,description,emblem,min_trophies&id=eq.' + m[0].clan_id, { auth: true });
+      return c && c[0] ? Object.assign({ role: m[0].role }, c[0]) : null;
+    },
+    search: (q) => crpc('clan_search', { p_q: q || '' }),
+    create: (name, desc, emblem, min) => crpc('clan_create', { p_name: name, p_desc: desc, p_emblem: emblem, p_min: min }),
+    join: (id) => crpc('clan_join', { p_clan: id }),
+    leave: () => crpc('clan_leave'),
+    kick: (u) => crpc('clan_kick', { p_user: u }),
+    promote: (u) => crpc('clan_promote', { p_user: u }),
+    demote: (u) => crpc('clan_demote', { p_user: u }),
+    send: (body) => crpc('clan_send', { p_body: body }),
+    request: (body) => crpc('clan_request', { p_body: body }),
+    roster: (id) => crpc('clan_roster', { p_clan: id }),
+    // newest 60 messages, or only those after `after`
+    messages: async (id, after) => {
+      await ensureFresh();
+      const q = after ? '&id=gt.' + after + '&order=id.asc' : '&order=id.desc&limit=60';
+      const r = await req('/rest/v1/clan_messages?select=id,user_id,username,kind,body,data,created_at&clan_id=eq.' + id + q, { auth: true });
+      return after ? r : (r || []).reverse();
+    },
+  };
+
   N.leaderboard = async function () {
     return await req('/rest/v1/profiles?select=username,trophies&order=trophies.desc,created_at.asc&limit=50', { auth: !!N.session });
   };

@@ -11,7 +11,7 @@
       v: 1, name: name || 'Runner' + Math.floor(1000 + Math.random() * 9000), lang: null,
       res: { scrap: 1000, copper: 1000, chips: 50 }, buildings: [],
       army: { runner: 8, gunner: 0, drone: 0, mech: 0 }, queue: [], qStart: 0,
-      trophies: 0, pve: {}, nextId: 1, created: now, unitLv: { runner: 1, gunner: 1, drone: 1, mech: 1 }, research: null,
+      trophies: 0, pve: {}, nextId: 1, created: now, unitLv: { runner: 1, gunner: 1, drone: 1, mech: 1 }, research: null, clanArmy: { runner: 0, gunner: 0, drone: 0, mech: 0 },
       settings: { sfx: true, music: true }, flags: {}, tut: 0, defLog: [],
     };
     const add = (type, x, y) => s.buildings.push({ id: s.nextId++, type, level: 1, x, y, acc: BD()[type].prod ? 150 : 0, last: now, busyUntil: 0, busyStart: 0, upTo: 0 });
@@ -28,6 +28,7 @@
     s.buildings = Array.isArray(s.buildings) ? s.buildings.filter((b) => b && BD()[b.type]) : [];
     s.pve = s.pve || {}; s.settings = s.settings || { sfx: true, music: true }; s.flags = s.flags || {};
     if (s.tut == null) s.tut = 0; s.defLog = Array.isArray(s.defLog) ? s.defLog.slice(0, 20) : [];
+    s.clanArmy = s.clanArmy || {}; for (const u of G.UNIT_ORDER) s.clanArmy[u] = Math.max(0, Math.floor(+s.clanArmy[u] || 0));
     s.unitLv = s.unitLv || {}; for (const u of G.UNIT_ORDER) s.unitLv[u] = Math.max(1, Math.min(G.RESEARCH.maxLv, s.unitLv[u] | 0 || 1));
     if (s.research && !G.UNITS[s.research.u]) s.research = null;
     s.trophies = Math.max(0, Math.floor(+s.trophies || 0));
@@ -121,6 +122,16 @@
     return ev;
   };
   E.labLevel = (s) => E.maxLevelOf(s, 'lab');
+  // clan hub: space for donated units
+  E.clanCap = (s) => s.buildings.filter((b) => b.type === 'clanhub' && b.level > 0).reduce((m, b) => m + BD().clanhub.housing[b.level - 1], 0);
+  E.clanSpace = (s) => G.UNIT_ORDER.reduce((n, u) => n + ((s.clanArmy && s.clanArmy[u]) || 0) * G.UNITS[u].space, 0);
+  // units arriving from clan mates (server side); whatever doesn't fit is lost
+  E.receiveClan = function (s, units) {
+    for (const u of units) {
+      if (!G.UNITS[u]) continue;
+      if (E.clanSpace(s) + G.UNITS[u].space <= E.clanCap(s)) s.clanArmy[u] = (s.clanArmy[u] || 0) + 1;
+    }
+  };
   // what researching unit u next would need
   E.researchInfo = function (s, u) {
     const cur = (s.unitLv && s.unitLv[u]) || 1, next = cur + 1, R = G.RESEARCH;
@@ -225,6 +236,11 @@
       E.tick(s, now);
       return { ok: true };
     }
+    if (c === 'donate_out') { // giving one unit to a clan mate (the server checks the request first)
+      if (!G.UNITS[cmd.u] || !(s.army[cmd.u] > 0)) return ERR('noUnit');
+      s.army[cmd.u]--;
+      return { ok: true };
+    }
     if (c === 'search') { // looking for a PvP opponent costs copper
       const cost = 30 * E.coreLevel(s);
       return pay(s, 'copper', cost) || { ok: true };
@@ -252,6 +268,8 @@
     const pct = Math.max(0, Math.min(1, +cmd.pct || 0));
     // units sent into battle are gone (heroes are free)
     if (cmd.used) for (const u of G.UNIT_ORDER) s.army[u] = Math.max(0, (s.army[u] || 0) - Math.max(0, cmd.used[u] | 0));
+    // donated clan units are used up once deployed
+    if (cmd.usedClan) for (const u of G.UNIT_ORDER) s.clanArmy[u] = Math.max(0, (s.clanArmy[u] || 0) - Math.max(0, cmd.usedClan[u] | 0));
     const gained = { scrap: 0, copper: 0 };
     let chips = 0;
     if (cmd.mode === 'pve') {

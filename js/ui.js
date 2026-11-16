@@ -22,6 +22,7 @@
     bolt: '<svg viewBox="0 0 24 24"><path d="M13 2L4 14h7l-1 8 9-12h-7z" fill="#19f0ff"/></svg>',
     check: '<svg viewBox="0 0 24 24"><path d="M4 12.5l5 5L20 6.5" fill="none" stroke="#07060f" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
     x: '<svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" stroke="#fff" stroke-width="3" stroke-linecap="round"/></svg>',
+    clan: '<svg viewBox="0 0 24 24"><path d="M12 2l8 3v6c0 5-3.5 9-8 11-4.5-2-8-6-8-11V5z" fill="none" stroke="#ff2bd6" stroke-width="2" stroke-linejoin="round"/><path d="M8 13l2.5-5 1.5 3 1.5-3L16 13" fill="none" stroke="#ff2bd6" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
     drone: '<svg viewBox="0 0 24 24"><g fill="none" stroke="#ffe14d" stroke-width="1.8"><rect x="8" y="9" width="8" height="6" rx="2"/><path d="M8 10L4 7M16 10l4-3M8 14l-4 3M16 14l4 3"/></g><circle cx="12" cy="12" r="1.3" fill="#ff3355"/></svg>',
   };
   U.IC = IC;
@@ -42,6 +43,7 @@
       <div id="hud-bottom">
         <button class="btn-attack pe" id="btn-attack">${IC.sword}<span data-t="attack"></span></button>
         <div class="hb-right">
+          <button class="sq-btn pe" id="btn-clan">${IC.clan}<span data-t="clan"></span></button>
           <button class="sq-btn pe" id="btn-army">${IC.army}<span data-t="army"></span></button>
           <button class="sq-btn pe" id="btn-shop">${IC.cart}<span data-t="shop"></span></button>
         </div>
@@ -53,6 +55,7 @@
       <div id="toast"></div>`;
     $('#btn-shop').onclick = U.openShop;
     $('#btn-army').onclick = U.openArmy;
+    $('#btn-clan').onclick = () => G.Clan.open();
     $('#btn-attack').onclick = U.openAttack;
     $('#btn-set').onclick = U.openSettings;
     $('#btn-profile').onclick = U.openSettings;
@@ -70,6 +73,13 @@
     el.classList.toggle('hidden', !on);
   };
 
+  // positive message (green) — toast() is for errors
+  U.notify = function (msg) {
+    const el = $('#toast');
+    G.Sfx.play('star');
+    el.textContent = msg; el.classList.add('show', 'good');
+    clearTimeout(toastT); toastT = setTimeout(() => el.classList.remove('show', 'good'), 3000);
+  };
   let toastT = null;
   U.toast = function (msg) {
     G.Sfx.play('error');
@@ -137,7 +147,10 @@
     let btns = btn('sb-info', IC.info, t('info'));
     if (!busy) {
       const u = G.upgradeInfo(b);
-      if (!u.max) btns += btn('sb-up', IC.up, t('upgrade'), `<span class="sb-c">${resIc(u.res)}${G.fmt(u.cost)}</span>`);
+      // upgrade only when the Core allows it; otherwise say right away what's needed
+      if (u.max) btns += `<div class="sb-btn sb-info-only"><span class="sb-l">${t('maxLevel')}</span></div>`;
+      else if (u.blocked) btns += `<div class="sb-btn sb-info-only"><span class="sb-ic">${IC.up}</span><span class="sb-l">${t('needCore', { n: u.needCore })}</span></div>`;
+      else btns += btn('sb-up', IC.up, t('upgrade'), `<span class="sb-c">${resIc(u.res)}${G.fmt(u.cost)}</span>`);
     } else {
       btns += btn('sb-fin', IC.bolt, t('finish'), `<span class="sb-c">${resIc('chips')}<span id="sb-fc">${G.finishCost(b)}</span></span>`);
     }
@@ -479,6 +492,11 @@
       if (!(G.state.army[u] > 0 || b.units.some((x) => x.type === u))) continue;
       html += `<button class="bc ${b.sel === u ? 'sel' : ''} ${b.avail[u] > 0 ? '' : 'empty'}" data-u="${u}"><img src="${G.Art.unitThumb(u)}" alt=""><span class="bc-n">x${b.avail[u]}</span></button>`;
     }
+    // units donated by clan mates
+    for (const u of G.UNIT_ORDER) {
+      if (!((G.state.clanArmy && G.state.clanArmy[u] > 0) || b.usedClan[u] > 0)) continue;
+      html += `<button class="bc clanu ${b.sel === 'c:' + u ? 'sel' : ''} ${b.availClan[u] > 0 ? '' : 'empty'}" data-cu="${u}"><img src="${G.Art.unitThumb(u)}" alt=""><span class="bc-n">x${b.availClan[u] || 0}</span></button>`;
+    }
     for (const h of Object.keys(b.heroes)) {
       const hs = b.heroes[h];
       const ab = hs.state === 'deployed' && hs.unit && !hs.unit.dead;
@@ -489,6 +507,7 @@
     el.querySelectorAll('.bc').forEach((c) => {
       c.onclick = () => {
         if (c.dataset.u) { if (b.avail[c.dataset.u] > 0) b.sel = c.dataset.u; }
+        else if (c.dataset.cu) { if (b.availClan[c.dataset.cu] > 0) b.sel = 'c:' + c.dataset.cu; }
         else {
           const h = c.dataset.h, hs = b.heroes[h];
           if (hs.state === 'ready') b.sel = h;

@@ -130,7 +130,7 @@
   const HGT = {
     core: (L) => 52 + L * 12, scrapyard: (L) => 46 + L * 4, coppermine: (L) => 58 + L * 5, vault: (L) => 34 + L * 6,
     factory: (L) => 26 + L * 3, squadhq: (L) => 22 + L * 3, laser: (L) => 12 + L * 2, firewall: (L) => 15 + L * 2,
-    mortar: (L) => 14 + L * 2, aa: (L) => 14 + L * 2, mine: () => 3, lab: (L) => 24 + L * 3,
+    mortar: (L) => 14 + L * 2, aa: (L) => 14 + L * 2, mine: () => 3, lab: (L) => 24 + L * 3, clanhub: (L) => 30 + L * 4,
   };
   A.laserHeight = HGT.laser;
 
@@ -425,6 +425,31 @@
       for (const [px, py] of [[0.6, s - 0.6], [s - 0.6, 0.6]]) { const q = P(ox, oy, px, py); cyl(x, q[0], q[1], 5, 3, 18, '#1e5a3a', '#39ff88'); }
       dot(x, c[0], cy - 26, 2, t, 10);
       return h + 34;
+    },
+    clanhub(x, ox, oy, s, L, r) {
+      const h = HGT.clanhub(L), t = TRIM[L - 1], col = '#ff2bd6';
+      shadow(x, ox, oy, s, h + 30); pad(x, ox, oy, s);
+      // low barracks ring + central uplink tower
+      const f = box(x, ox, oy, 0.3, 0.3, s - 0.3, s - 0.3, 3, 16, { top: '#3a2440', left: '#1a1020', right: '#28182f', edge: '#a04a9a' });
+      faceLines(x, f, 10, col, 1.2);
+      sign(x, f, 'R', 0.5, 8, 'CLAN', col, 6);
+      const tw = box(x, ox, oy, s / 2 - 0.55, s / 2 - 0.55, s / 2 + 0.55, s / 2 + 0.55, 16, h, { top: '#4a2c52', left: '#22142a', right: '#321c3c', edge: '#c060b8' });
+      windows(x, tw, 'L', 22, h - 6, Math.max(1, Math.floor((h - 26) / 10)), 2, r, 'rgba(255,120,230,.85)');
+      windows(x, tw, 'R', 22, h - 6, Math.max(1, Math.floor((h - 26) / 10)), 2, r, 'rgba(255,120,230,.85)');
+      faceLines(x, tw, h - 4, t, 1.2);
+      const c = P(ox, oy, s / 2, s / 2);
+      // uplink dish
+      x.save(); x.translate(c[0] + 2, c[1] - h - 8); x.rotate(-0.5);
+      x.fillStyle = '#b8b0d0'; x.beginPath(); x.ellipse(0, 0, 11, 5, 0, 0, Math.PI * 2); x.fill();
+      x.fillStyle = '#8a82a8'; x.beginPath(); x.ellipse(1, 1, 7, 3, 0, 0, Math.PI * 2); x.fill();
+      x.restore();
+      line(x, [c[0], c[1] - h], [c[0] + 2, c[1] - h - 8], '#777', 1.2);
+      // clan banner
+      const bp = P(ox, oy, 0.6, s - 0.6);
+      line(x, [bp[0], bp[1] - 3], [bp[0], bp[1] - 40], '#9aa', 1.2);
+      poly(x, [[bp[0], bp[1] - 40], [bp[0] + 12, bp[1] - 38], [bp[0] + 12, bp[1] - 24], [bp[0], bp[1] - 26]], col);
+      dot(x, bp[0] + 6, bp[1] - 32, 2, '#ffe14d', 6);
+      return h + 30;
     },
     rubble(x, ox, oy, s, _L, r) {
       box(x, ox, oy, 0.1, 0.1, s - 0.1, s - 0.1, 0, 2, { top: '#141221', left: '#0a0912', right: '#0f0d19', edge: '#221e38' }, true);
