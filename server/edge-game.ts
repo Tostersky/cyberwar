@@ -1,42 +1,53 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
+import webpush from 'npm:web-push@3.6.7';
 // deno-lint-ignore-file
 // @ts-nocheck
 const G: any = {};
 // Game data: buildings, units, heroes, campaign. All numbers are CyberWar's own.
-G.TW = 64; G.TH = 32; G.MAP = 40; G.VERSION = '0.11.0';
-G.BUILDERS = 2;
+G.TW = 64; G.TH = 32; G.MAP = 40; G.VERSION = '0.12.0';
+G.BUILDERS = 2; // builder drones at the start; more can be bought with chips (up to 5)
+G.BUILDER_PRICE = [0, 0, 250, 500, 1000]; // price of the 3rd, 4th and 5th drone
+G.BUILDERS_MAX = 5;
 
 // every array has one value per level (1..8)
 G.BUILDINGS = {
   // balance rule: everything a Core level unlocks costs at most ~85% of (Core + ONE vault at that level); more vaults = extra savings room
-  core:       { size: 4, res: 'scrap',  cost: [0, 2000, 7000, 20000, 45000, 90000, 160000, 280000], time: [0, 30, 120, 600, 1800, 3600, 7200, 14400],
+  core:       { size: 4, res: 'scrap',  cost: [0, 2000, 7000, 20000, 45000, 90000, 160000, 280000], time: [0, 20, 120, 900, 3600, 10800, 28800, 57600],
                 hp: [1500, 1900, 2400, 3000, 3800, 4600, 5500, 6500], store: [2000, 4000, 7000, 12000, 20000, 34000, 52000, 75000] },
-  scrapyard:  { size: 3, res: 'copper', cost: [150, 300, 700, 1400, 3000, 6000, 12000, 24000], time: [10, 30, 60, 180, 600, 1200, 2400, 3600],
+  scrapyard:  { size: 3, res: 'copper', cost: [150, 300, 700, 1400, 3000, 6000, 12000, 24000], time: [10, 30, 120, 600, 1800, 3600, 7200, 14400],
                 hp: [400, 450, 500, 550, 600, 650, 700, 750], prod: 'scrap', rate: [300, 500, 800, 1100, 1500, 1900, 2400, 3000], cap: [500, 1000, 2000, 3500, 5000, 7000, 9500, 12000] },
-  coppermine: { size: 3, res: 'scrap',  cost: [150, 300, 700, 1400, 3000, 6000, 12000, 24000], time: [10, 30, 60, 180, 600, 1200, 2400, 3600],
+  coppermine: { size: 3, res: 'scrap',  cost: [150, 300, 700, 1400, 3000, 6000, 12000, 24000], time: [10, 30, 120, 600, 1800, 3600, 7200, 14400],
                 hp: [400, 450, 500, 550, 600, 650, 700, 750], prod: 'copper', rate: [300, 500, 800, 1100, 1500, 1900, 2400, 3000], cap: [500, 1000, 2000, 3500, 5000, 7000, 9500, 12000] },
-  vault:      { size: 3, res: 'copper', cost: [300, 800, 2000, 5000, 12000, 25000, 50000, 90000], time: [15, 60, 180, 600, 1200, 2400, 3600, 7200],
+  vault:      { size: 3, res: 'copper', cost: [300, 800, 2000, 5000, 12000, 25000, 50000, 90000], time: [15, 60, 300, 1200, 2700, 5400, 10800, 21600],
                 hp: [600, 700, 800, 900, 1000, 1100, 1200, 1300], store: [2000, 5000, 17000, 42000, 85000, 152000, 272000, 300000] },
-  factory:    { size: 3, res: 'scrap',  cost: [200, 1000, 2500, 6000, 15000, 30000, 60000, 100000], time: [15, 60, 180, 600, 1200, 2400, 3600, 7200],
+  factory:    { size: 3, res: 'scrap',  cost: [200, 1000, 2500, 6000, 15000, 30000, 60000, 100000], time: [15, 120, 600, 1800, 3600, 10800, 21600, 36000],
                 hp: [500, 600, 700, 800, 900, 1000, 1100, 1200] },
-  squadhq:    { size: 4, res: 'copper', cost: [250, 2000, 5000, 12000, 25000, 45000, 80000, 140000], time: [15, 90, 300, 900, 1800, 3600, 5400, 7200],
+  squadhq:    { size: 4, res: 'copper', cost: [250, 2000, 5000, 12000, 25000, 45000, 80000, 140000], time: [15, 180, 900, 2400, 5400, 14400, 25200, 39600],
                 hp: [500, 600, 700, 800, 900, 1000, 1100, 1200], housing: [20, 30, 40, 55, 70, 85, 100, 120] },
   // holds units donated by clan mates (housing = how much space they can fill)
-  clanhub:    { size: 3, res: 'scrap',  cost: [3000, 8000, 20000, 40000, 70000, 110000, 160000, 220000], time: [120, 600, 1800, 3600, 5400, 7200, 10800, 14400],
+  clanhub:    { size: 3, res: 'scrap',  cost: [3000, 8000, 20000, 40000, 70000, 110000, 160000, 220000], time: [120, 900, 1800, 3600, 10800, 18000, 28800, 43200],
                 hp: [800, 950, 1100, 1250, 1400, 1550, 1700, 1850], housing: [10, 15, 20, 25, 30, 35, 40, 45], clan: true },
-  lab:        { size: 3, res: 'copper', cost: [500, 2500, 6000, 12000, 25000, 45000, 75000, 110000], time: [60, 300, 900, 1800, 3600, 5400, 7200, 10800],
+  lab:        { size: 3, res: 'copper', cost: [500, 2500, 6000, 12000, 25000, 45000, 75000, 110000], time: [60, 600, 1800, 3600, 7200, 14400, 28800, 43200],
                 hp: [500, 600, 700, 800, 900, 1000, 1100, 1200] },
-  laser:      { size: 2, res: 'scrap',  cost: [500, 1500, 4000, 9000, 20000, 35000, 60000, 100000], time: [20, 90, 300, 900, 1800, 2400, 3600, 5400],
+  laser:      { size: 2, res: 'scrap',  cost: [500, 1500, 4000, 9000, 20000, 35000, 60000, 100000], time: [20, 120, 600, 1800, 3600, 7200, 14400, 28800],
                 hp: [500, 620, 750, 880, 1000, 1150, 1300, 1450], dmg: [12, 16, 21, 27, 34, 42, 51, 61], interval: 0.8, range: 7, defense: true, hits: 'both' },
   // slow plasma shells that hurt everything around the impact; can't hit air or anything too close
-  mortar:     { size: 3, res: 'scrap',  cost: [5000, 9000, 15000, 24000, 36000, 52000, 75000, 100000], time: [300, 600, 1200, 1800, 3600, 5400, 7200, 10800],
+  mortar:     { size: 3, res: 'scrap',  cost: [5000, 9000, 15000, 24000, 36000, 52000, 75000, 100000], time: [300, 900, 1800, 3600, 7200, 14400, 21600, 36000],
                 hp: [700, 800, 900, 1000, 1150, 1300, 1450, 1600], dmg: [25, 32, 40, 50, 62, 75, 90, 105], interval: 4, range: 9, minRange: 3, splash: 1.5, defense: true, hits: 'ground' },
   // anti-air missiles: big damage, flying targets only
-  aa:         { size: 2, res: 'scrap',  cost: [8000, 14000, 22000, 32000, 46000, 64000, 88000, 120000], time: [600, 900, 1800, 3600, 5400, 7200, 9000, 10800],
+  aa:         { size: 2, res: 'scrap',  cost: [8000, 14000, 22000, 32000, 46000, 64000, 88000, 120000], time: [600, 1200, 2400, 3600, 10800, 18000, 28800, 43200],
                 hp: [600, 700, 800, 900, 1000, 1100, 1250, 1400], dmg: [80, 100, 125, 150, 180, 210, 245, 280], interval: 1.2, range: 8, defense: true, hits: 'air' },
   // EMP pylon: every few seconds a shock wave hurts and slows every unit around it (ground and air)
-  emp:        { size: 2, res: 'scrap',  cost: [6000, 11000, 18000, 28000, 40000, 56000, 78000, 105000], time: [600, 900, 1800, 3600, 5400, 7200, 9000, 10800],
+  emp:        { size: 2, res: 'scrap',  cost: [6000, 11000, 18000, 28000, 40000, 56000, 78000, 105000], time: [600, 1200, 2400, 3600, 10800, 18000, 28800, 43200],
                 hp: [650, 750, 860, 980, 1100, 1240, 1380, 1530], dmg: [14, 18, 23, 29, 36, 44, 53, 63], interval: 5, range: 4.5, slow: 2.5, defense: true, hits: 'both', pulse: true },
+  // plasma (3rd resource, from Core 5): pumped by extractors, kept in plasma tanks; used for hero upgrades
+  extractor:  { size: 3, res: 'scrap',  cost: [20000, 26000, 33000, 42000, 55000, 80000, 120000, 170000], time: [600, 1200, 2400, 3600, 7200, 14400, 21600, 28800],
+                hp: [500, 550, 600, 650, 700, 760, 820, 880], prod: 'plasma', rate: [100, 140, 180, 230, 300, 380, 470, 580], cap: [400, 600, 800, 1000, 1300, 1600, 2000, 2500] },
+  tank:       { size: 2, res: 'copper', cost: [15000, 20000, 26000, 34000, 45000, 70000, 110000, 160000], time: [600, 1200, 2400, 3600, 7200, 14400, 21600, 28800],
+                hp: [500, 560, 620, 690, 760, 840, 920, 1000], store: [3000, 4500, 6000, 8000, 10000, 14000, 20000, 28000], storeRes: 'plasma' },
+  // Program Forge: compiles battle programs (spells); housing = how many programs it can hold
+  forge:      { size: 3, res: 'copper', cost: [6000, 12000, 20000, 40000, 80000, 130000, 200000, 260000], time: [600, 1800, 3600, 10800, 18000, 28800, 36000, 43200],
+                hp: [550, 650, 750, 850, 950, 1050, 1150, 1250], housing: [2, 2, 3, 3, 4, 4, 5, 6] },
   // hidden trap: explodes once when a ground unit steps close
   mine:       { size: 1, res: 'scrap',  cost: [500, 800, 1200, 1800, 2600, 3600, 5000, 7000], time: [0, 0, 0, 0, 0, 0, 0, 0],
                 hp: [1, 1, 1, 1, 1, 1, 1, 1], dmg: [60, 80, 105, 135, 170, 210, 255, 305], trap: true, splash: 1.5 },
@@ -61,13 +72,13 @@ G.refCap = (L) => G.BUILDINGS.core.store[L - 1] + G.BUILDINGS.vault.store[L - 1]
 G.LIMITS = {
   core: [1, 1, 1, 1, 1, 1, 1, 1], scrapyard: [2, 3, 4, 5, 6, 6, 7, 7], coppermine: [2, 3, 4, 5, 6, 6, 7, 7],
   vault: [1, 1, 2, 2, 3, 3, 4, 4], factory: [1, 1, 1, 1, 1, 1, 1, 1], squadhq: [1, 1, 1, 1, 1, 1, 1, 1],
-  lab: [0, 1, 1, 1, 1, 1, 1, 1], clanhub: [0, 0, 1, 1, 1, 1, 1, 1], laser: [1, 2, 3, 4, 5, 5, 6, 6], mortar: [0, 0, 1, 1, 2, 2, 3, 3],
+  lab: [0, 1, 1, 1, 1, 1, 1, 1], forge: [0, 0, 0, 1, 1, 1, 1, 1], extractor: [0, 0, 0, 0, 1, 2, 2, 3], tank: [0, 0, 0, 0, 1, 1, 2, 2], clanhub: [0, 0, 1, 1, 1, 1, 1, 1], laser: [1, 2, 3, 4, 5, 5, 6, 6], mortar: [0, 0, 1, 1, 2, 2, 3, 3],
   aa: [0, 0, 0, 1, 1, 2, 2, 3], emp: [0, 0, 0, 0, 1, 1, 2, 2], mine: [0, 0, 2, 3, 4, 5, 6, 8], firewall: [25, 50, 75, 100, 150, 175, 200, 225],
 };
-G.SHOP = ['laser', 'mortar', 'aa', 'emp', 'mine', 'firewall', 'scrapyard', 'coppermine', 'vault', 'factory', 'squadhq', 'lab', 'clanhub'];
+G.SHOP = ['laser', 'mortar', 'aa', 'emp', 'mine', 'firewall', 'scrapyard', 'coppermine', 'vault', 'factory', 'squadhq', 'lab', 'forge', 'extractor', 'tank', 'clanhub'];
 
 // laboratory research: unit level 2..5 (cost in copper, time in seconds); each level = +15% hitpoints and damage
-G.RESEARCH = { cost: [0, 1500, 5000, 14000, 32000], time: [0, 120, 600, 1800, 3600], maxLv: 5, bonus: 0.15 };
+G.RESEARCH = { cost: [0, 1500, 5000, 14000, 32000], time: [0, 600, 3600, 3 * 3600, 8 * 3600], maxLv: 5, bonus: 0.15 };
 G.unitMul = (lv) => 1 + G.RESEARCH.bonus * ((lv || 1) - 1);
 
 G.UNITS = {
@@ -85,6 +96,18 @@ G.HEROES = {
   nyx:   { hp: 520, dmg: 30, interval: 0.9, speed: 1.5, range: 4.0, unlock: 4, target: 'any' },
 };
 G.HERO_ORDER = ['ronin', 'nyx'];
+// hero levels 1..10, paid in plasma; max level = Squad HQ level + 2; +8% hitpoints/damage per level
+G.HERO_UP = { cost: [0, 1500, 2500, 3500, 5000, 7000, 9000, 12000, 16000, 20000], time: [0, 1800, 3600, 7200, 14400, 21600, 28800, 36000, 43200, 57600] };
+G.HERO_MAX = 10;
+G.heroRestMin = (lv) => 5 + 2 * lv; // minutes a fallen hero needs to recover
+
+// battle programs (spells), compiled in the Program Forge; deployed as a zone on the battlefield
+G.SPELLS = {
+  heal: { cost: 400, time: 90,  unlock: 1, radius: 3,   dur: 6, power: 28, color: '#39ff88' },  // heals units inside (hp/s)
+  rage: { cost: 700, time: 150, unlock: 2, radius: 3,   dur: 8, power: 1.5, color: '#ff2bd6' }, // x1.5 damage, faster units
+  jam:  { cost: 900, time: 210, unlock: 3, radius: 3.5, dur: 5, color: '#7fd8ff' },              // switches defenses off
+};
+G.SPELL_ORDER = ['heal', 'rage', 'jam'];
 
 G.BATTLE_TIME = 180;
 // creating a clan costs premium chips (500 chips = the 14,99 zł chip pack in the shop)
@@ -207,7 +230,7 @@ for (let n = 9; n <= 20; n++) {
     wallLv: Math.min(8, 6 + Math.floor(k / 4)), wallLv2: Math.min(8, 5 + Math.floor(k / 4)),
     scrap: 5, copper: 5, vault: 4, factory: 1, hq: 1, lab: 1,
     mortar: 3, aa: Math.min(3, 2 + Math.floor(k / 6)), mines: Math.min(8, 6 + Math.floor(k / 3)), emp: k >= 7 ? 2 : k >= 2 ? 1 : 0,
-    loot: { scrap: 45000 + k * 12000, copper: 45000 + k * 12000 }, seed: 90 + k * 11,
+    loot: { scrap: 45000 + k * 12000, copper: 45000 + k * 12000, plasma: 400 + k * 250 }, seed: 90 + k * 11,
     hpMul: Math.round((1 + k * 0.06 + (boss ? 0.25 : 0)) * 100) / 100, boss,
   });
 }
@@ -241,10 +264,11 @@ G.genBot = function (coreLv, seed) {
   E.newGame = function (now, name) {
     const s = {
       v: 1, name: name || 'Runner' + Math.floor(1000 + Math.random() * 9000), lang: null,
-      res: { scrap: 1000, copper: 1000, chips: 50 }, buildings: [],
+      res: { scrap: 1000, copper: 1000, chips: 50, plasma: 0 }, buildings: [],
       army: { runner: 8, gunner: 0, drone: 0, mech: 0 }, queue: [], qStart: 0,
       trophies: 0, pve: {}, nextId: 1, created: now, unitLv: { runner: 1, gunner: 1, drone: 1, mech: 1 }, research: null, clanArmy: { runner: 0, gunner: 0, drone: 0, mech: 0 },
       settings: { sfx: true, music: true }, flags: {}, tut: 0, defLog: [],
+      spells: { heal: 0, rage: 0, jam: 0 }, sQueue: [], sqStart: 0, heroLv: { ronin: 1, nyx: 1 }, heroRest: {}, heroUp: null,
     };
     const add = (type, x, y) => s.buildings.push({ id: s.nextId++, type, level: 1, x, y, acc: BD()[type].prod ? 150 : 0, last: now, busyUntil: 0, busyStart: 0, upTo: 0 });
     add('core', 18, 18); add('scrapyard', 13, 18); add('coppermine', 23, 18); add('factory', 18, 13); add('squadhq', 18, 23);
@@ -298,7 +322,7 @@ G.genBot = function (coreLv, seed) {
   // repair / fill missing fields of an old or untrusted save
   E.norm = function (s, now) {
     s.v = 1;
-    s.res = s.res || {}; for (const r of ['scrap', 'copper', 'chips']) s.res[r] = Math.max(0, Math.floor(+s.res[r] || 0));
+    s.res = s.res || {}; for (const r of ['scrap', 'copper', 'chips', 'plasma']) s.res[r] = Math.max(0, Math.floor(+s.res[r] || 0));
     s.army = s.army || {}; for (const u of G.UNIT_ORDER) s.army[u] = Math.max(0, Math.floor(+s.army[u] || 0));
     s.queue = Array.isArray(s.queue) ? s.queue.filter((u) => G.UNITS[u]) : [];
     s.buildings = Array.isArray(s.buildings) ? s.buildings.filter((b) => b && BD()[b.type]) : [];
@@ -313,6 +337,11 @@ G.genBot = function (coreLv, seed) {
     // obstacles: drop broken rows; old saves get their first batch here
     if (Array.isArray(s.obstacles)) s.obstacles = s.obstacles.filter((o) => o && G.OBSTACLES[o.type] && Number.isInteger(o.x) && Number.isInteger(o.y)).slice(0, G.OBS_MAX);
     E.ensureObstacles(s, now);
+    s.heroLv = s.heroLv || {}; for (const h of G.HERO_ORDER) s.heroLv[h] = Math.max(1, Math.min(G.HERO_MAX, s.heroLv[h] | 0 || 1));
+    s.heroRest = s.heroRest && typeof s.heroRest === 'object' ? s.heroRest : {};
+    if (s.heroUp && !(G.HEROES[s.heroUp.h] && s.heroUp.until > 0)) s.heroUp = null;
+    s.spells = s.spells || {}; for (const k of G.SPELL_ORDER) s.spells[k] = Math.max(0, Math.floor(+s.spells[k] || 0));
+    s.sQueue = Array.isArray(s.sQueue) ? s.sQueue.filter((k) => G.SPELLS[k]).slice(0, 20) : []; s.sqStart = +s.sqStart || 0;
     s.vipUntil = Math.max(0, +s.vipUntil || 0); s.shieldUntil = Math.max(0, +s.shieldUntil || 0); if (typeof s.vipToken !== 'string') delete s.vipToken;
     s.ads = s.ads && typeof s.ads.day === 'string' ? { day: s.ads.day, n: Math.max(0, s.ads.n | 0), last: +s.ads.last || 0 } : { day: '', n: 0, last: 0 };
     s.nextId = Math.max(s.nextId || 1, ...s.buildings.map((b) => b.id + 1), 1);
@@ -328,7 +357,8 @@ G.genBot = function (coreLv, seed) {
   E.capOf = function (s, res) {
     if (res === 'chips') return Infinity;
     let c = 0;
-    for (const b of s.buildings) { const d = BD()[b.type]; if (d.store && b.level > 0) c += d.store[b.level - 1]; }
+    // plasma has its own tanks; scrap/copper live in the Core and vaults
+    for (const b of s.buildings) { const d = BD()[b.type]; if (d.store && b.level > 0 && (d.storeRes || 'basic') === (res === 'plasma' ? 'plasma' : 'basic')) c += d.store[b.level - 1]; }
     return c;
   };
   E.addRes = function (s, res, n) {
@@ -337,6 +367,7 @@ G.genBot = function (coreLv, seed) {
     else s.res[res] = Math.max(0, Math.min(Math.max(E.capOf(s, res), before), before + n));
     return s.res[res] - before;
   };
+  E.builders = (s) => Math.max(G.BUILDERS, Math.min(G.BUILDERS_MAX, s.builders | 0));
   E.buildersBusy = (s, now) => s.buildings.filter((b) => b.busyUntil > now).length;
   E.housing = (s) => s.buildings.filter((b) => b.type === 'squadhq' && b.level > 0).reduce((m, b) => m + BD().squadhq.housing[b.level - 1], 0);
   E.armySpace = (s) => G.UNIT_ORDER.reduce((n, u) => n + (s.army[u] || 0) * G.UNITS[u].space, 0);
@@ -344,6 +375,18 @@ G.genBot = function (coreLv, seed) {
   E.factoryLevel = (s) => E.maxLevelOf(s, 'factory');
   E.hqLevel = (s) => E.maxLevelOf(s, 'squadhq');
   E.heroUnlocked = (s, h) => E.hqLevel(s) >= G.HEROES[h].unlock;
+  // hero level multiplier (+8% hitpoints and damage per level)
+  E.heroMul = (s, h) => 1 + 0.08 * (((s.heroLv && s.heroLv[h]) || 1) - 1);
+  E.heroLevel = (s, h) => (s.heroLv && s.heroLv[h]) || 1;
+  E.heroMaxLv = (s) => Math.min(G.HERO_MAX, E.hqLevel(s) + 2);
+  // ready to fight: unlocked, not resting after falling, not being upgraded
+  E.heroReady = (s, h, now) => E.heroUnlocked(s, h) && !((s.heroRest && s.heroRest[h]) > now) && !(s.heroUp && s.heroUp.h === h);
+  E.heroFell = (s, h, now) => { if (!G.HEROES[h]) return; s.heroRest = s.heroRest || {}; s.heroRest[h] = now + G.heroRestMin(E.heroLevel(s, h)) * 60000; };
+  E.heroUpInfo = function (s, h) {
+    const lv = E.heroLevel(s, h), next = lv + 1;
+    if (lv >= G.HERO_MAX) return { max: true, lv };
+    return { lv, next, cost: G.HERO_UP.cost[next - 1], time: G.HERO_UP.time[next - 1], blocked: next > E.heroMaxLv(s), needHq: next - 2 };
+  };
   E.findB = (s, id) => s.buildings.find((b) => b.id === id);
   E.canPlace = function (s, type, x, y, ignoreId) {
     const sz = BD()[type].size, M = G.MAP;
@@ -367,7 +410,9 @@ G.genBot = function (coreLv, seed) {
     const needCore = b.type === 'core' ? 0 : next;
     return { next, res: d.res, cost: d.cost[next - 1], time: d.time[next - 1], needCore, blocked: needCore > E.coreLevel(s) };
   };
-  E.finishCost = (b, now) => Math.max(1, Math.ceil((b.busyUntil - now) / 60000));
+  // chips to finish now: cheaper per minute for long timers (16 h ~ 170 chips)
+  E.speedCost = (ms) => Math.max(1, Math.ceil(Math.pow(Math.max(0, ms) / 60000, 0.75)));
+  E.finishCost = (b, now) => E.speedCost(b.busyUntil - now);
 
   // ---------- time ----------
   // production flows straight into storage; only what doesn't fit waits inside the building (up to its cap)
@@ -405,6 +450,18 @@ G.genBot = function (coreLv, seed) {
       else break;
     }
     if (!s.queue.length) s.qStart = 0;
+    // programs compile one after another
+    while (s.sQueue && s.sQueue.length) {
+      const dur = G.SPELLS[s.sQueue[0]].time * 1000;
+      if (now >= s.sqStart + dur) { s.spells[s.sQueue[0]] = (s.spells[s.sQueue[0]] || 0) + 1; s.sQueue.shift(); s.sqStart += dur; ev.push({ kind: 'brewed' }); }
+      else break;
+    }
+    if (s.sQueue && !s.sQueue.length) s.sqStart = 0;
+    if (s.heroUp && s.heroUp.until <= now) {
+      s.heroLv[s.heroUp.h] = s.heroUp.to;
+      ev.push({ kind: 'heroUp', h: s.heroUp.h, to: s.heroUp.to });
+      s.heroUp = null;
+    }
     if (s.research && s.research.until <= now) {
       s.unitLv[s.research.u] = s.research.to;
       ev.push({ kind: 'researched', u: s.research.u, to: s.research.to });
@@ -413,6 +470,10 @@ G.genBot = function (coreLv, seed) {
     return ev;
   };
   E.labLevel = (s) => E.maxLevelOf(s, 'lab');
+  // ---------- Program Forge (spells) ----------
+  E.forgeLevel = (s) => E.maxLevelOf(s, 'forge');
+  E.spellCap = (s) => s.buildings.filter((b) => b.type === 'forge' && b.level > 0).reduce((m, b) => m + BD().forge.housing[b.level - 1], 0);
+  E.spellSpace = (s) => G.SPELL_ORDER.reduce((n, k) => n + ((s.spells && s.spells[k]) || 0), 0) + (s.sQueue ? s.sQueue.length : 0);
   // clan hub: space for donated units
   E.clanCap = (s) => s.buildings.filter((b) => b.type === 'clanhub' && b.level > 0).reduce((m, b) => m + BD().clanhub.housing[b.level - 1], 0);
   E.clanSpace = (s) => G.UNIT_ORDER.reduce((n, u) => n + ((s.clanArmy && s.clanArmy[u]) || 0) * G.UNITS[u].space, 0);
@@ -504,7 +565,7 @@ G.genBot = function (coreLv, seed) {
       if (E.countType(s, cmd.type) >= E.limitOf(s, cmd.type)) return ERR('limit');
       if (!E.canPlace(s, cmd.type, cmd.x, cmd.y)) return ERR('badPlace');
       const dur = d.time[0];
-      if (dur > 0 && E.buildersBusy(s, now) >= G.BUILDERS) return ERR('noBuilder');
+      if (dur > 0 && E.buildersBusy(s, now) >= E.builders(s)) return ERR('noBuilder');
       const e = pay(s, d.res, d.cost[0]); if (e) return e;
       const b = { id: s.nextId++, type: cmd.type, level: dur > 0 ? 0 : 1, x: cmd.x, y: cmd.y, acc: 0, last: now, busyUntil: dur > 0 ? now + dur * 1000 : 0, busyStart: now, upTo: dur > 0 ? 1 : 0 };
       s.buildings.push(b);
@@ -517,7 +578,7 @@ G.genBot = function (coreLv, seed) {
       const u = E.upgradeInfo(s, b);
       if (u.max) return ERR('maxLevel');
       if (u.blocked) return ERR('needCore', { n: u.needCore });
-      if (u.time > 0 && E.buildersBusy(s, now) >= G.BUILDERS) return ERR('noBuilder');
+      if (u.time > 0 && E.buildersBusy(s, now) >= E.builders(s)) return ERR('noBuilder');
       const e = pay(s, u.res, u.cost); if (e) return e;
       E.updateCollector(b, now, s);
       if (u.time > 0) { b.busyUntil = now + u.time * 1000; b.busyStart = now; b.upTo = u.next; }
@@ -579,7 +640,7 @@ G.genBot = function (coreLv, seed) {
     }
     if (c === 'finishResearch') {
       if (!s.research || s.research.until <= now) return { ok: true };
-      const cost = Math.max(1, Math.ceil((s.research.until - now) / 60000));
+      const cost = E.speedCost(s.research.until - now);
       if (s.res.chips < cost) return ERR('noChips');
       s.res.chips -= cost; s.research.until = now;
       E.tick(s, now);
@@ -609,6 +670,46 @@ G.genBot = function (coreLv, seed) {
       m.got = true;
       const g = grant(s, G.MISSION_REWARD);
       return { ok: true, gained: g.gained };
+    }
+    if (c === 'heroUp') { // upgrade a hero with plasma (one hero at a time; it can't fight meanwhile)
+      if (!G.HEROES[cmd.h] || !E.heroUnlocked(s, cmd.h)) return ERR('server');
+      if (s.heroUp) return ERR('heroBusy');
+      const hi = E.heroUpInfo(s, cmd.h);
+      if (hi.max) return ERR('maxLevel');
+      if (hi.blocked) return ERR('needHq', { n: hi.needHq });
+      const e = pay(s, 'plasma', hi.cost); if (e) return e;
+      s.heroUp = { h: cmd.h, to: hi.next, start: now, until: now + hi.time * 1000 };
+      if (s.heroRest) delete s.heroRest[cmd.h];
+      return { ok: true };
+    }
+    if (c === 'heroFinish') {
+      if (!s.heroUp || s.heroUp.until <= now) return { ok: true };
+      const cost = E.speedCost(s.heroUp.until - now);
+      if (s.res.chips < cost) return ERR('noChips');
+      s.res.chips -= cost; s.heroUp.until = now; E.tick(s, now);
+      return { ok: true };
+    }
+    if (c === 'brew') { // compile a battle program in the forge (copper)
+      const d = G.SPELLS[cmd.sp]; if (!d) return ERR('server');
+      if (E.forgeLevel(s) < 1) return ERR('needForge');
+      if (E.forgeLevel(s) < d.unlock) return ERR('forgeAt', { n: d.unlock });
+      if (E.spellSpace(s) + 1 > E.spellCap(s)) return ERR('forgeFull');
+      const e = pay(s, 'copper', d.cost); if (e) return e;
+      if (!s.sQueue.length) s.sqStart = now;
+      s.sQueue.push(cmd.sp);
+      return { ok: true };
+    }
+    if (c === 'unbrew') {
+      const i = cmd.i | 0, sp = s.sQueue[i]; if (!sp) return { ok: true };
+      E.addRes(s, 'copper', G.SPELLS[sp].cost); s.sQueue.splice(i, 1);
+      if (i === 0) s.sqStart = s.sQueue.length ? now : 0;
+      return { ok: true };
+    }
+    if (c === 'buyBuilder') { // one more builder drone for chips
+      const have = E.builders(s); if (have >= G.BUILDERS_MAX) return ERR('maxLevel');
+      const price = G.BUILDER_PRICE[have]; if (s.res.chips < price) return ERR('noChips');
+      s.res.chips -= price; s.builders = have + 1;
+      return { ok: true, builders: s.builders };
     }
     if (c === 'clearObs') { // remove an obstacle (pay resources, frees the space)
       const o = E.findObs(s, cmd.id); if (!o) return ERR('badPlace');
@@ -643,6 +744,7 @@ G.genBot = function (coreLv, seed) {
       for (const r of ['scrap', 'copper']) gained[r] = E.addRes(s, r, Math.floor(G.refCap(E.coreLevel(s)) * G.ADS.resPct));
       return { ok: true, gained };
     }
+    if (c === 'bstart') { s.bs = { t: now, mode: String(cmd.mode || '') }; return { ok: true }; }
     if (c === 'battle') return battle(s, cmd, now);
     if (c === 'meta') { // harmless, non-economic preferences
       if (cmd.settings) s.settings = { sfx: !!cmd.settings.sfx, music: !!cmd.settings.music };
@@ -652,7 +754,7 @@ G.genBot = function (coreLv, seed) {
       return { ok: true };
     }
     if (c === 'reset') {
-      const keep = { name: s.name, owner: s.owner, trophies: s.trophies, lang: s.lang, settings: s.settings, defLog: s.defLog, vipUntil: s.vipUntil, vipToken: s.vipToken, vipCheck: s.vipCheck, ads: s.ads, daily: s.daily, created: s.created };
+      const keep = { name: s.name, owner: s.owner, trophies: s.trophies, lang: s.lang, settings: s.settings, defLog: s.defLog, vipUntil: s.vipUntil, vipToken: s.vipToken, vipCheck: s.vipCheck, ads: s.ads, daily: s.daily, created: s.created, builders: s.builders };
       const n = E.newGame(now, s.name);
       for (const k of Object.keys(s)) delete s[k];
       Object.assign(s, n, keep, { tut: 99 });
@@ -662,10 +764,64 @@ G.genBot = function (coreLv, seed) {
   };
 
   // battle results: loot is decided here, never taken from the client as-is
+  // ---------- anti-cheat: is the reported result possible? ----------
+  // buildings that count towards destruction, as hitpoints sorted from weakest
+  E.battleHP = function (buildings, hpMul) {
+    const hp = [];
+    for (const b of buildings || []) {
+      const d = BD()[b.type]; if (!d || d.wall || d.trap) continue;
+      const lv = Math.max(1, Math.min(G.MAXLV, b.level | 0 || 1));
+      hp.push(d.hp[lv - 1] * (hpMul || 1));
+    }
+    return hp.sort((a, b) => a - b);
+  };
+  // most damage the deployed army could possibly deal in `dur` seconds (generous on purpose)
+  E.armyCap = function (s, dep, dur) {
+    let cap = 0;
+    for (const k in dep || {}) {
+      const n = Math.max(0, dep[k] | 0); if (!n) continue;
+      const u = k.startsWith('c:') ? k.slice(2) : k, hero = G.HEROES[u], d = hero || G.UNITS[u]; if (!d) continue;
+      const mul = (hero ? E.heroMul(s, u) : G.unitMul(s.unitLv && s.unitLv[u])) * (1 + 0.5 * Math.min(1, (dep._spells || 0) / 3));
+      if (u === 'drone') cap += n * d.dmg * mul * 3;
+      else if (d.interval > 0 && d.dmg > 0) cap += n * (d.dmg * mul / d.interval) * dur;
+      if (u === 'ronin') cap += 70 * 3 * 4; // blade storm
+    }
+    return cap * 1.4 + 50;
+  };
+  // returns the believable destruction share for this battle
+  E.checkPct = function (s, cmd, buildings, hpMul, sdur) {
+    let pct = Math.max(0, Math.min(1, +cmd.pct || 0));
+    const hp = E.battleHP(buildings, hpMul); if (!hp.length) return pct;
+    const dur = Math.max(0, Math.min(+cmd.dur || 185, sdur || 185, 185));
+    const dep = Object.assign({}, cmd.deployed || {});
+    // can't deploy more than you own
+    for (const k in dep) {
+      if (k === '_spells') { dep[k] = Math.max(0, Math.min(dep[k] | 0, 20)); continue; }
+      const u = k.startsWith('c:') ? k.slice(2) : k;
+      const have = G.HEROES[u] ? (E.heroUnlocked(s, u) ? 1 : 0) : k.startsWith('c:') ? (s.clanArmy[u] || 0) : (s.army[u] || 0);
+      dep[k] = Math.max(0, Math.min(dep[k] | 0, have));
+    }
+    const cap = E.armyCap(s, dep, dur);
+    const need = Math.ceil(pct * hp.length - 1e-9);
+    let sum = 0, k = 0;
+    while (k < need && sum + hp[k] <= cap) { sum += hp[k]; k++; }
+    if (k < need) pct = k / hp.length;
+    return pct;
+  };
+
   function battle(s, cmd, now) {
-    const pct = Math.max(0, Math.min(1, +cmd.pct || 0));
+    // how long the fight really took (bstart is recorded when the battle opens)
+    const sdur = s.bs && s.bs.t ? (now - s.bs.t) / 1000 + 4 : 185;
+    s.bs = null;
+    let base = null, hpMul = 1;
+    if (cmd.mode === 'pve') { const L = G.PVE[(cmd.level | 0) - 1]; if (L) { base = G.genBase(L, L.seed); hpMul = L.hpMul || 1; } }
+    else if (cmd.mode === 'bot' && Number.isInteger(cmd.seed)) base = G.genBot(E.coreLevel(s), cmd.seed).buildings;
+    else if (cmd.mode === 'pvp' && Array.isArray(cmd._base)) base = cmd._base;
+    const pct = base ? E.checkPct(s, cmd, base, hpMul, sdur) : Math.max(0, Math.min(1, +cmd.pct || 0));
     // units sent into battle are gone (heroes are free)
     if (cmd.used) for (const u of G.UNIT_ORDER) s.army[u] = Math.max(0, (s.army[u] || 0) - Math.max(0, cmd.used[u] | 0));
+    // programs (spells) used in battle are gone
+    if (cmd.usedSpells) for (const k of G.SPELL_ORDER) s.spells[k] = Math.max(0, (s.spells[k] || 0) - Math.max(0, cmd.usedSpells[k] | 0));
     // donated clan units are used up once deployed
     if (cmd.usedClan) for (const u of G.UNIT_ORDER) s.clanArmy[u] = Math.max(0, (s.clanArmy[u] || 0) - Math.max(0, cmd.usedClan[u] | 0));
     const gained = { scrap: 0, copper: 0 };
@@ -676,20 +832,24 @@ G.genBot = function (coreLv, seed) {
       // stars can't exceed what the destruction allows (+1 for a destroyed core)
       const stars = Math.max(0, Math.min(cmd.stars | 0, G.starsFor(pct)));
       const rec = s.pve[cmd.level] || { stars: 0, taken: { scrap: 0, copper: 0 } };
-      for (const r of ['scrap', 'copper']) {
-        const want = Math.min(L.loot[r], Math.floor(L.loot[r] * pct)) - rec.taken[r];
-        gained[r] = E.addRes(s, r, Math.max(0, want)); rec.taken[r] += gained[r];
+      for (const r of ['scrap', 'copper', 'plasma']) {
+        if (!L.loot[r]) continue;
+        const want = Math.min(L.loot[r], Math.floor(L.loot[r] * pct)) - (rec.taken[r] || 0);
+        gained[r] = E.addRes(s, r, Math.max(0, want)); rec.taken[r] = (rec.taken[r] || 0) + gained[r];
       }
       if (stars > rec.stars) { chips = (stars - rec.stars) * 5; E.addRes(s, 'chips', chips); rec.stars = stars; }
       s.pve[cmd.level] = rec;
     } else if (cmd.mode === 'bot') {
-      // training fight against a bot: loot is capped by what the strongest possible bot could hold
+      // training fight against a bot: the bot is rebuilt from its seed, so its loot is known exactly
       const c = Math.min(G.MAXLV, E.coreLevel(s) + 1), max = 800 * c * c;
-      for (const r of ['scrap', 'copper']) gained[r] = E.addRes(s, r, Math.floor(Math.min(max, Math.max(0, cmd.loot && cmd.loot[r] | 0)) * pct));
+      const lootSrc = Number.isInteger(cmd.seed) ? G.genBot(E.coreLevel(s), cmd.seed).loot : (cmd.loot || {});
+      for (const r of ['scrap', 'copper']) gained[r] = E.addRes(s, r, Math.floor(Math.min(max, Math.max(0, lootSrc[r] | 0)) * pct));
     } else if (cmd.mode === 'pvp') {
       // the server fills cmd.loot from the attack record (submit_attack already capped it)
       if (cmd.loot) for (const r of ['scrap', 'copper']) gained[r] = E.addRes(s, r, Math.max(0, cmd.loot[r] | 0));
     }
+    // heroes that fell rest for a while
+    if (Array.isArray(cmd.fell)) for (const h of cmd.fell) if (G.HEROES[h]) E.heroFell(s, h, now);
     // daily missions: victories, stars, raids
     const st = Math.max(0, Math.min(3, cmd.stars | 0, G.starsFor(pct)));
     if (st > 0) E.progress(s, now, 'win', 1);
@@ -839,16 +999,77 @@ async function playVip(uid, s, token, now) {
   return active ? { ok: true, vipUntil: expiry } : { err: 'vipExpired' };
 }
 
+// ---------- push notifications (Web Push; keys are generated by the server and kept in app_secrets) ----------
+let vapidCache = null;
+async function secret(k) { const { data } = await admin.from('app_secrets').select('v').eq('k', k).maybeSingle(); return data ? data.v : null; }
+async function vapid() {
+  if (vapidCache) return vapidCache;
+  let pub = await secret('vapid_pub'), priv = await secret('vapid_priv');
+  if (!pub || !priv) {
+    const k = webpush.generateVAPIDKeys();
+    await admin.from('app_secrets').upsert([{ k: 'vapid_pub', v: k.publicKey }, { k: 'vapid_priv', v: k.privateKey }]);
+    pub = await secret('vapid_pub'); priv = await secret('vapid_priv');
+  }
+  webpush.setVapidDetails('https://tostersky.github.io/cyberwar/', pub, priv);
+  vapidCache = { pub, priv };
+  return vapidCache;
+}
+const PUSH_TXT = {
+  pl: { attack: (n) => ['Zaatakowano Twoją bazę!', n + ' właśnie najechał Neo-Miasto. Sprawdź raport obrony.'], build: () => ['Budowa ukończona', 'Twoi drony skończyły pracę — czas na kolejne ulepszenie!'],
+    army: () => ['Armia gotowa', 'Oddział jest w pełni wyszkolony. Do ataku!'], research: () => ['Badanie ukończone', 'Laboratorium skończyło ulepszenie jednostki.'] },
+  en: { attack: (n) => ['Your base was attacked!', n + ' just raided you. Check the defense log.'], build: () => ['Construction complete', 'Your builder drones are free — time for the next upgrade!'],
+    army: () => ['Army ready', 'Your squad is fully trained. Attack!'], research: () => ['Research complete', 'The laboratory finished a unit upgrade.'] },
+};
+async function pushTo(userId, kind, arg) {
+  const { data: subs } = await admin.from('push_subs').select('endpoint,sub,lang').eq('user_id', userId);
+  if (!subs || !subs.length) return 0;
+  await vapid();
+  let sent = 0;
+  for (const p of subs) {
+    const [title, body] = (PUSH_TXT[p.lang] || PUSH_TXT.pl)[kind](arg || '');
+    try { await webpush.sendNotification(p.sub, JSON.stringify({ title, body, tag: kind }), { TTL: 3600 * 12 }); sent++; }
+    catch (e) { if (e && (e.statusCode === 404 || e.statusCode === 410)) await admin.from('push_subs').delete().eq('endpoint', p.endpoint); }
+  }
+  return sent;
+}
+// keep this player's upcoming "ready" notifications in the queue (only if they subscribed)
+async function schedulePush(uid, s, now) {
+  const { count } = await admin.from('push_subs').select('endpoint', { count: 'exact', head: true }).eq('user_id', uid);
+  await admin.from('push_queue').delete().eq('user_id', uid);
+  if (!count) return;
+  const rows = [];
+  const builds = s.buildings.filter((b) => b.busyUntil > now).map((b) => b.busyUntil);
+  if (builds.length) rows.push({ user_id: uid, kind: 'build', send_at: new Date(Math.min(...builds)).toISOString() });
+  if (s.queue.length) { let t = s.qStart; for (const u of s.queue) t += G.UNITS[u].time * 1000; if (t > now + 60000) rows.push({ user_id: uid, kind: 'army', send_at: new Date(t).toISOString() }); }
+  if (s.research && s.research.until > now) rows.push({ user_id: uid, kind: 'research', send_at: new Date(s.research.until).toISOString() });
+  if (rows.length) await admin.from('push_queue').insert(rows);
+}
+async function cronRun() {
+  const { data: due } = await admin.from('push_queue').select('user_id,kind').lte('send_at', new Date().toISOString()).limit(300);
+  let sent = 0;
+  for (const d of due || []) {
+    await admin.from('push_queue').delete().eq('user_id', d.user_id).eq('kind', d.kind);
+    sent += await pushTo(d.user_id, d.kind).catch(() => 0);
+  }
+  return sent;
+}
+
 const json = (o, status) => new Response(JSON.stringify(o), { status: status || 200, headers: { ...CORS, 'Content-Type': 'application/json' } });
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
   try {
+    const body = await req.json().catch(() => ({}));
+    // every 5 minutes the database cron calls us with its own secret: send due notifications
+    if (body && typeof body.cron === 'string') {
+      const ok = body.cron.length > 20 && body.cron === await secret('cron');
+      if (!ok) return json({ error: 'auth' }, 401);
+      return json({ ok: true, sent: await cronRun() });
+    }
     const token = (req.headers.get('Authorization') || '').replace(/^Bearer\s+/i, '');
     const { data: ud, error: ue } = await admin.auth.getUser(token);
     if (ue || !ud || !ud.user) return json({ error: 'auth', message: 'invalid session' }, 401);
     const uid = ud.user.id;
-    const body = await req.json().catch(() => ({}));
     const cmds = Array.isArray(body.cmds) ? body.cmds.slice(0, 200) : [];
     const now = Date.now();
 
@@ -864,6 +1085,15 @@ Deno.serve(async (req) => {
       if (!cmd || typeof cmd !== 'object') { results.push({ err: 'server' }); continue; }
       if (cmd.c === 'donate') { try { results.push(await donate(uid, prof, s, cmd, now)); } catch (e) { results.push({ err: 'server' }); } continue; }
       if (cmd.c === 'donate_out') { results.push({ err: 'server' }); continue; } // only via 'donate'
+      if (cmd.c === 'pushKey') { try { results.push({ ok: true, key: (await vapid()).pub }); } catch (e) { results.push({ err: 'server', message: String(e && e.message || e) }); } continue; }
+      if (cmd.c === 'pushSub') {
+        const sub = cmd.sub;
+        if (!sub || typeof sub.endpoint !== 'string' || !/^https:\/\//.test(sub.endpoint) || !sub.keys) { results.push({ err: 'server' }); continue; }
+        await admin.from('push_subs').upsert({ endpoint: sub.endpoint.slice(0, 1000), user_id: uid, sub, lang: cmd.lang === 'en' ? 'en' : 'pl' });
+        results.push({ ok: true }); continue;
+      }
+      if (cmd.c === 'pushOff') { await admin.from('push_subs').delete().eq('user_id', uid); results.push({ ok: true }); continue; }
+      if (cmd.c === 'pushTest') { results.push({ ok: true, sent: await pushTo(uid, 'build').catch(() => 0) }); continue; }
       if (cmd.c === 'vip') { try { results.push(await playVip(uid, s, cmd.token, now)); } catch (e) { results.push({ err: 'server', message: String(e && e.message || e) }); } continue; }
       if (cmd.c === 'iap') { try { results.push(await playPurchase(uid, s, cmd)); } catch (e) { results.push({ err: 'server', message: String(e && e.message || e) }); } continue; }
       if (cmd.c === 'createClan') {
@@ -875,8 +1105,30 @@ Deno.serve(async (req) => {
         results.push({ ok: true, clanId: cid });
         continue;
       }
+      if (cmd.c === 'battle') cmd._base = null; // only the server may provide the defender's base
+      if (cmd.c === 'battle' && cmd.mode === 'pvp' && typeof cmd.defender === 'string') {
+        // real player: the server loads the defender's base, checks the result, records the attack and credits the loot
+        cmd.loot = null; cmd.attack = null;
+        try {
+          const { data: b } = await admin.from('bases').select('layout,loot_scrap,loot_copper').eq('user_id', cmd.defender).maybeSingle();
+          if (!b) { results.push({ err: 'server' }); continue; }
+          const base = [];
+          for (const row of (Array.isArray(b.layout) ? b.layout : []).slice(0, 400)) if (Array.isArray(row) && G.BUILDINGS[row[0]]) base.push({ type: row[0], level: row[1] | 0 });
+          cmd._base = base;
+          const sdur = s.bs && s.bs.t ? (now - s.bs.t) / 1000 + 4 : 185;
+          const pct = G.Econ.checkPct(s, cmd, base, 1, sdur), stars = G.starsFor(pct);
+          const { data: res, error } = await admin.rpc('submit_attack_for', { p_attacker: uid, p_defender: cmd.defender, p_stars: stars, p_pct: Math.round(pct * 100),
+            p_scrap: Math.floor((b.loot_scrap | 0) * pct), p_copper: Math.floor((b.loot_copper | 0) * pct) });
+          if (error) { results.push({ err: /too fast/.test(error.message) ? 'err_rateLimit' : 'server', message: error.message }); continue; }
+          cmd.pct = pct; cmd.stars = stars; cmd.loot = { scrap: res.scrap | 0, copper: res.copper | 0 };
+          await pushTo(cmd.defender, 'attack', (prof && prof.username) || '?').catch(() => {}); // tell the defender right away
+          const r = G.Econ.apply(s, cmd, now);
+          results.push(Object.assign(r, { delta: res.delta, pct, stars }));
+        } catch (e) { results.push({ err: 'server', message: String(e && e.message || e) }); }
+        continue;
+      }
       if (cmd.c === 'battle' && cmd.mode === 'pvp') {
-        // loot from a real player is credited once, from our own attack record
+        // legacy clients: loot from a real player is credited once, from our own attack record
         cmd.loot = null;
         if (cmd.attack) {
           const { data: a } = await admin.from('attacks').select('id,loot_scrap,loot_copper,credited').eq('id', cmd.attack).eq('attacker', uid).maybeSingle();
@@ -913,6 +1165,7 @@ Deno.serve(async (req) => {
 
     const iso = new Date(now).toISOString();
     await admin.from('saves').upsert({ user_id: uid, data: s, updated_at: iso });
+    if (cmds.length) await schedulePush(uid, s, now).catch(() => {});
     if (prof) {
       const b = G.Econ.baseSnapshot(s);
       await admin.from('bases').upsert({ user_id: uid, username: prof.username, trophies: prof.trophies, core: b.core, layout: b.layout, loot_scrap: b.scrap, loot_copper: b.copper, updated_at: iso });
