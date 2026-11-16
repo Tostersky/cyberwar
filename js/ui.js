@@ -505,7 +505,7 @@
       const s = G.state, now = Date.now(), R = s.research;
       let cur = '';
       if (R) {
-        const left = Math.max(0, (R.until - now) / 1000), cost = Math.max(1, Math.ceil(left / 60));
+        const left = Math.max(0, (R.until - now) / 1000), cost = G.Econ.speedCost(left * 1000);
         cur = `<div class="lab-cur"><img src="${G.Art.unitThumb(R.u)}" alt=""><div><b>${t('u_' + R.u)} → ${t('level')} ${R.to}</b>
           <div class="bar big"><b style="width:${Math.min(100, (now - R.start) / (R.until - R.start) * 100)}%"></b></div><small>${G.fmtTime(left)}</small></div>
           <button class="btn sm primary" id="lab-fin">${IC.bolt}${costHtml('chips', cost, s.res.chips >= cost)}</button></div>`;

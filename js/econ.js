@@ -135,7 +135,9 @@
     const needCore = b.type === 'core' ? 0 : next;
     return { next, res: d.res, cost: d.cost[next - 1], time: d.time[next - 1], needCore, blocked: needCore > E.coreLevel(s) };
   };
-  E.finishCost = (b, now) => Math.max(1, Math.ceil((b.busyUntil - now) / 60000));
+  // chips to finish now: cheaper per minute for long timers (16 h ~ 170 chips)
+  E.speedCost = (ms) => Math.max(1, Math.ceil(Math.pow(Math.max(0, ms) / 60000, 0.75)));
+  E.finishCost = (b, now) => E.speedCost(b.busyUntil - now);
 
   // ---------- time ----------
   // production flows straight into storage; only what doesn't fit waits inside the building (up to its cap)
@@ -347,7 +349,7 @@
     }
     if (c === 'finishResearch') {
       if (!s.research || s.research.until <= now) return { ok: true };
-      const cost = Math.max(1, Math.ceil((s.research.until - now) / 60000));
+      const cost = E.speedCost(s.research.until - now);
       if (s.res.chips < cost) return ERR('noChips');
       s.res.chips -= cost; s.research.until = now;
       E.tick(s, now);
