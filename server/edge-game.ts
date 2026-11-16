@@ -1,35 +1,55 @@
 // AUTO-GENERATED bundle for the Supabase Edge Function "game" — built from js/data.js + js/econ.js + server/game-handler.js
 import { createClient } from 'npm:@supabase/supabase-js@2';
-const G = {};
+// deno-lint-ignore-file
+// @ts-nocheck
+const G: any = {};
 // Game data: buildings, units, heroes, campaign. All numbers are CyberWar's own.
-G.TW = 64; G.TH = 32; G.MAP = 40; G.VERSION = '0.7.0';
+G.TW = 64; G.TH = 32; G.MAP = 40; G.VERSION = '0.8.0';
 G.BUILDERS = 2;
 
+// every array has one value per level (1..8)
 G.BUILDINGS = {
-  core:       { size: 4, res: 'scrap',  cost: [0, 2000, 8000, 25000, 60000], time: [0, 30, 120, 600, 1800],
-                hp: [1500, 1900, 2400, 3000, 3800], store: [1500, 3000, 6000, 10000, 15000] },
-  scrapyard:  { size: 3, res: 'copper', cost: [150, 300, 700, 1400, 3000], time: [10, 30, 60, 180, 600],
-                hp: [400, 450, 500, 550, 600], prod: 'scrap', rate: [300, 500, 800, 1100, 1500], cap: [500, 1000, 2000, 3500, 5000] },
-  coppermine: { size: 3, res: 'scrap',  cost: [150, 300, 700, 1400, 3000], time: [10, 30, 60, 180, 600],
-                hp: [400, 450, 500, 550, 600], prod: 'copper', rate: [300, 500, 800, 1100, 1500], cap: [500, 1000, 2000, 3500, 5000] },
-  vault:      { size: 3, res: 'copper', cost: [300, 800, 2000, 5000, 12000], time: [15, 60, 180, 600, 1200],
-                hp: [600, 700, 800, 900, 1000], store: [2000, 5000, 10000, 20000, 40000] },
-  factory:    { size: 3, res: 'scrap',  cost: [200, 1000, 2500, 6000, 15000], time: [15, 60, 180, 600, 1200],
-                hp: [500, 600, 700, 800, 900] },
-  squadhq:    { size: 4, res: 'copper', cost: [250, 2000, 5000, 12000, 25000], time: [15, 90, 300, 900, 1800],
-                hp: [500, 600, 700, 800, 900], housing: [20, 30, 40, 55, 70] },
-  laser:      { size: 2, res: 'scrap',  cost: [500, 1500, 4000, 9000, 20000], time: [20, 90, 300, 900, 1800],
-                hp: [500, 620, 750, 880, 1000], dmg: [12, 16, 21, 27, 34], interval: 0.8, range: 7, defense: true },
-  firewall:   { size: 1, res: 'scrap',  cost: [50, 200, 600, 1500, 4000], time: [0, 0, 0, 0, 0],
-                hp: [300, 600, 1000, 1600, 2500], wall: true },
+  core:       { size: 4, res: 'scrap',  cost: [0, 2000, 8000, 25000, 60000, 120000, 220000, 400000], time: [0, 30, 120, 600, 1800, 3600, 7200, 14400],
+                hp: [1500, 1900, 2400, 3000, 3800, 4600, 5500, 6500], store: [1500, 3000, 6000, 10000, 15000, 22000, 30000, 40000] },
+  scrapyard:  { size: 3, res: 'copper', cost: [150, 300, 700, 1400, 3000, 6000, 12000, 24000], time: [10, 30, 60, 180, 600, 1200, 2400, 3600],
+                hp: [400, 450, 500, 550, 600, 650, 700, 750], prod: 'scrap', rate: [300, 500, 800, 1100, 1500, 1900, 2400, 3000], cap: [500, 1000, 2000, 3500, 5000, 7000, 9500, 12000] },
+  coppermine: { size: 3, res: 'scrap',  cost: [150, 300, 700, 1400, 3000, 6000, 12000, 24000], time: [10, 30, 60, 180, 600, 1200, 2400, 3600],
+                hp: [400, 450, 500, 550, 600, 650, 700, 750], prod: 'copper', rate: [300, 500, 800, 1100, 1500, 1900, 2400, 3000], cap: [500, 1000, 2000, 3500, 5000, 7000, 9500, 12000] },
+  vault:      { size: 3, res: 'copper', cost: [300, 800, 2000, 5000, 12000, 25000, 50000, 90000], time: [15, 60, 180, 600, 1200, 2400, 3600, 7200],
+                hp: [600, 700, 800, 900, 1000, 1100, 1200, 1300], store: [2000, 5000, 10000, 20000, 40000, 60000, 90000, 130000] },
+  factory:    { size: 3, res: 'scrap',  cost: [200, 1000, 2500, 6000, 15000, 30000, 60000, 100000], time: [15, 60, 180, 600, 1200, 2400, 3600, 7200],
+                hp: [500, 600, 700, 800, 900, 1000, 1100, 1200] },
+  squadhq:    { size: 4, res: 'copper', cost: [250, 2000, 5000, 12000, 25000, 45000, 80000, 140000], time: [15, 90, 300, 900, 1800, 3600, 5400, 7200],
+                hp: [500, 600, 700, 800, 900, 1000, 1100, 1200], housing: [20, 30, 40, 55, 70, 85, 100, 120] },
+  lab:        { size: 3, res: 'copper', cost: [500, 2500, 6000, 12000, 25000, 45000, 75000, 110000], time: [60, 300, 900, 1800, 3600, 5400, 7200, 10800],
+                hp: [500, 600, 700, 800, 900, 1000, 1100, 1200] },
+  laser:      { size: 2, res: 'scrap',  cost: [500, 1500, 4000, 9000, 20000, 35000, 60000, 100000], time: [20, 90, 300, 900, 1800, 2400, 3600, 5400],
+                hp: [500, 620, 750, 880, 1000, 1150, 1300, 1450], dmg: [12, 16, 21, 27, 34, 42, 51, 61], interval: 0.8, range: 7, defense: true, hits: 'both' },
+  // slow plasma shells that hurt everything around the impact; can't hit air or anything too close
+  mortar:     { size: 3, res: 'scrap',  cost: [5000, 9000, 15000, 24000, 36000, 52000, 75000, 100000], time: [300, 600, 1200, 1800, 3600, 5400, 7200, 10800],
+                hp: [700, 800, 900, 1000, 1150, 1300, 1450, 1600], dmg: [25, 32, 40, 50, 62, 75, 90, 105], interval: 4, range: 9, minRange: 3, splash: 1.5, defense: true, hits: 'ground' },
+  // anti-air missiles: big damage, flying targets only
+  aa:         { size: 2, res: 'scrap',  cost: [8000, 14000, 22000, 32000, 46000, 64000, 88000, 120000], time: [600, 900, 1800, 3600, 5400, 7200, 9000, 10800],
+                hp: [600, 700, 800, 900, 1000, 1100, 1250, 1400], dmg: [80, 100, 125, 150, 180, 210, 245, 280], interval: 1.2, range: 8, defense: true, hits: 'air' },
+  // hidden trap: explodes once when a ground unit steps close
+  mine:       { size: 1, res: 'scrap',  cost: [500, 800, 1200, 1800, 2600, 3600, 5000, 7000], time: [0, 0, 0, 0, 0, 0, 0, 0],
+                hp: [1, 1, 1, 1, 1, 1, 1, 1], dmg: [60, 80, 105, 135, 170, 210, 255, 305], trap: true, splash: 1.5 },
+  firewall:   { size: 1, res: 'scrap',  cost: [50, 200, 600, 1500, 4000, 8000, 15000, 25000], time: [0, 0, 0, 0, 0, 0, 0, 0],
+                hp: [300, 600, 1000, 1600, 2500, 3500, 4800, 6500], wall: true },
 };
-G.MAXLV = 5;
+G.MAXLV = 8;
 // How many of each building per Core level (index = core level - 1)
 G.LIMITS = {
-  core: [1, 1, 1, 1, 1], scrapyard: [2, 3, 4, 5, 6], coppermine: [2, 3, 4, 5, 6], vault: [1, 1, 2, 2, 3],
-  factory: [1, 1, 1, 1, 1], squadhq: [1, 1, 1, 1, 1], laser: [1, 2, 3, 4, 5], firewall: [25, 50, 75, 100, 150],
+  core: [1, 1, 1, 1, 1, 1, 1, 1], scrapyard: [2, 3, 4, 5, 6, 6, 7, 7], coppermine: [2, 3, 4, 5, 6, 6, 7, 7],
+  vault: [1, 1, 2, 2, 3, 3, 4, 4], factory: [1, 1, 1, 1, 1, 1, 1, 1], squadhq: [1, 1, 1, 1, 1, 1, 1, 1],
+  lab: [0, 1, 1, 1, 1, 1, 1, 1], laser: [1, 2, 3, 4, 5, 5, 6, 6], mortar: [0, 0, 1, 1, 2, 2, 3, 3],
+  aa: [0, 0, 0, 1, 1, 2, 2, 3], mine: [0, 0, 2, 3, 4, 5, 6, 8], firewall: [25, 50, 75, 100, 150, 175, 200, 225],
 };
-G.SHOP = ['laser', 'firewall', 'scrapyard', 'coppermine', 'vault', 'factory', 'squadhq'];
+G.SHOP = ['laser', 'mortar', 'aa', 'mine', 'firewall', 'scrapyard', 'coppermine', 'vault', 'factory', 'squadhq', 'lab'];
+
+// laboratory research: unit level 2..5 (cost in copper, time in seconds); each level = +15% hitpoints and damage
+G.RESEARCH = { cost: [0, 1500, 5000, 14000, 32000], time: [0, 120, 600, 1800, 3600], maxLv: 5, bonus: 0.15 };
+G.unitMul = (lv) => 1 + G.RESEARCH.bonus * ((lv || 1) - 1);
 
 G.UNITS = {
   runner: { cost: 25,  space: 1, hp: 60,  dmg: 10,  interval: 0.8, speed: 2.2, range: 0.6, time: 5,  unlock: 1, target: 'any' },
@@ -90,12 +110,23 @@ G.genBase = function (p, seed) {
   for (let i = 0; i < (p.vault || 0); i++) rest.push('vault');
   if (p.factory) rest.push('factory');
   if (p.hq) rest.push('squadhq');
+  for (let i = 0; i < (p.mortar || 0); i++) rest.push('mortar');
+  for (let i = 0; i < (p.aa || 0); i++) rest.push('aa');
+  if (p.lab) rest.push('lab');
   for (const type of rest) {
-    const s = G.BUILDINGS[type].size;
+    const s = G.BUILDINGS[type].size, def = G.BUILDINGS[type].defense;
     for (let tries = 0; tries < 400; tries++) {
-      const spread = 7 + Math.floor(tries / 40);
+      // defenses stay close to the core, economy buildings spread out
+      const spread = (def ? 4 : 7) + Math.floor(tries / 40);
       const x = Math.floor(20 - s / 2 + (r() * 2 - 1) * spread), y = Math.floor(20 - s / 2 + (r() * 2 - 1) * spread);
       if (free(x, y, s, 1)) { put(type, Math.min(blv, G.MAXLV), x, y); break; }
+    }
+  }
+  // hidden mines in the gaps around the core
+  for (let i = 0; i < (p.mines || 0); i++) {
+    for (let tries = 0; tries < 200; tries++) {
+      const x = 12 + Math.floor(r() * 16), y = 12 + Math.floor(r() * 16);
+      if (free(x, y, 1, 0)) { put('mine', Math.min(blv, G.MAXLV), x, y); break; }
     }
   }
   return out;
@@ -106,8 +137,10 @@ G.PVE = [
   { core: 1, lasers: 1, laserLv: 1, rings: 1, wallLv: 1, scrap: 2, copper: 1, vault: 1, loot: { scrap: 1000, copper: 1000 }, seed: 22 },
   { core: 2, lasers: 2, laserLv: 2, rings: 1, wallLv: 1, scrap: 2, copper: 2, vault: 1, factory: 1, loot: { scrap: 2000, copper: 2000 }, seed: 33 },
   { core: 3, lasers: 3, laserLv: 2, rings: 1, wallLv: 2, scrap: 2, copper: 2, vault: 2, factory: 1, hq: 1, loot: { scrap: 4000, copper: 4000 }, seed: 44 },
-  { core: 4, lasers: 4, laserLv: 3, rings: 2, wallLv: 3, wallLv2: 2, scrap: 3, copper: 3, vault: 2, factory: 1, hq: 1, loot: { scrap: 8000, copper: 8000 }, seed: 55 },
-  { core: 5, lasers: 5, laserLv: 4, rings: 2, wallLv: 4, wallLv2: 3, scrap: 3, copper: 3, vault: 3, factory: 1, hq: 1, loot: { scrap: 15000, copper: 15000 }, seed: 66 },
+  { core: 4, lasers: 4, laserLv: 3, rings: 2, wallLv: 3, wallLv2: 2, scrap: 3, copper: 3, vault: 2, factory: 1, hq: 1, mortar: 1, mines: 2, loot: { scrap: 8000, copper: 8000 }, seed: 55 },
+  { core: 5, lasers: 5, laserLv: 4, rings: 2, wallLv: 4, wallLv2: 3, scrap: 3, copper: 3, vault: 3, factory: 1, hq: 1, mortar: 2, aa: 1, mines: 3, loot: { scrap: 15000, copper: 15000 }, seed: 66 },
+  { core: 6, lasers: 5, laserLv: 5, rings: 2, wallLv: 5, wallLv2: 4, scrap: 4, copper: 4, vault: 3, factory: 1, hq: 1, mortar: 2, aa: 2, mines: 5, lab: 1, loot: { scrap: 26000, copper: 26000 }, seed: 77 },
+  { core: 7, lasers: 6, laserLv: 6, rings: 2, wallLv: 6, wallLv2: 5, scrap: 4, copper: 4, vault: 4, factory: 1, hq: 1, mortar: 3, aa: 2, mines: 6, lab: 1, loot: { scrap: 40000, copper: 40000 }, seed: 88 },
 ];
 
 G.BOT_NAMES = ['Vex_77', 'NeonGhost', 'KiloByte', 'RustQueen', 'Zer0Day', 'GlitchRat', 'ChromeFox', 'NullPtr',
@@ -116,11 +149,12 @@ G.BOT_NAMES = ['Vex_77', 'NeonGhost', 'KiloByte', 'RustQueen', 'Zer0Day', 'Glitc
 G.genBot = function (coreLv, seed) {
   const r = G.rng(seed);
   let c = coreLv + (r() < 0.3 ? 1 : 0) - (r() < 0.3 ? 1 : 0);
-  c = Math.max(1, Math.min(5, c));
+  c = Math.max(1, Math.min(G.MAXLV, c));
   const p = {
     core: c, lasers: Math.max(1, G.LIMITS.laser[c - 1] - (r() < 0.5 ? 1 : 0)), laserLv: c,
     rings: c >= 4 ? 2 : (c >= 2 ? 1 : (r() < 0.5 ? 1 : 0)), wallLv: Math.max(1, c - 1), wallLv2: Math.max(1, c - 2),
     scrap: Math.min(6, 1 + c), copper: Math.min(6, 1 + c), vault: G.LIMITS.vault[c - 1], factory: 1, hq: 1, blv: c,
+    mortar: G.LIMITS.mortar[c - 1], aa: G.LIMITS.aa[c - 1], mines: G.LIMITS.mine[c - 1], lab: G.LIMITS.lab[c - 1],
   };
   const loot = { scrap: Math.floor((300 + r() * 500) * c * c), copper: Math.floor((300 + r() * 500) * c * c) };
   const name = G.BOT_NAMES[Math.floor(r() * G.BOT_NAMES.length)];
@@ -140,7 +174,7 @@ G.genBot = function (coreLv, seed) {
       v: 1, name: name || 'Runner' + Math.floor(1000 + Math.random() * 9000), lang: null,
       res: { scrap: 1000, copper: 1000, chips: 50 }, buildings: [],
       army: { runner: 8, gunner: 0, drone: 0, mech: 0 }, queue: [], qStart: 0,
-      trophies: 0, pve: {}, nextId: 1, created: now,
+      trophies: 0, pve: {}, nextId: 1, created: now, unitLv: { runner: 1, gunner: 1, drone: 1, mech: 1 }, research: null,
       settings: { sfx: true, music: true }, flags: {}, tut: 0, defLog: [],
     };
     const add = (type, x, y) => s.buildings.push({ id: s.nextId++, type, level: 1, x, y, acc: BD()[type].prod ? 150 : 0, last: now, busyUntil: 0, busyStart: 0, upTo: 0 });
@@ -157,6 +191,8 @@ G.genBot = function (coreLv, seed) {
     s.buildings = Array.isArray(s.buildings) ? s.buildings.filter((b) => b && BD()[b.type]) : [];
     s.pve = s.pve || {}; s.settings = s.settings || { sfx: true, music: true }; s.flags = s.flags || {};
     if (s.tut == null) s.tut = 0; s.defLog = Array.isArray(s.defLog) ? s.defLog.slice(0, 20) : [];
+    s.unitLv = s.unitLv || {}; for (const u of G.UNIT_ORDER) s.unitLv[u] = Math.max(1, Math.min(G.RESEARCH.maxLv, s.unitLv[u] | 0 || 1));
+    if (s.research && !G.UNITS[s.research.u]) s.research = null;
     s.trophies = Math.max(0, Math.floor(+s.trophies || 0));
     s.nextId = Math.max(s.nextId || 1, ...s.buildings.map((b) => b.id + 1), 1);
     for (const b of s.buildings) { if (b.last == null) b.last = now; if (b.acc == null) b.acc = 0; }
@@ -208,24 +244,31 @@ G.genBot = function (coreLv, seed) {
   E.finishCost = (b, now) => Math.max(1, Math.ceil((b.busyUntil - now) / 60000));
 
   // ---------- time ----------
-  E.updateCollector = function (b, now) {
+  // production flows straight into storage; only what doesn't fit waits inside the building (up to its cap)
+  E.updateCollector = function (b, now, s) {
     const d = BD()[b.type];
     if (!d.prod) return;
     if (b.level === 0) { b.last = now; return; }
     const dt = Math.max(0, now - (b.last || now));
     b.acc = Math.min(d.cap[b.level - 1], (b.acc || 0) + d.rate[b.level - 1] * dt / 3600000);
     b.last = now;
+    if (s) {
+      const moved = E.addRes(s, d.prod, Math.floor(b.acc));
+      b.acc -= moved;
+      if (moved > 0) b.flow = (b.flow || 0) + moved;
+    }
   };
+  E.ratePer = (b, sec) => (b.level > 0 && BD()[b.type].prod ? BD()[b.type].rate[b.level - 1] * sec / 3600 : 0);
   // finishes constructions and training up to `now`; returns events [{kind:'built', id}]
   E.tick = function (s, now) {
     const ev = [];
     for (const b of s.buildings) {
       if (b.busyUntil && b.busyUntil <= now) {
-        E.updateCollector(b, b.busyUntil);
+        E.updateCollector(b, b.busyUntil, s);
         b.level = b.upTo; b.busyUntil = 0; b.upTo = 0;
         ev.push({ kind: 'built', id: b.id });
       }
-      E.updateCollector(b, now);
+      E.updateCollector(b, now, s);
     }
     while (s.queue.length) {
       const dur = G.UNITS[s.queue[0]].time * 1000;
@@ -233,7 +276,19 @@ G.genBot = function (coreLv, seed) {
       else break;
     }
     if (!s.queue.length) s.qStart = 0;
+    if (s.research && s.research.until <= now) {
+      s.unitLv[s.research.u] = s.research.to;
+      ev.push({ kind: 'researched', u: s.research.u, to: s.research.to });
+      s.research = null;
+    }
     return ev;
+  };
+  E.labLevel = (s) => E.maxLevelOf(s, 'lab');
+  // what researching unit u next would need
+  E.researchInfo = function (s, u) {
+    const cur = (s.unitLv && s.unitLv[u]) || 1, next = cur + 1, R = G.RESEARCH;
+    if (cur >= R.maxLv) return { max: true, cur };
+    return { cur, next, cost: R.cost[next - 1], time: R.time[next - 1], needLab: next - 1, blocked: E.labLevel(s) < next - 1 };
   };
 
   function pay(s, res, cost) {
@@ -268,7 +323,7 @@ G.genBot = function (coreLv, seed) {
       if (u.blocked) return ERR('needCore', { n: u.needCore });
       if (u.time > 0 && E.buildersBusy(s, now) >= G.BUILDERS) return ERR('noBuilder');
       const e = pay(s, u.res, u.cost); if (e) return e;
-      E.updateCollector(b, now);
+      E.updateCollector(b, now, s);
       if (u.time > 0) { b.busyUntil = now + u.time * 1000; b.busyStart = now; b.upTo = u.next; }
       else b.level = u.next;
       return { ok: true };
@@ -284,7 +339,7 @@ G.genBot = function (coreLv, seed) {
     }
     if (c === 'collect') {
       const b = E.findB(s, cmd.id); if (!b || !BD()[b.type].prod) return { ok: true, got: 0 };
-      E.updateCollector(b, now);
+      E.updateCollector(b, now, s);
       const got = E.addRes(s, BD()[b.type].prod, Math.floor(b.acc));
       b.acc -= got;
       return { ok: true, got };
@@ -311,6 +366,26 @@ G.genBot = function (coreLv, seed) {
       E.addRes(s, 'copper', G.UNITS[u].cost);
       s.queue.splice(i, 1);
       if (i === 0) s.qStart = s.queue.length ? now : 0;
+      return { ok: true };
+    }
+    if (c === 'research') {
+      const d = G.UNITS[cmd.u]; if (!d) return ERR('server');
+      if (E.labLevel(s) < 1) return ERR('needLab');
+      if (s.research) return ERR('labBusy');
+      if (E.factoryLevel(s) < d.unlock) return ERR('factoryAt', { n: d.unlock });
+      const ri = E.researchInfo(s, cmd.u);
+      if (ri.max) return ERR('maxLevel');
+      if (ri.blocked) return ERR('labAt', { n: ri.needLab });
+      const e = pay(s, 'copper', ri.cost); if (e) return e;
+      s.research = { u: cmd.u, to: ri.next, start: now, until: now + ri.time * 1000 };
+      return { ok: true };
+    }
+    if (c === 'finishResearch') {
+      if (!s.research || s.research.until <= now) return { ok: true };
+      const cost = Math.max(1, Math.ceil((s.research.until - now) / 60000));
+      if (s.res.chips < cost) return ERR('noChips');
+      s.res.chips -= cost; s.research.until = now;
+      E.tick(s, now);
       return { ok: true };
     }
     if (c === 'search') { // looking for a PvP opponent costs copper
@@ -356,7 +431,7 @@ G.genBot = function (coreLv, seed) {
       s.pve[cmd.level] = rec;
     } else if (cmd.mode === 'bot') {
       // training fight against a bot: loot is capped by what the strongest possible bot could hold
-      const c = Math.min(5, E.coreLevel(s) + 1), max = 800 * c * c;
+      const c = Math.min(G.MAXLV, E.coreLevel(s) + 1), max = 800 * c * c;
       for (const r of ['scrap', 'copper']) gained[r] = E.addRes(s, r, Math.floor(Math.min(max, Math.max(0, cmd.loot && cmd.loot[r] | 0)) * pct));
     } else if (cmd.mode === 'pvp') {
       // the server fills cmd.loot from the attack record (submit_attack already capped it)
