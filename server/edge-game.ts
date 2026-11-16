@@ -3,7 +3,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 // @ts-nocheck
 const G: any = {};
 // Game data: buildings, units, heroes, campaign. All numbers are CyberWar's own.
-G.TW = 64; G.TH = 32; G.MAP = 40; G.VERSION = '0.9.1';
+G.TW = 64; G.TH = 32; G.MAP = 40; G.VERSION = '0.9.4';
 G.BUILDERS = 2;
 
 // every array has one value per level (1..8)
@@ -70,6 +70,21 @@ G.HERO_ORDER = ['ronin', 'nyx'];
 G.BATTLE_TIME = 180;
 // creating a clan costs premium chips (500 chips = the 8,99 zł chip pack in the shop)
 G.CLAN_PRICE = 500;
+
+// chip packs sold through Google Play (ids = product ids in Play Console; prices shown from Play when available)
+G.CHIP_PACKS = [
+  { id: 'chips_120', chips: 120, price: '2,99 zł' },
+  { id: 'chips_500', chips: 500, price: '8,99 zł', tag: 'clan' },
+  { id: 'chips_1200', chips: 1200, price: '19,99 zł' },
+  { id: 'chips_2800', chips: 2800, price: '39,99 zł', tag: 'popular' },
+  { id: 'chips_7500', chips: 7500, price: '89,99 zł', tag: 'best' },
+];
+G.packById = (id) => G.CHIP_PACKS.find((p) => p.id === id);
+// rewarded ads: off until an ad account (AdSense / H5 Games Ads) is set up — then on:true + client id
+// chips come ONLY from purchases and the campaign: an ad gives resources (share of storage), never chips
+G.ADS = { on: false, client: '', resPct: 0.1, perDay: 5, cooldown: 90 };
+// chips -> resources exchange (fill 10% / 50% / to the top of storage)
+G.resChipCost = (n) => (n > 0 ? Math.ceil(n / 200) + 1 : 0);
 // full stars earned for a destruction share 0..1 (every third = one star; 33% counts as 1)
 G.starsFor = (pct) => Math.max(0, Math.min(3, Math.floor(pct * 3 + 0.02)));
 
@@ -201,6 +216,7 @@ G.genBot = function (coreLv, seed) {
     s.unitLv = s.unitLv || {}; for (const u of G.UNIT_ORDER) s.unitLv[u] = Math.max(1, Math.min(G.RESEARCH.maxLv, s.unitLv[u] | 0 || 1));
     if (s.research && !G.UNITS[s.research.u]) s.research = null;
     s.trophies = Math.max(0, Math.floor(+s.trophies || 0));
+    s.ads = s.ads && typeof s.ads.day === 'string' ? { day: s.ads.day, n: Math.max(0, s.ads.n | 0), last: +s.ads.last || 0 } : { day: '', n: 0, last: 0 };
     s.nextId = Math.max(s.nextId || 1, ...s.buildings.map((b) => b.id + 1), 1);
     for (const b of s.buildings) { if (b.last == null) b.last = now; if (b.acc == null) b.acc = 0; }
     return s;
@@ -308,6 +324,19 @@ G.genBot = function (coreLv, seed) {
     return { cur, next, cost: R.cost[next - 1], time: R.time[next - 1], needLab: next - 1, blocked: E.labLevel(s) < next - 1 };
   };
 
+  // how much a chip exchange adds: part 'p10' | 'p50' | 'full'
+  E.buyResAmount = function (s, r, part) {
+    const cap = E.capOf(s, r), room = Math.max(0, cap - s.res[r]);
+    const want = part === 'full' ? room : Math.floor(cap * (part === 'p50' ? 0.5 : 0.1));
+    return Math.max(0, Math.min(room, want));
+  };
+  // rewarded ads today: {left, wait (seconds)}; the counter resets every UTC day
+  E.adState = function (s, now) {
+    const day = new Date(now).toISOString().slice(0, 10);
+    if (!s.ads || s.ads.day !== day) s.ads = { day, n: 0, last: (s.ads && s.ads.last) || 0 };
+    return { left: Math.max(0, G.ADS.perDay - s.ads.n), wait: Math.max(0, Math.ceil((s.ads.last + G.ADS.cooldown * 1000 - now) / 1000)) };
+  };
+
   function pay(s, res, cost) {
     if (s.res[res] < cost) return ERR('notEnough', { r: res });
     s.res[res] -= cost;
@@ -413,6 +442,26 @@ G.genBot = function (coreLv, seed) {
     if (c === 'search') { // looking for a PvP opponent costs copper
       const cost = 30 * E.coreLevel(s);
       return pay(s, 'copper', cost) || { ok: true };
+    }
+    if (c === 'buyRes') { // chips -> scrap/copper: 10%, 50% of storage, or fill it up
+      const r = cmd.r;
+      if (r !== 'scrap' && r !== 'copper') return ERR('server');
+      const n = E.buyResAmount(s, r, cmd.part);
+      if (n <= 0) return ERR('storageFull');
+      const cost = G.resChipCost(n);
+      if (s.res.chips < cost) return ERR('noChips');
+      s.res.chips -= cost; E.addRes(s, r, n);
+      return { ok: true, n, cost };
+    }
+    if (c === 'adReward') { // watched a rewarded ad (capped per day, with a cooldown)
+      if (!G.ADS.on) return ERR('adsOff');
+      const st = E.adState(s, now);
+      if (st.left <= 0) return ERR('adLimit');
+      if (st.wait > 0) return ERR('adWait', { n: st.wait });
+      s.ads.n++; s.ads.last = now;
+      const gained = {};
+      for (const r of ['scrap', 'copper']) gained[r] = E.addRes(s, r, Math.floor(E.capOf(s, r) * G.ADS.resPct));
+      return { ok: true, gained };
     }
     if (c === 'battle') return battle(s, cmd, now);
     if (c === 'meta') { // harmless, non-economic preferences
@@ -530,6 +579,52 @@ async function donate(uid, prof, s, cmd, now) {
   return { ok: true };
 }
 
+// ---------- Google Play purchases ----------
+// Needs the Supabase function secret PLAY_SERVICE_ACCOUNT = the JSON key of a Google Cloud service account
+// that has access to the app in Play Console (Users and permissions -> financial data / manage orders).
+const PLAY_PACKAGE = 'io.github.tostersky.cyberwar';
+let playTok = null;
+const b64url = (buf) => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+const b64urlStr = (s) => b64url(new TextEncoder().encode(s));
+async function playAccessToken() {
+  if (playTok && playTok.exp > Date.now() + 60000) return playTok.v;
+  const raw = Deno.env.get('PLAY_SERVICE_ACCOUNT');
+  if (!raw) return null;
+  const sa = JSON.parse(raw), iat = Math.floor(Date.now() / 1000);
+  const head = b64urlStr(JSON.stringify({ alg: 'RS256', typ: 'JWT' }));
+  const claim = b64urlStr(JSON.stringify({ iss: sa.client_email, scope: 'https://www.googleapis.com/auth/androidpublisher', aud: 'https://oauth2.googleapis.com/token', iat, exp: iat + 3600 }));
+  const pem = sa.private_key.replace(/-----[^-]+-----/g, '').replace(/\s+/g, '');
+  const der = Uint8Array.from(atob(pem), (c) => c.charCodeAt(0));
+  const key = await crypto.subtle.importKey('pkcs8', der, { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }, false, ['sign']);
+  const sig = await crypto.subtle.sign('RSASSA-PKCS1-v1_5', key, new TextEncoder().encode(head + '.' + claim));
+  const res = await fetch('https://oauth2.googleapis.com/token', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: 'grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer&assertion=' + head + '.' + claim + '.' + b64url(sig) });
+  const j = await res.json();
+  if (!j.access_token) throw new Error('play auth: ' + (j.error_description || j.error || res.status));
+  playTok = { v: j.access_token, exp: Date.now() + (j.expires_in || 3600) * 1000 };
+  return playTok.v;
+}
+// verify a purchase token with Google, credit the chips once, then consume it so it can be bought again
+async function playPurchase(uid, s, cmd) {
+  const pack = G.packById(String(cmd.product || '')), token = String(cmd.token || '');
+  if (!pack || !token || token.length > 4096) return { err: 'iapBad' };
+  const at = await playAccessToken();
+  if (!at) return { err: 'iapOff' };
+  const base = 'https://androidpublisher.googleapis.com/androidpublisher/v3/applications/' + PLAY_PACKAGE + '/purchases/products/' + pack.id + '/tokens/' + encodeURIComponent(token);
+  const r = await fetch(base, { headers: { Authorization: 'Bearer ' + at } });
+  if (!r.ok) return { err: 'iapBad' };
+  const p = await r.json();
+  if (p.purchaseState === 2) return { err: 'iapPending' };
+  if (p.purchaseState !== 0) return { err: 'iapBad' };
+  // the token is the primary key: a second credit attempt fails here
+  const { error } = await admin.from('purchases').insert({ token, user_id: uid, product: pack.id, chips: pack.chips, order_id: p.orderId || null });
+  let credited = 0;
+  if (!error) { G.Econ.addRes(s, 'chips', pack.chips); credited = pack.chips; }
+  else if (!/duplicate|unique/i.test(error.message || '')) return { err: 'server' };
+  if (p.consumptionState === 0) await fetch(base + ':consume', { method: 'POST', headers: { Authorization: 'Bearer ' + at } }).catch(() => {});
+  return { ok: true, chips: credited, product: pack.id };
+}
+
 const json = (o, status) => new Response(JSON.stringify(o), { status: status || 200, headers: { ...CORS, 'Content-Type': 'application/json' } });
 
 Deno.serve(async (req) => {
@@ -555,6 +650,7 @@ Deno.serve(async (req) => {
       if (!cmd || typeof cmd !== 'object') { results.push({ err: 'server' }); continue; }
       if (cmd.c === 'donate') { try { results.push(await donate(uid, prof, s, cmd, now)); } catch (e) { results.push({ err: 'server' }); } continue; }
       if (cmd.c === 'donate_out') { results.push({ err: 'server' }); continue; } // only via 'donate'
+      if (cmd.c === 'iap') { try { results.push(await playPurchase(uid, s, cmd)); } catch (e) { results.push({ err: 'server', message: String(e && e.message || e) }); } continue; }
       if (cmd.c === 'createClan') {
         // paid: charge the chips only if the clan was really created
         if (s.res.chips < G.CLAN_PRICE) { results.push({ err: 'noChips' }); continue; }
