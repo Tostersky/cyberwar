@@ -1,5 +1,5 @@
 // Game data: buildings, units, heroes, campaign. All numbers are CyberWar's own.
-G.TW = 64; G.TH = 32; G.MAP = 40; G.VERSION = '0.9.2';
+G.TW = 64; G.TH = 32; G.MAP = 40; G.VERSION = '0.9.3';
 G.BUILDERS = 2;
 
 // every array has one value per level (1..8)

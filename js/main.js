@@ -63,6 +63,11 @@
   }
   requestAnimationFrame(loop);
 
+  // landscape only: browsers that allow it (Android app / fullscreen) get the rotation locked
+  const lockLandscape = () => { try { const o = screen.orientation; if (o && o.lock) o.lock('landscape').catch(() => {}); } catch (_) {} };
+  lockLandscape();
+  window.addEventListener('pointerdown', lockLandscape, { once: true });
+
   setInterval(() => G.save(true), 5000);
   document.addEventListener('visibilitychange', () => { if (document.hidden) G.save(true); });
   window.addEventListener('pagehide', () => G.save(true));
