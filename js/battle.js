@@ -30,7 +30,9 @@
     b.sel = nextSel();
     b.holdAcc = 0;
     b.cam.center(); b.cam.z *= 1.05;
-    G.state.flags.battled = true;
+    // scouting someone's village: just look, nothing can be deployed
+    if (opts.mode === 'scout') { b.avail = {}; b.availClan = {}; b.heroes = {}; b.sel = null; b.ended = true; b.showZone = 0; }
+    else G.state.flags.battled = true;
     G.Sfx.play('open');
     G.scene = b;
     G.UI.showBattle();

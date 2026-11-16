@@ -89,8 +89,41 @@
     const bub = hitBubble(sx, sy);
     if (bub) { collectFrom(bub); return; }
     const b = hitBuilding(sx, sy);
-    if (!b) { V.select(null); return; }
+    if (!b) { const o = hitObstacle(sx, sy); if (o) { V.selectObs(o); return; } V.select(null); return; }
     V.select(b);
+  };
+  // obstacles: the tile you touched, or the body of a tall one (synth trees)
+  function hitObstacle(sx, sy) {
+    const [wx, wy] = V.cam.toWorld(sx, sy);
+    const [tx, ty] = G.worldToTile(wx, wy);
+    const list = (G.state.obstacles || []).slice().sort((a, b) => (b.x + b.y) - (a.x + a.y));
+    for (const o of list) {
+      const s = G.OBSTACLES[o.type].size;
+      if (tx >= o.x && tx < o.x + s && ty >= o.y && ty < o.y + s) return o;
+    }
+    for (const o of list) {
+      const s = G.OBSTACLES[o.type].size, sp = G.Art.obsSprite(o.type, o.id % 3);
+      const [cx, cy] = G.tileToWorld(o.x + s / 2, o.y + s / 2);
+      if (Math.abs(wx - cx) < s * 14 && wy < cy + 4 && wy > cy - sp.top) return o;
+    }
+    return null;
+  }
+  V.selectObs = function (o) {
+    V.sel = null; V.selObs = o;
+    if (o) G.UI.showObsSel(o); else G.UI.hideSel();
+  };
+  V.clearObs = function (o) {
+    const r = G.act({ c: 'clearObs', id: o.id });
+    if (r.err) { G.UI.toast(G.t(r.err, r.p && r.p.r ? { r: G.t(r.p.r) } : r.p)); return false; }
+    const s = G.OBSTACLES[o.type].size, [wx, wy] = G.tileToWorld(o.x + s / 2, o.y + s / 2);
+    for (let i = 0; i < 18; i++) {
+      const a = Math.random() * Math.PI * 2, sp = 30 + Math.random() * 60;
+      G.World.emit({ k: 'debris', x: wx, y: wy - 8, vx: Math.cos(a) * sp, vy: -40 - Math.random() * 60, g: 220, r: 2 + Math.random() * 2, life: 0.8, max: 0.8, c: '#3a3640', rot: Math.random() * 6, vr: (Math.random() - 0.5) * 12, floor: wy + 6 });
+    }
+    G.World.emit({ k: 'smoke', x: wx, y: wy - 6, vx: 0, vy: -14, r: 10, gr: 14, life: 1.6, max: 1.6, c: '60,56,70', a: 0.5 });
+    V.floats.push({ wx, wy: wy - 30, text: G.t('cleared'), color: '#39ff88', life: 1.4 });
+    G.Sfx.play('build'); V.selObs = null; G.UI.hideSel(); G.UI.refreshHud();
+    return true;
   };
   // collector bubbles: visible when enough has piled up; returns the collector under the finger
   V.bubbleAt = function (b) {
@@ -121,7 +154,7 @@
     G.save();
   }
   V.select = function (b) {
-    V.sel = b;
+    V.sel = b; V.selObs = null;
     if (b && B[b.type].prod && G.state.flags && !G.state.flags.collected) { G.state.flags.collected = true; G.save(); }
     if (b) G.UI.showSel(b); else G.UI.hideSel();
   };
@@ -295,9 +328,18 @@
       ctx.save(); ctx.shadowColor = '#19f0ff'; ctx.shadowBlur = 12; ctx.globalAlpha = pulse + 0.2;
       G.R.diamond(ctx, V.sel.x, V.sel.y, s, 'rgba(25,240,255,.12)', '#19f0ff', 2); ctx.restore();
     }
-    const items = list.map((b) => ({ d: b.x + b.y + B[b.type].size, b })).concat(G.World.propItems());
+    if (V.selObs) {
+      const s = G.OBSTACLES[V.selObs.type].size, pulse = 0.5 + Math.sin(V.t * 5) * 0.3;
+      ctx.save(); ctx.globalAlpha = pulse + 0.2; G.R.diamond(ctx, V.selObs.x, V.selObs.y, s, 'rgba(255,225,77,.12)', '#ffe14d', 2); ctx.restore();
+    }
+    const obs = (G.state.obstacles || []).map((o) => ({ d: o.x + o.y + G.OBSTACLES[o.type].size, o }));
+    const items = list.map((b) => ({ d: b.x + b.y + B[b.type].size, b })).concat(obs, G.World.propItems());
     items.sort((a, b) => a.d - b.d);
-    for (const it of items) { if (it.b) drawBuilding(ctx, it.b, t, walls); else G.World.drawProp(ctx, it.prop); }
+    for (const it of items) {
+      if (it.b) drawBuilding(ctx, it.b, t, walls);
+      else if (it.o) { const [wx, wy] = G.tileToWorld(it.o.x, it.o.y); G.Art.drawSprite(ctx, G.Art.obsSprite(it.o.type, it.o.id % 3), wx, wy); }
+      else G.World.drawProp(ctx, it.prop);
+    }
     if (V.drag) {
       // the building being dragged, lifted slightly, with a green/red footprint
       const d = V.drag, s = B[d.b.type].size, ok = V.dragValid();

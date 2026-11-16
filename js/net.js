@@ -251,6 +251,9 @@ G.Net = (function () {
     await ensureFresh();
     await req('/rest/v1/feedback?id=eq.' + id, { method: 'PATCH', auth: true, headers: { Prefer: 'return=minimal' }, body: fields });
   };
+  // find players by nickname / look at someone's village
+  N.searchPlayers = async function (q) { await ensureFresh(); return (await rpc('search_players', { p_q: q })) || []; };
+  N.viewBase = async function (uid) { await ensureFresh(); const r = await rpc('view_base', { p_user: uid }); return r && r[0] ? r[0] : null; };
   // revenge: the attacker's base (once per attack, within 24 h)
   N.revengeTarget = async function (attackId) {
     await ensureFresh();

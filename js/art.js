@@ -504,6 +504,111 @@
     cache.set(key, sp);
     return sp;
   };
+  // ---------- obstacles on the home map ----------
+  const DRAWO = {
+    wreck(x, ox, oy, s, r) { // burnt-out hover car lying a bit askew
+      const c = P(ox, oy, s / 2, s / 2);
+      x.fillStyle = 'rgba(0,0,0,.45)'; x.beginPath(); x.ellipse(c[0], c[1] + 2, 52, 22, 0, 0, Math.PI * 2); x.fill();
+      x.save(); x.translate(c[0], c[1] - 8); x.scale(1.65, 1.65); x.rotate((r() - 0.5) * 0.5);
+      const body = ['#6a4a58', '#4a5870', '#70503e'][Math.floor(r() * 3)];
+      x.fillStyle = shade(body, 0.7); x.beginPath(); x.moveTo(-30, 4); x.lineTo(28, 4); x.lineTo(24, 12); x.lineTo(-26, 12); x.closePath(); x.fill();
+      x.fillStyle = body; x.beginPath(); x.moveTo(-32, 4); x.lineTo(-24, -6); x.lineTo(20, -6); x.lineTo(30, 4); x.closePath(); x.fill();
+      x.fillStyle = shade(body, 1.25); x.beginPath(); x.moveTo(-14, -6); x.lineTo(-8, -15); x.lineTo(10, -15); x.lineTo(15, -6); x.closePath(); x.fill();
+      x.fillStyle = '#0b0d14'; x.beginPath(); x.moveTo(-11, -7); x.lineTo(-7, -13); x.lineTo(3, -13); x.lineTo(3, -7); x.closePath(); x.fill();
+      // scorch marks, rust, broken neon strip
+      x.fillStyle = 'rgba(0,0,0,.45)'; x.beginPath(); x.ellipse(-12 + r() * 20, -1, 10, 4, 0, 0, Math.PI * 2); x.fill();
+      x.fillStyle = 'rgba(160,80,30,.6)'; for (let i = 0; i < 6; i++) x.fillRect(-26 + r() * 50, -4 + r() * 12, 2 + r() * 3, 1.5);
+      line(x, [-28, 2], [-8, 2], '#ff2bd6', 1.2, 6); line(x, [4, 2], [12, 2], 'rgba(255,43,214,.35)', 1.2);
+      // a dead headlight and a wisp of smoke-black on the hood
+      x.fillStyle = '#ffe14d'; x.globalAlpha = 0.5; x.fillRect(24, 0, 4, 2); x.globalAlpha = 1;
+      x.restore();
+      return 44;
+    },
+    crates(x, ox, oy, s, r) { // two or three cargo containers stacked
+      const cols = ['#7a2a3a', '#2a5a7a', '#6a6a2a', '#2a6a4a'];
+      x.fillStyle = 'rgba(0,0,0,.4)'; const c = P(ox, oy, s / 2, s / 2); x.beginPath(); x.ellipse(c[0], c[1] + 2, 32, 15, 0, 0, Math.PI * 2); x.fill();
+      const c1 = cols[Math.floor(r() * 4)], c2 = cols[Math.floor(r() * 4)];
+      const f = box(x, ox, oy, 0.15, 0.25, s - 0.15, 1.05, 0, 13, pal(c1));
+      for (let k = 0.12; k < 1; k += 0.12) { const p = fp(f, 'L', k, 0); line(x, [p[0], p[1] - 1], [p[0], p[1] - 12], 'rgba(0,0,0,.35)', 0.8); }
+      box(x, ox, oy, 0.2, 1.1, s - 0.25, s - 0.15, 0, 13, pal(c2));
+      if (r() < 0.7) { const f3 = box(x, ox, oy, 0.35, 0.45, s - 0.5, 1.0, 13, 25, pal(cols[Math.floor(r() * 4)])); faceLines(x, f3, 22, 'rgba(255,225,77,.5)', 0.8); return 40; }
+      return 26;
+    },
+    rubble(x, ox, oy, s, r) { // collapsed concrete with rebar and a flickering sign
+      const c = P(ox, oy, s / 2, s / 2);
+      x.fillStyle = 'rgba(0,0,0,.4)'; x.beginPath(); x.ellipse(c[0], c[1] + 2, 34, 16, 0, 0, Math.PI * 2); x.fill();
+      const ps = [];
+      for (let i = 0; i < 9; i++) ps.push({ px: 0.2 + r() * (s - 0.8), py: 0.2 + r() * (s - 0.8), w: 0.3 + r() * 0.5, h: 3 + r() * 10 });
+      ps.sort((a, b) => a.px + a.py - b.px - b.py);
+      for (const p of ps) box(x, ox, oy, p.px, p.py, Math.min(s - 0.1, p.px + p.w), Math.min(s - 0.1, p.py + p.w * (0.6 + r() * 0.6)), 0, p.h, pal(r() < 0.5 ? '#4a4652' : '#3c3a44'));
+      for (let i = 0; i < 4; i++) { const q = P(ox, oy, 0.4 + r() * (s - 0.8), 0.4 + r() * (s - 0.8)); line(x, [q[0], q[1] - 6], [q[0] + (r() - 0.5) * 12, q[1] - 16 - r() * 8], '#8a5a3a', 1.1); }
+      const q = P(ox, oy, s * 0.6, s * 0.35); line(x, [q[0] - 8, q[1] - 10], [q[0] + 6, q[1] - 14], '#19f0ff', 1.3, 8);
+      return 28;
+    },
+    barrel(x, ox, oy, s, r) { // leaking toxic barrels with a green glow
+      const c = P(ox, oy, 0.5, 0.5);
+      x.save(); x.globalAlpha = 0.5; x.drawImage(G.World.glow('#39ff88'), c[0] - 18, c[1] - 8, 36, 16); x.restore();
+      x.fillStyle = 'rgba(57,255,136,.35)'; x.beginPath(); x.ellipse(c[0] + 4, c[1] + 2, 12, 5, 0, 0, Math.PI * 2); x.fill();
+      const pos = [[-6, -2], [5, 1], [r() < 0.5 ? -1 : 9, -6]];
+      for (const [dx, dy] of pos) {
+        const col = ['#b8a020', '#a05020', '#2a6a8a'][Math.floor(r() * 3)];
+        cyl(x, c[0] + dx, c[1] + dy, 5.5, 0, 14, col, shade(col, 1.2));
+        x.fillStyle = 'rgba(0,0,0,.4)'; x.fillRect(c[0] + dx - 5.5, c[1] + dy - 9, 11, 1.2);
+        dot(x, c[0] + dx, c[1] + dy - 14, 1.6, '#39ff88', 8);
+      }
+      return 22;
+    },
+    tree(x, ox, oy, s, r) { // synthetic tree: metal trunk, glowing fibre-optic crown
+      const c = P(ox, oy, 0.5, 0.5), col = ['#ff2bd6', '#19f0ff', '#b26bff', '#39ff88'][Math.floor(r() * 4)];
+      x.fillStyle = 'rgba(0,0,0,.45)'; x.beginPath(); x.ellipse(c[0], c[1], 12, 6, 0, 0, Math.PI * 2); x.fill();
+      x.fillStyle = '#2a2a36'; x.beginPath(); x.ellipse(c[0], c[1] - 1, 7, 3.5, 0, 0, Math.PI * 2); x.fill();
+      x.strokeStyle = '#555a6a'; x.lineWidth = 2.6; x.beginPath(); x.moveTo(c[0], c[1] - 2); x.lineTo(c[0] + 1, c[1] - 26); x.stroke();
+      const h = 30 + r() * 10;
+      x.save(); x.globalCompositeOperation = 'lighter';
+      for (let i = 0; i < 16; i++) {
+        const a = -Math.PI / 2 + (r() - 0.5) * 2.6, len = 10 + r() * 14;
+        x.strokeStyle = col; x.globalAlpha = 0.55; x.lineWidth = 1;
+        x.beginPath(); x.moveTo(c[0] + 1, c[1] - 24); x.quadraticCurveTo(c[0] + Math.cos(a) * len * 0.6, c[1] - h, c[0] + Math.cos(a) * len, c[1] - 24 - Math.sin(-a) * len * 0.4 + 6); x.stroke();
+        x.globalAlpha = 0.9; x.fillStyle = col; x.fillRect(c[0] + Math.cos(a) * len - 1, c[1] - 24 - Math.sin(-a) * len * 0.4 + 5, 2, 2);
+      }
+      x.globalAlpha = 0.25; x.drawImage(G.World.glow(col), c[0] - 22, c[1] - h - 12, 44, 36);
+      x.restore();
+      return h + 6;
+    },
+    block(x, ox, oy, s, r) { // concrete block with spray paint and sticking-out rebar
+      x.fillStyle = 'rgba(0,0,0,.4)'; const c = P(ox, oy, 0.5, 0.5); x.beginPath(); x.ellipse(c[0], c[1] + 1, 15, 7, 0, 0, Math.PI * 2); x.fill();
+      const f = box(x, ox, oy, 0.12, 0.12, 0.88, 0.88, 0, 12 + r() * 6, pal('#55525e'));
+      const p = fp(f, 'L', 0.5, 6), tag = ['#ff2bd6', '#19f0ff', '#ffe14d'][Math.floor(r() * 3)];
+      x.strokeStyle = tag; x.lineWidth = 1.2; x.beginPath(); x.moveTo(p[0] - 5, p[1]); x.quadraticCurveTo(p[0], p[1] - 5, p[0] + 5, p[1] + 1); x.stroke();
+      line(x, [c[0] + 2, c[1] - f.z1], [c[0] + 5, c[1] - f.z1 - 7], '#8a5a3a', 1.1);
+      line(x, [c[0] - 3, c[1] - f.z1 + 1], [c[0] - 5, c[1] - f.z1 - 5], '#8a5a3a', 1.1);
+      return f.z1 + 8;
+    },
+  };
+  A.obsSprite = function (type, variant) {
+    const key = 'o' + type + variant;
+    let sp = cache.get(key);
+    if (sp) return sp;
+    const s = G.OBSTACLES[type].size;
+    const w = s * TW + PADX * 2, h = s * TH + HEAD + 10;
+    const [c, x] = mk(w, h, SS);
+    const ox = s * TW / 2 + PADX, oy = HEAD;
+    const top = DRAWO[type](x, ox, oy, s, G.rng(hash(key)));
+    sp = { c, ax: ox, ay: oy, w, h, top, s };
+    cache.set(key, sp);
+    return sp;
+  };
+  A.obsThumb = function (type) {
+    const key = 'ot' + type;
+    if (thumbs.has(key)) return thumbs.get(key);
+    const sp = A.obsSprite(type, 0);
+    const [c, x] = mk(96, 96, 1);
+    const top = Math.min(sp.top, HEAD), srcY = (HEAD - top) * SS, srcH = (top + sp.s * TH + 4) * SS;
+    const k = Math.min(92 / sp.w, 92 / (srcH / SS));
+    x.drawImage(sp.c, 0, srcY, sp.c.width, srcH, (96 - sp.w * k) / 2, (96 - srcH / SS * k) / 2, sp.w * k, srcH / SS * k);
+    const url = c.toDataURL(); thumbs.set(key, url); return url;
+  };
+
   A.drawSprite = function (ctx, sp, wx, wy, alpha) {
     if (alpha != null) ctx.globalAlpha = alpha;
     ctx.drawImage(sp.c, wx - sp.ax, wy - sp.ay, sp.w, sp.h);

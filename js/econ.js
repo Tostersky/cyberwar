@@ -17,8 +17,52 @@
     const add = (type, x, y) => s.buildings.push({ id: s.nextId++, type, level: 1, x, y, acc: BD()[type].prod ? 150 : 0, last: now, busyUntil: 0, busyStart: 0, upTo: 0 });
     add('core', 18, 18); add('scrapyard', 13, 18); add('coppermine', 23, 18); add('factory', 18, 13); add('squadhq', 18, 23);
     add('laser', 14, 14);
+    E.ensureObstacles(s, now);
     return s;
   };
+
+  // ---------- obstacles (wrecks, crates, rubble...) ----------
+  const obsHash = (str) => { let h = 2166136261; for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; };
+  const OBS = () => G.OBSTACLES;
+  // free for an obstacle: inside the build area, not on a building/obstacle, and 1 tile away from buildings
+  function obsFree(s, x, y, sz) {
+    const M = G.MAP;
+    if (x < 2 || y < 2 || x + sz > M - 2 || y + sz > M - 2) return false;
+    for (const b of s.buildings) {
+      const bs = BD()[b.type].size;
+      if (x < b.x + bs + 1 && x + sz > b.x - 1 && y < b.y + bs + 1 && y + sz > b.y - 1) return false;
+    }
+    for (const o of s.obstacles || []) {
+      const os = OBS()[o.type].size;
+      if (x < o.x + os && x + sz > o.x && y < o.y + os && y + sz > o.y) return false;
+    }
+    return true;
+  }
+  // spawns one obstacle (deterministic: the same on the phone and on the server)
+  function spawnObstacle(s) {
+    const r = G.rng(obsHash('obs:' + (s.created || 0) + ':' + (s.obsN || 0)));
+    s.obsN = (s.obsN || 0) + 1;
+    const types = Object.keys(OBS());
+    for (let tries = 0; tries < 60; tries++) {
+      const type = types[Math.floor(r() * types.length)], sz = OBS()[type].size;
+      const x = 2 + Math.floor(r() * (G.MAP - 4 - sz)), y = 2 + Math.floor(r() * (G.MAP - 4 - sz));
+      if (obsFree(s, x, y, sz)) { s.obstacles.push({ id: s.obsN, type, x, y }); return true; }
+    }
+    return false;
+  }
+  // first visit: a map full of junk; then one more every 6 hours (up to the limit)
+  E.ensureObstacles = function (s, now) {
+    if (!Array.isArray(s.obstacles)) s.obstacles = [];
+    if (!s.obsInit) { s.obsInit = true; for (let i = 0; i < G.OBS_START; i++) spawnObstacle(s); s.obsNext = now + G.OBS_EVERY; }
+    if (!s.obsNext) s.obsNext = now + G.OBS_EVERY;
+    for (let k = 0; k < 4 && now >= s.obsNext; k++) {
+      if (s.obstacles.length < G.OBS_MAX) spawnObstacle(s);
+      s.obsNext += G.OBS_EVERY;
+    }
+    if (now >= s.obsNext) s.obsNext = now + G.OBS_EVERY;
+  };
+  E.obsCost = (s, o) => Math.round(OBS()[o.type].cost * (1 + (E.coreLevel(s) - 1) * 0.6) / 10) * 10;
+  E.findObs = (s, id) => (s.obstacles || []).find((o) => o.id === id);
   // repair / fill missing fields of an old or untrusted save
   E.norm = function (s, now) {
     s.v = 1;
@@ -34,6 +78,9 @@
     s.trophies = Math.max(0, Math.floor(+s.trophies || 0));
     s.daily = s.daily && typeof s.daily.last === 'string' ? { last: s.daily.last, streak: Math.max(1, Math.min(7, s.daily.streak | 0)) } : null;
     if (!(s.mis && typeof s.mis.day === 'string' && Array.isArray(s.mis.list) && s.mis.list.every((m) => m && G.MISSIONS[m.id]))) s.mis = null;
+    // obstacles: drop broken rows; old saves get their first batch here
+    if (Array.isArray(s.obstacles)) s.obstacles = s.obstacles.filter((o) => o && G.OBSTACLES[o.type] && Number.isInteger(o.x) && Number.isInteger(o.y)).slice(0, G.OBS_MAX);
+    E.ensureObstacles(s, now);
     s.vipUntil = Math.max(0, +s.vipUntil || 0); s.shieldUntil = Math.max(0, +s.shieldUntil || 0); if (typeof s.vipToken !== 'string') delete s.vipToken;
     s.ads = s.ads && typeof s.ads.day === 'string' ? { day: s.ads.day, n: Math.max(0, s.ads.n | 0), last: +s.ads.last || 0 } : { day: '', n: 0, last: 0 };
     s.nextId = Math.max(s.nextId || 1, ...s.buildings.map((b) => b.id + 1), 1);
@@ -75,6 +122,11 @@
       const bs = BD()[b.type].size;
       if (x < b.x + bs && x + sz > b.x && y < b.y + bs && y + sz > b.y) return false;
     }
+    // obstacles must be removed first
+    for (const o of s.obstacles || []) {
+      const os = G.OBSTACLES[o.type].size;
+      if (x < o.x + os && x + sz > o.x && y < o.y + os && y + sz > o.y) return false;
+    }
     return true;
   };
   E.upgradeInfo = function (s, b) {
@@ -106,6 +158,7 @@
   // finishes constructions and training up to `now`; returns events [{kind:'built', id}]
   E.tick = function (s, now) {
     const ev = [];
+    if (s.obstacles && now >= (s.obsNext || 0)) E.ensureObstacles(s, now);
     for (const b of s.buildings) {
       if (b.busyUntil && b.busyUntil <= now) {
         E.updateCollector(b, b.busyUntil, s);
@@ -325,6 +378,13 @@
       const g = grant(s, G.MISSION_REWARD);
       return { ok: true, gained: g.gained };
     }
+    if (c === 'clearObs') { // remove an obstacle (pay resources, frees the space)
+      const o = E.findObs(s, cmd.id); if (!o) return ERR('badPlace');
+      const res = G.OBSTACLES[o.type].res, cost = E.obsCost(s, o);
+      const e = pay(s, res, cost); if (e) return e;
+      s.obstacles = s.obstacles.filter((q) => q !== o);
+      return { ok: true, type: o.type };
+    }
     if (c === 'revenged') { // revenge used for this attack (the server-side check is in revenge_target)
       const e = s.defLog.find((a) => a.aid === cmd.aid); if (e) e.rev = true;
       return { ok: true };
@@ -360,7 +420,7 @@
       return { ok: true };
     }
     if (c === 'reset') {
-      const keep = { name: s.name, owner: s.owner, trophies: s.trophies, lang: s.lang, settings: s.settings, defLog: s.defLog, vipUntil: s.vipUntil, vipToken: s.vipToken, vipCheck: s.vipCheck, ads: s.ads, daily: s.daily };
+      const keep = { name: s.name, owner: s.owner, trophies: s.trophies, lang: s.lang, settings: s.settings, defLog: s.defLog, vipUntil: s.vipUntil, vipToken: s.vipToken, vipCheck: s.vipCheck, ads: s.ads, daily: s.daily, created: s.created };
       const n = E.newGame(now, s.name);
       for (const k of Object.keys(s)) delete s[k];
       Object.assign(s, n, keep, { tut: 99 });

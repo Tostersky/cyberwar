@@ -358,16 +358,78 @@
     const ox = w / 2, oy = 0;
     const r = G.rng(1234);
     const isRoad = (tx, ty) => tx < 2 || ty < 2 || tx >= M - 2 || ty >= M - 2;
+    // 0 = tech plates (centre), 1 = steel grating, 2 = cracked concrete — blobby districts from a few seeds
+    const seeds = []; for (let i = 0; i < 14; i++) seeds.push([2 + r() * (M - 4), 2 + r() * (M - 4), i < 2 ? 0 : 1 + (i % 2)]);
+    seeds.push([M / 2, M / 2, 0]);
+    const zoneOf = (tx, ty) => {
+      let best = 0, bd = 1e9;
+      for (const s of seeds) { const d = Math.hypot(tx - s[0], ty - s[1]) * (s[2] === 0 ? 0.6 : 1); if (d < bd) { bd = d; best = s[2]; } }
+      return best;
+    };
     for (let ty = 0; ty < M; ty++) for (let tx = 0; tx < M; tx++) {
       const a = P(ox, oy, tx, ty), b = P(ox, oy, tx + 1, ty), cc = P(ox, oy, tx + 1, ty + 1), d = P(ox, oy, tx, ty + 1);
       const v = 0.9 + r() * 0.2;
       if (isRoad(tx, ty)) poly(x, [a, b, cc, d], shade('#0d0c15', v), null);
       else {
-        const base = ((tx >> 1) + (ty >> 1)) & 1 ? '#17142c' : '#151229';
-        poly(x, [a, b, cc, d], shade(base, v), 'rgba(60,50,110,.35)', 0.7);
-        // plate bolts
-        if (((tx + ty) & 3) === 0) { x.fillStyle = 'rgba(120,110,170,.25)'; x.fillRect(a[0] - 1, a[1] + 3, 2, 1.5); }
+        // districts of different ground: tech plates, steel grating, cracked concrete
+        const zone = zoneOf(tx, ty);
+        if (zone === 0) {
+          const base = ((tx >> 1) + (ty >> 1)) & 1 ? '#191532' : '#16122c';
+          poly(x, [a, b, cc, d], shade(base, v), 'rgba(70,60,130,.4)', 0.7);
+          if (((tx + ty) & 3) === 0) { x.fillStyle = 'rgba(140,130,200,.3)'; x.fillRect(a[0] - 1, a[1] + 3, 2, 1.5); }
+        } else if (zone === 1) {
+          poly(x, [a, b, cc, d], shade('#10161e', v), 'rgba(50,90,110,.35)', 0.7);
+          x.strokeStyle = 'rgba(80,130,150,.16)'; x.lineWidth = 0.6;
+          for (let k = 0.25; k < 1; k += 0.25) { const p1 = P(ox, oy, tx + k, ty), p2 = P(ox, oy, tx + k, ty + 1); x.beginPath(); x.moveTo(p1[0], p1[1]); x.lineTo(p2[0], p2[1]); x.stroke(); }
+        } else {
+          poly(x, [a, b, cc, d], shade(r() < 0.5 ? '#1d1b24' : '#1a1820', v), 'rgba(40,38,52,.6)', 0.6);
+        }
       }
+    }
+    // glowing circuit traces running along the tile seams, with solder nodes
+    x.save(); x.globalCompositeOperation = 'lighter'; x.lineCap = 'round';
+    for (let i = 0; i < 26; i++) {
+      let tx = 3 + Math.floor(r() * (M - 6)), ty = 3 + Math.floor(r() * (M - 6));
+      const col = ['#19f0ff', '#ff2bd6', '#7f6bff', '#39ff88'][Math.floor(r() * 4)];
+      x.strokeStyle = col; x.globalAlpha = 0.22; x.lineWidth = 1.4;
+      x.shadowColor = col; x.shadowBlur = 6;
+      let p = P(ox, oy, tx, ty); x.beginPath(); x.moveTo(p[0], p[1]);
+      const nodes = [p];
+      for (let k = 0; k < 5 + Math.floor(r() * 6); k++) {
+        const len = 1 + Math.floor(r() * 4);
+        if (r() < 0.5) tx = Math.max(2, Math.min(M - 2, tx + (r() < 0.5 ? -len : len))); else ty = Math.max(2, Math.min(M - 2, ty + (r() < 0.5 ? -len : len)));
+        p = P(ox, oy, tx, ty); x.lineTo(p[0], p[1]); nodes.push(p);
+      }
+      x.stroke(); x.shadowBlur = 0;
+      x.globalAlpha = 0.6; x.fillStyle = col;
+      for (const n of nodes) { x.beginPath(); x.ellipse(n[0], n[1], 2.2, 1.2, 0, 0, Math.PI * 2); x.fill(); }
+    }
+    x.restore(); x.globalAlpha = 1;
+    // bio-luminescent moss creeping out of the cracks
+    for (let i = 0; i < 16; i++) {
+      const c0 = P(ox, oy, 3 + r() * (M - 6), 3 + r() * (M - 6)), col = r() < 0.6 ? [57, 255, 160] : [25, 220, 255];
+      for (let k = 0; k < 26; k++) {
+        const px = c0[0] + (r() - 0.5) * 70, py = c0[1] + (r() - 0.5) * 32, rr = 2 + r() * 6;
+        x.fillStyle = `rgba(${col[0] * 0.25 | 0},${col[1] * 0.35 | 0},${col[2] * 0.3 | 0},${0.45 + r() * 0.3})`;
+        x.beginPath(); x.ellipse(px, py, rr, rr * 0.5, 0, 0, Math.PI * 2); x.fill();
+        if (r() < 0.35) { x.fillStyle = `rgba(${col[0]},${col[1]},${col[2]},.55)`; x.fillRect(px, py, 1.4, 1.4); }
+      }
+    }
+    // gravel and dirt drifts
+    for (let i = 0; i < 10; i++) {
+      const c0 = P(ox, oy, 3 + r() * (M - 6), 3 + r() * (M - 6));
+      x.fillStyle = 'rgba(70,58,50,.35)'; x.beginPath(); x.ellipse(c0[0], c0[1], 40 + r() * 30, 16 + r() * 10, 0, 0, Math.PI * 2); x.fill();
+      for (let k = 0; k < 60; k++) { x.fillStyle = r() < 0.5 ? 'rgba(150,130,110,.35)' : 'rgba(20,16,14,.5)'; x.fillRect(c0[0] + (r() - 0.5) * 80, c0[1] + (r() - 0.5) * 30, 1.6, 1.2); }
+    }
+    // landing pad stencil
+    {
+      const c0 = P(ox, oy, 7, 31);
+      x.strokeStyle = 'rgba(255,225,77,.35)'; x.lineWidth = 2;
+      x.beginPath(); x.ellipse(c0[0], c0[1], 46, 23, 0, 0, Math.PI * 2); x.stroke();
+      x.beginPath(); x.ellipse(c0[0], c0[1], 38, 19, 0, 0, Math.PI * 2); x.stroke();
+      x.save(); x.translate(c0[0], c0[1]); x.transform(1, 0, 0, 0.5, 0, 0); x.rotate(Math.PI / 4);
+      x.fillStyle = 'rgba(255,225,77,.3)'; x.fillRect(-14, -16, 6, 32); x.fillRect(8, -16, 6, 32); x.fillRect(-8, -3, 16, 6);
+      x.restore();
     }
     // asphalt grain on the road
     for (let i = 0; i < 4000; i++) {

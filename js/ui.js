@@ -212,6 +212,16 @@
     $('#hud-bottom').classList.add('dim');
   };
   U.hideSel = function () { $('#selbar').classList.add('hidden'); $('#hud-bottom').classList.remove('dim'); };
+  // obstacle selected: name + remove button with the cost
+  U.showObsSel = function (o) {
+    const el = $('#selbar'), d = G.OBSTACLES[o.type], cost = G.Econ.obsCost(G.state, o);
+    el.innerHTML = `<div class="sb-title">${t('o_' + o.type)} <small>${t('obstacle')}</small></div>
+      <div class="sb-status">${t('obsHint')}</div>
+      <div class="sb-btns"><button class="sb-btn" id="sb-clear"><span class="sb-ic">${IC.x}</span><span class="sb-l">${t('remove')}</span><span class="sb-c">${resIc(d.res)}${G.fmt(cost)}</span></button></div>`;
+    el.classList.remove('hidden'); el.dataset.id = '';
+    $('#sb-clear').onclick = () => G.Village.clearObs(o);
+    $('#hud-bottom').classList.add('dim');
+  };
 
   U.showPlace = function () {
     U.hideSel();
@@ -400,6 +410,7 @@
           ${locked ? `<div class="c-lock">${t('factoryAt', { n: d.unlock })}</div>` :
             `<div class="c-cost">${costHtml('copper', d.cost, s.res.copper >= d.cost)}</div><div class="c-time">${d.space} ${t('housing').toLowerCase()} · ${d.time}s</div>`}
           <div class="c-have">${s.army[u]}</div><div class="c-cnt">${t('level')} ${(s.unitLv && s.unitLv[u]) || 1}</div>
+          <span class="c-info" data-info="${u}">i</span>
         </button>`;
       }).join('');
       let qhtml = '';
@@ -420,7 +431,7 @@
       }
       const heroes = G.HERO_ORDER.map((h) => {
         const ok = G.heroUnlocked(h);
-        return `<div class="hero ${ok ? '' : 'locked'}"><img src="${G.Art.unitThumb(h)}" alt=""><div><div class="c-name">${t('h_' + h)}</div><p>${t('hd_' + h)}</p>
+        return `<div class="hero ${ok ? '' : 'locked'}"><span class="c-info" data-info="${h}">i</span><img src="${G.Art.unitThumb(h)}" alt=""><div><div class="c-name">${t('h_' + h)}</div><p>${t('hd_' + h)}</p>
           <div class="${ok ? 'ok' : 'warn'}">${ok ? t('available') : t('unlockAt', { n: G.HEROES[h].unlock })}</div></div></div>`;
       }).join('');
       return `<div class="cap-row"><span>${t('capacity')}</span><div class="bar big"><b style="width:${cap ? Math.min(100, used / cap * 100) : 0}%"></b><i style="left:${cap ? Math.min(100, used / cap * 100) : 0}%;width:${cap ? Math.min(100 - used / cap * 100, q / cap * 100) : 0}%"></i></div><b>${used + q}/${cap}</b></div>
@@ -429,8 +440,10 @@
         <h3>${t('heroes')}</h3><div class="heroes">${heroes}</div>`;
     };
     const bind = () => {
+      document.querySelectorAll('#modal .hero .c-info').forEach((c) => { c.onclick = () => U.openUnitInfo(c.dataset.info, true); });
       document.querySelectorAll('#modal .card.unit').forEach((c) => {
-        c.onclick = () => {
+        c.onclick = (ev) => {
+          if (ev.target.closest('.c-info')) { U.openUnitInfo(c.dataset.u, true); return; }
           const e = G.trainUnit(c.dataset.u);
           if (e) U.toast(e);
           refresh(); U.refreshHud();
@@ -442,6 +455,48 @@
     const refresh = () => { const b = $('#modal .panel-b'); if (!b) return; const st = b.scrollTop; b.innerHTML = draw(); b.scrollTop = st; bind(); };
     U.modal(t('army'), draw(), { cls: 'wide', refresh });
     bind();
+  };
+
+  // ---------- unit / hero stats ("i" on a card) ----------
+  U.openUnitInfo = function (u, backToArmy) {
+    const hero = !!G.HEROES[u], base = hero ? G.HEROES[u] : G.UNITS[u];
+    const lv = hero ? 1 : ((G.state.unitLv && G.state.unitLv[u]) || 1), maxLv = G.RESEARCH.maxLv;
+    const mul = hero ? 1 : G.unitMul(lv), nmul = !hero && lv < maxLv ? G.unitMul(lv + 1) : null;
+    const num = (v, d) => (+v).toLocaleString(G.lang === 'en' ? 'en' : 'pl', { maximumFractionDigits: d == null ? 1 : d });
+    const rows = [];
+    const row = (label, cur, next, hint) => rows.push(`<tr><td>${label}${hint ? `<small>${hint}</small>` : ''}</td><td>${cur}</td>${nmul ? `<td class="nx">${next != null && next !== cur ? '→ ' + next : ''}</td>` : ''}</tr>`);
+    const hp = (m) => num(Math.round(base.hp * m), 0);
+    row(t('st_hp'), hp(mul), nmul && hp(nmul));
+    if (base.heal) {
+      const hv = (m) => num(Math.round(base.heal * m), 0);
+      row(t('st_heal'), hv(mul) + ' / ' + num(base.interval) + ' s', nmul && hv(nmul) + ' / ' + num(base.interval) + ' s');
+      row(t('st_healR'), num(base.healR) + ' ' + t('tiles'));
+    } else if (u === 'drone') {
+      const dm = (m) => num(Math.round(base.dmg * m), 0);
+      row(t('st_blast'), dm(mul), nmul && dm(nmul), t('st_blastHint'));
+      row(t('splash'), num(base.splash) + ' ' + t('tiles'));
+    } else {
+      const dm = (m) => num(Math.round(base.dmg * m), 0), aps = 1 / base.interval;
+      const dps = (m) => num(Math.round(base.dmg * m) * aps);
+      row(t('st_dmg'), dm(mul), nmul && dm(nmul));
+      row(t('st_aps'), num(aps, 2) + ' / s');
+      row(t('st_dps'), dps(mul), nmul && dps(nmul), t('st_dpsHint'));
+    }
+    row(t('st_speed'), num(base.speed) + ' ' + t('tilesPerS'));
+    row(t('range'), base.range > 1.5 ? num(base.range) + ' ' + t('tiles') : t('st_melee'));
+    row(t('targets'), t('tg_' + base.target));
+    row(t('st_move'), base.fly ? t('st_fly') : t('st_ground'));
+    if (!hero) {
+      row(t('st_space'), base.space);
+      row(t('st_train'), G.fmtTime(base.time));
+      row(t('cost'), costHtml('copper', base.cost));
+      row(t('st_unlock'), t('b_factory') + ' ' + t('level') + ' ' + base.unlock);
+    } else row(t('st_unlock'), t('b_squadhq') + ' ' + t('level') + ' ' + base.unlock);
+    const head = hero ? t('h_' + u) : t('u_' + u) + ' · ' + t('level') + ' ' + lv + (lv >= maxLv ? ' (max)' : '');
+    U.modal(head, `<div class="info-top"><img src="${G.Art.unitThumb(u)}" alt=""><p>${t(hero ? 'hd_' + u : 'ud_' + u)}</p></div>
+      <table class="stats">${nmul ? `<tr><th></th><th>${t('st_now')}</th><th>${t('st_lab', { n: lv + 1 })}</th></tr>` : ''}${rows.join('')}</table>
+      ${backToArmy ? `<div class="row-btns"><button class="btn" id="ui-back">← ${t('army')}</button></div>` : ''}`, { cls: 'small' });
+    if ($('#ui-back')) $('#ui-back').onclick = U.openArmy;
   };
 
   // ---------- laboratory ----------
@@ -491,11 +546,12 @@
       <button class="mode-card" id="a-pve"><div class="mc-t">${t('campaign')}</div><p>${t('campaignDesc')}</p></button>
       <button class="mode-card mp" id="a-pvp"><div class="mc-t">${t('multiplayer')}</div><p>${t('mpDesc')}</p>
         <div class="mc-c">${t('findMatch')} · ${costHtml('copper', cost, G.state.res.copper >= cost)}</div></button></div>
-      <div class="row-btns"><button class="btn" id="a-rank">${IC.trophy}${t('ranking')}</button><button class="btn" id="a-def">${t('defenseLog')}</button></div>
+      <div class="row-btns"><button class="btn" id="a-rank">${IC.trophy}${t('ranking')}</button><button class="btn" id="a-find">🔍 ${t('findPlayer')}</button><button class="btn" id="a-def">${t('defenseLog')}</button></div>
       ${(G.state.shieldUntil || 0) > Date.now() ? `<p class="hint shield-note">${IC.shield} ${t('shieldWarn', { t: G.fmtTime(Math.ceil((G.state.shieldUntil - Date.now()) / 1000)) })}</p>` : ''}
       <p class="hint">${t(G.Net.session ? 'pvpNote' : 'pvpNoteOffline')}</p>`, { cls: 'wide' });
     $('#a-pve').onclick = U.openCampaign;
     $('#a-rank').onclick = U.openRanking;
+    $('#a-find').onclick = U.openPlayerSearch;
     $('#a-def').onclick = () => U.openDefenseLog(0);
     let searching = false;
     $('#a-pvp').onclick = async () => {
@@ -524,6 +580,45 @@
       const bot = G.genBot(G.coreLevel(), (Date.now() & 0xffffff) ^ 0x5bd1e995);
       G.Battle.start({ mode: 'pvp', base: bot, name: bot.name });
     };
+  };
+
+  // find a player by nickname and look at their village
+  U.openPlayerSearch = function () {
+    if (!G.Net.session) { U.toast(t('fbLogin')); return; }
+    U.modal(t('findPlayer'), `<div class="ps-row"><input id="ps-q" maxlength="16" placeholder="${t('psPlaceholder')}" autocapitalize="off" spellcheck="false"><button class="btn primary sm" id="ps-go">🔍</button></div>
+      <div class="rank" id="ps-list"><p class="center hint">${t('psHint')}</p></div>`, { cls: 'small' });
+    const q = $('#ps-q'); let timer = null, seq = 0;
+    const run = async () => {
+      const v = q.value.trim(), my = ++seq, el = $('#ps-list');
+      if (!el) return;
+      if (v.length < 2) { el.innerHTML = `<p class="center hint">${t('psHint')}</p>`; return; }
+      el.innerHTML = '<div class="spin"></div>';
+      let rows = [];
+      try { rows = await G.Net.searchPlayers(v); } catch (e) { if (my === seq && $('#ps-list')) $('#ps-list').innerHTML = `<p class="center warn">${t('err_' + (e.code || 'server'))}</p>`; return; }
+      if (my !== seq || !$('#ps-list')) return;
+      const me = G.Net.uid();
+      $('#ps-list').innerHTML = rows.length ? rows.map((r) => `<button class="rk ps-item ${r.user_id === me ? 'me' : ''}" data-id="${r.user_id}">
+          <span class="rk-u">${escHtml(r.username)}${r.vip ? ' <span class="vip-badge sm">VIP</span>' : ''}<small>${t('b_core')} ${r.core}${r.clan ? ' · ' + escHtml(r.clan) : ''}</small></span>
+          <span class="rk-t">${IC.trophy}${r.trophies}</span></button>`).join('') : `<p class="center hint">${t('psNone')}</p>`;
+      document.querySelectorAll('#ps-list .ps-item').forEach((b) => {
+        const r = rows.find((x) => x.user_id === b.dataset.id);
+        b.onclick = () => U.scoutPlayer(r);
+      });
+    };
+    q.oninput = () => { clearTimeout(timer); timer = setTimeout(run, 350); };
+    q.onkeydown = (e) => { if (e.key === 'Enter') run(); };
+    $('#ps-go').onclick = run;
+    setTimeout(() => q.focus(), 100);
+  };
+  U.scoutPlayer = async function (r) {
+    U.loading(true);
+    let base = null;
+    try { base = await G.Net.viewBase(r.user_id); } catch (_) { base = null; }
+    U.loading(false);
+    const buildings = base ? G.Battle.baseFromLayout(base.layout) : [];
+    if (!buildings.length) { U.toast(t('psNoBase')); return; }
+    U.closeModal();
+    G.Battle.start({ mode: 'scout', base: { buildings, loot: { scrap: 0, copper: 0 } }, name: r.username, trophies: r.trophies, core: base.core, vip: r.vip, clan: r.clan });
   };
 
   U.openRanking = async function () {
@@ -766,6 +861,16 @@
     $('#hud-top').classList.add('hidden'); $('#hud-bottom').classList.add('hidden'); $('#hud-builders').classList.add('hidden');
     $('#btn-layout').classList.add('hidden'); $('#btn-quests').classList.add('hidden'); $('#hud-shield').classList.add('hidden'); $('#editbar').classList.add('hidden');
     const b = G.Battle, el = $('#battle-hud');
+    if (b.opts.mode === 'scout') {
+      const o = b.opts;
+      el.innerHTML = `<div class="bh-tl"><div class="bh-name">${escHtml(o.name)}${o.vip ? ' <span class="vip-badge sm">VIP</span>' : ''}</div>
+        <div class="bh-loot">${IC.trophy.replace('<svg', '<svg class="tro-ic"')} ${o.trophies} · ${t('b_core')} ${t('level')} ${o.core}${o.clan ? ' · ' + IC.clan.replace('<svg', '<svg class="tro-ic"') + ' ' + escHtml(o.clan) : ''}</div>
+        <button class="btn primary sm pe" id="bh-back">← ${t('backHome')}</button></div>
+        <div class="bh-hint">${t('scoutHint')}</div>`;
+      el.classList.remove('hidden');
+      $('#bh-back').onclick = () => { G.Village.enter(); };
+      return;
+    }
     const loot = b.opts.mode === 'pve' ? (() => { const L = G.PVE[b.opts.level - 1], rec = G.state.pve[b.opts.level]; const tk = rec ? rec.taken : { scrap: 0, copper: 0 }; return { scrap: L.loot.scrap - tk.scrap, copper: L.loot.copper - tk.copper }; })() : b.opts.base.loot;
     el.innerHTML = `
       <div class="bh-tl"><div class="bh-name">${escHtml(b.opts.name)}${b.opts.mode === 'pvp' && !b.opts.defender ? ' <small>(bot)</small>' : ''}${b.opts.defender ? ` <small>${IC.trophy.replace('<svg', '<svg class="tro-ic"')} ${b.opts.trophies}</small>` : ''}</div>

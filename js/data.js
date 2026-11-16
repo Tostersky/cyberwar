@@ -1,5 +1,5 @@
 // Game data: buildings, units, heroes, campaign. All numbers are CyberWar's own.
-G.TW = 64; G.TH = 32; G.MAP = 40; G.VERSION = '0.10.1';
+G.TW = 64; G.TH = 32; G.MAP = 40; G.VERSION = '0.11.0';
 G.BUILDERS = 2;
 
 // every array has one value per level (1..8)
@@ -39,6 +39,16 @@ G.BUILDINGS = {
   firewall:   { size: 1, res: 'scrap',  cost: [50, 200, 600, 1500, 4000, 8000, 15000, 25000], time: [0, 0, 0, 0, 0, 0, 0, 0],
                 hp: [300, 600, 1000, 1600, 2500, 3500, 4800, 6500], wall: true },
 };
+// obstacles on the home map: they block building until removed (cost grows with the Core level). Never give chips.
+G.OBSTACLES = {
+  wreck:  { size: 2, res: 'scrap',  cost: 600 },  // burnt-out hover car
+  crates: { size: 2, res: 'copper', cost: 500 },  // stack of cargo containers
+  rubble: { size: 2, res: 'scrap',  cost: 450 },  // concrete rubble heap
+  barrel: { size: 1, res: 'copper', cost: 150 },  // leaking toxic barrels
+  tree:   { size: 1, res: 'scrap',  cost: 200 },  // synthetic neon tree
+  block:  { size: 1, res: 'scrap',  cost: 250 },  // concrete block with rebar
+};
+G.OBS_MAX = 40; G.OBS_START = 26; G.OBS_EVERY = 6 * 3600 * 1000;
 G.MAXLV = 8;
 // "reference storage" of a Core level: Core + one vault at that level. Rewards scale with this (not with
 // the real storage), so building many vaults doesn't inflate daily rewards, missions or ad rewards.
