@@ -190,7 +190,7 @@
     if (busy) status = `<div class="sb-status">${t(b.level === 0 ? 'building' : 'upgrading')} · <b id="sb-time">${G.fmtTime((b.busyUntil - now) / 1000)}</b></div>`;
     else if (d.prod && b.level > 0) {
       const per5 = G.Econ.ratePer(b, 5), full = G.state.res[d.prod] >= G.capOf(d.prod);
-      status = `<div class="sb-status">${t('mining')}: <b>+${per5.toLocaleString(G.lang, { maximumFractionDigits: 1 })} ${t(d.prod).toLowerCase()} / 5 s</b> (${d.rate[b.level - 1]} / h)${full ? ` · <b class="warn">${t('storageFull')}</b>` : ''}</div>`;
+      status = `<div class="sb-status">${t('mining')}: <b>+${per5.toLocaleString(G.lang, { maximumFractionDigits: 1 })} ${t(d.prod).toLowerCase()} / 5 s</b> (${G.grp(d.rate[b.level - 1])} / h)${full ? ` · <b class="warn">${t('storageFull')}</b>` : ''}</div>`;
     }
     const btn = (id, ic, label, extra) => `<button class="sb-btn" id="${id}"><span class="sb-ic">${ic}</span><span class="sb-l">${label}</span>${extra || ''}</button>`;
     let btns = btn('sb-info', IC.info, t('info'));
@@ -264,10 +264,10 @@
   function statRows(type, lv, nextLv) {
     const d = B[type], rows = [];
     const row = (label, a, b) => rows.push(`<tr><td>${label}</td><td>${a}</td>${nextLv ? `<td class="nx">${b != null && b !== a ? '→ ' + b : ''}</td>` : ''}</tr>`);
-    const v = (arr, l) => (arr && l > 0 ? arr[l - 1] : '-');
+    const v = (arr, l) => (arr && l > 0 ? G.grp(arr[l - 1]) : '-');
     row(t('hp'), v(d.hp, lv), nextLv && v(d.hp, nextLv));
     if (d.prod) { row(t('production'), v(d.rate, lv), nextLv && v(d.rate, nextLv)); row(t('storage'), v(d.cap, lv), nextLv && v(d.cap, nextLv)); }
-    if (d.store) row(t('storage'), G.fmt(v(d.store, lv)), nextLv && G.fmt(v(d.store, nextLv)));
+    if (d.store) row(t('storage'), v(d.store, lv), nextLv && v(d.store, nextLv));
     if (d.housing) row(t('capacity'), v(d.housing, lv), nextLv && v(d.housing, nextLv));
     if (d.dmg) row(t('damage'), v(d.dmg, lv), nextLv && v(d.dmg, nextLv));
     if (d.range) row(t('range'), (d.minRange ? d.minRange + '–' : '') + d.range, (d.minRange ? d.minRange + '–' : '') + d.range);
@@ -552,7 +552,8 @@
     const hero = !!G.HEROES[u], base = hero ? G.HEROES[u] : G.UNITS[u];
     const lv = hero ? 1 : ((G.state.unitLv && G.state.unitLv[u]) || 1), maxLv = G.RESEARCH.maxLv;
     const mul = hero ? 1 : G.unitMul(lv), nmul = !hero && lv < maxLv ? G.unitMul(lv + 1) : null;
-    const num = (v, d) => (+v).toLocaleString(G.lang === 'en' ? 'en' : 'pl', { maximumFractionDigits: d == null ? 1 : d });
+    // whole numbers as 1,200; fractions keep the language's decimal mark (2,5 in Polish)
+    const num = (v, d) => (d === 0 || Number.isInteger(+v) ? G.grp(Math.round(+v)) : (+v).toLocaleString(G.lang === 'en' ? 'en' : 'pl', { maximumFractionDigits: d == null ? 1 : d }));
     const rows = [];
     const row = (label, cur, next, hint) => rows.push(`<tr><td>${label}${hint ? `<small>${hint}</small>` : ''}</td><td>${cur}</td>${nmul ? `<td class="nx">${next != null && next !== cur ? '→ ' + next : ''}</td>` : ''}</tr>`);
     const hp = (m) => num(Math.round(base.hp * m), 0);

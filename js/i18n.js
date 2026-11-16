@@ -366,11 +366,11 @@ G.t = function (k, p) {
   if (p) for (const n in p) s = s.split('{' + n + '}').join(p[n]);
   return s;
 };
+// thousands with a comma from 10,000 up: 9999 stays, 20000 -> 20,000 (same in PL and EN)
+G.grp = (n) => { n = Math.floor(n); return Math.abs(n) < 10000 ? String(n) : String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ','); };
 G.fmt = function (n) {
-  n = Math.floor(n);
-  if (n >= 1e6) return (n / 1e6).toFixed(n >= 1e7 ? 0 : 1) + 'M';
-  if (n >= 1e5) return Math.floor(n / 1e3) + 'k';
-  return String(n);
+  // always the full number: 125,000 (no k / M shortcuts)
+  return G.grp(Math.floor(+n || 0));
 };
 G.fmtTime = function (s) {
   s = Math.ceil(s);
