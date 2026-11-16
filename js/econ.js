@@ -82,6 +82,11 @@
     // obstacles: drop broken rows; old saves get their first batch here
     if (Array.isArray(s.obstacles)) s.obstacles = s.obstacles.filter((o) => o && G.OBSTACLES[o.type] && Number.isInteger(o.x) && Number.isInteger(o.y)).slice(0, G.OBS_MAX);
     E.ensureObstacles(s, now);
+    s.items = s.items && typeof s.items === 'object' ? s.items : {}; for (const k in G.BOOSTS) s.items[k] = Math.max(0, s.items[k] | 0);
+    s.boost = s.boost && typeof s.boost === 'object' ? s.boost : {};
+    s.stats = s.stats && typeof s.stats === 'object' ? s.stats : {}; s.ach = s.ach && typeof s.ach === 'object' ? s.ach : {};
+    if (!Array.isArray(s.presets)) s.presets = [null, null, null];
+    if (s.pass && !(Array.isArray(s.pass.free) && Array.isArray(s.pass.prem))) s.pass = null;
     s.heroLv = s.heroLv || {}; for (const h of G.HERO_ORDER) s.heroLv[h] = Math.max(1, Math.min(G.HERO_MAX, s.heroLv[h] | 0 || 1));
     s.heroRest = s.heroRest && typeof s.heroRest === 'object' ? s.heroRest : {};
     if (s.heroUp && !(G.HEROES[s.heroUp.h] && s.heroUp.until > 0)) s.heroUp = null;
@@ -166,12 +171,14 @@
     if (!d.prod) return;
     if (b.level === 0) { b.last = now; return; }
     const dt = Math.max(0, now - (b.last || now));
-    b.acc = Math.min(d.cap[b.level - 1], (b.acc || 0) + d.rate[b.level - 1] * dt / 3600000);
+    // production boost: the part of this interval covered by the boost counts x2
+    const bu = s && s.boost && s.boost.prod, extra = bu > (b.last || now) ? (Math.min(now, bu) - b.last) * (G.BOOSTS.prod.mul - 1) : 0;
+    b.acc = Math.min(d.cap[b.level - 1], (b.acc || 0) + d.rate[b.level - 1] * (dt + Math.max(0, extra)) / 3600000);
     b.last = now;
     if (s) {
       const moved = E.addRes(s, d.prod, Math.floor(b.acc));
       b.acc -= moved;
-      if (moved > 0) { b.flow = (b.flow || 0) + moved; E.progress(s, now, 'collect_' + d.prod, moved); }
+      if (moved > 0) { b.flow = (b.flow || 0) + moved; E.progress(s, now, 'collect_' + d.prod, moved); if (d.prod !== 'plasma') E.stat(s, 'mined', moved); }
     }
   };
   // total production per hour of one resource (all finished collectors)
@@ -181,6 +188,7 @@
   E.tick = function (s, now) {
     const ev = [];
     if (s.obstacles && now >= (s.obsNext || 0)) E.ensureObstacles(s, now);
+    E.season(s, now);
     for (const b of s.buildings) {
       if (b.busyUntil && b.busyUntil <= now) {
         E.updateCollector(b, b.busyUntil, s);
@@ -190,8 +198,8 @@
       E.updateCollector(b, now, s);
     }
     while (s.queue.length) {
-      const dur = G.UNITS[s.queue[0]].time * 1000;
-      if (now >= s.qStart + dur) { s.army[s.queue[0]]++; s.queue.shift(); s.qStart += dur; ev.push({ kind: 'trained' }); E.progress(s, now, 'train', 1); }
+      const dur = G.UNITS[s.queue[0]].time * 1000 / (s.boost && s.boost.train > s.qStart ? G.BOOSTS.train.mul : 1);
+      if (now >= s.qStart + dur) { s.army[s.queue[0]]++; s.queue.shift(); s.qStart += dur; ev.push({ kind: 'trained' }); E.progress(s, now, 'train', 1); E.stat(s, 'trained', 1); }
       else break;
     }
     if (!s.queue.length) s.qStart = 0;
@@ -244,6 +252,42 @@
   };
   E.isVip = (s, now) => s.vipUntil > now;
 
+  // ---------- seasons (calendar months, UTC) and leagues ----------
+  E.seasonId = (now) => new Date(now).toISOString().slice(0, 7);
+  E.seasonEnd = (now) => { const d = new Date(now); return Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1); };
+  E.season = function (s, now) {
+    const id = E.seasonId(now);
+    if (!s.season || typeof s.season.id !== 'string') s.season = { id, best: s.trophies | 0 };
+    if (s.season.id !== id) {
+      // the old season ended: its reward depends on the best league reached
+      s.seasonReward = { id: s.season.id, league: G.leagueOf(s.season.best | 0) };
+      s.season = { id, best: s.trophies | 0 };
+    }
+    s.season.best = Math.max(s.season.best | 0, s.trophies | 0);
+    E.stat(s, 'troMax', 0, s.trophies | 0);
+    // the pass follows the season
+    if (!s.pass || s.pass.id !== id) s.pass = { id, xp: 0, free: [], prem: [], premium: false };
+  };
+  // ---------- statistics for achievements ----------
+  E.stat = function (s, k, n, setMax) {
+    s.stats = s.stats || {};
+    if (setMax != null) s.stats[k] = Math.max(s.stats[k] | 0, setMax | 0);
+    else if (n > 0) s.stats[k] = (s.stats[k] || 0) + n;
+  };
+  E.achValue = (s, id) => (id === 'campaign' ? Object.values(s.pve || {}).reduce((m, r) => m + ((r && r.stars) | 0), 0) : ((s.stats && s.stats[id]) || 0));
+  // ---------- season pass ----------
+  E.passXp = function (s, now, n) { E.season(s, now); s.pass.xp = Math.min(G.PASS.tiers * G.PASS.xpPer, s.pass.xp + n); };
+  E.passTier = (s) => Math.floor(((s.pass && s.pass.xp) || 0) / G.PASS.xpPer);
+  // ---------- boosts & items ----------
+  E.boostOn = (s, k, now) => !!(s.boost && s.boost[k] > now);
+  function giveReward(s, rw, now) {
+    const out = { gained: { scrap: 0, copper: 0 }, plasma: 0, item: null };
+    if (rw.res) for (const r of ['scrap', 'copper']) out.gained[r] = E.addRes(s, r, Math.floor(G.refCap(E.coreLevel(s)) * rw.res));
+    if (rw.plasma) out.plasma = E.addRes(s, 'plasma', rw.plasma);
+    if (rw.item) { s.items = s.items || {}; s.items[rw.item] = (s.items[rw.item] || 0) + (rw.n || 1); out.item = rw.item; }
+    return out;
+  }
+
   // ---------- daily login reward & daily missions (UTC days) ----------
   E.today = (now) => new Date(now).toISOString().slice(0, 10);
   E.dailyState = function (s, now) {
@@ -284,7 +328,7 @@
     for (const m of E.missions(s, now)) if (m.id === id && !m.got) m.n = Math.min(m.goal, m.n + n);
   };
   // red dot on the Missions button
-  E.questDot = (s, now) => E.dailyState(s, now).claimable || E.missions(s, now).some((m) => m.n >= m.goal && !m.got);
+  E.questDot = (s, now) => E.dailyState(s, now).claimable || E.missions(s, now).some((m) => m.n >= m.goal && !m.got) || G.ACH.some((a) => { const g = (s.ach && s.ach[a.id]) | 0; return g < a.tiers.length && E.achValue(s, a.id) >= a.tiers[g]; });
   // rewarded ads today: {left, wait (seconds)}; the counter resets every UTC day
   E.adState = function (s, now) {
     const day = new Date(now).toISOString().slice(0, 10);
@@ -314,7 +358,7 @@
       const e = pay(s, d.res, d.cost[0]); if (e) return e;
       const b = { id: s.nextId++, type: cmd.type, level: dur > 0 ? 0 : 1, x: cmd.x, y: cmd.y, acc: 0, last: now, busyUntil: dur > 0 ? now + dur * 1000 : 0, busyStart: now, upTo: dur > 0 ? 1 : 0 };
       s.buildings.push(b);
-      E.progress(s, now, 'build', 1);
+      E.progress(s, now, 'build', 1); E.stat(s, 'builds', 1);
       return { ok: true, id: b.id };
     }
     if (c === 'upgrade') {
@@ -328,7 +372,7 @@
       E.updateCollector(b, now, s);
       if (u.time > 0) { b.busyUntil = now + u.time * 1000; b.busyStart = now; b.upTo = u.next; }
       else b.level = u.next;
-      E.progress(s, now, 'build', 1);
+      E.progress(s, now, 'build', 1); E.stat(s, 'builds', 1);
       return { ok: true };
     }
     if (c === 'finish') {
@@ -394,11 +438,62 @@
     if (c === 'donate_out') { // giving one unit to a clan mate (the server checks the request first)
       if (!G.UNITS[cmd.u] || !(s.army[cmd.u] > 0)) return ERR('noUnit');
       s.army[cmd.u]--;
+      E.stat(s, 'donated', 1);
       return { ok: true };
     }
     if (c === 'search') { // looking for a PvP opponent costs copper
       const cost = 30 * E.coreLevel(s);
       return pay(s, 'copper', cost) || { ok: true };
+    }
+    if (c === 'seasonClaim') { // end-of-season league reward
+      E.season(s, now);
+      if (!s.seasonReward) return ERR('nothing');
+      const L = G.LEAGUES[s.seasonReward.league] || G.LEAGUES[0];
+      const out = giveReward(s, L.reward, now); s.seasonReward = null;
+      return Object.assign({ ok: true }, out);
+    }
+    if (c === 'passClaim') { // claim a season pass tier (free or premium track)
+      E.season(s, now);
+      const i = cmd.i | 0, prem = !!cmd.prem, track = prem ? s.pass.prem : s.pass.free;
+      if (i < 1 || i > G.PASS.tiers || i > E.passTier(s)) return ERR('passLocked');
+      if (prem && !s.pass.premium) return ERR('passNoPremium');
+      if (track.includes(i)) return ERR('missionDone');
+      track.push(i);
+      return Object.assign({ ok: true }, giveReward(s, (prem ? G.PASS_PREM : G.PASS_FREE)[i - 1], now));
+    }
+    if (c === 'boost') { // production / training / building boost, from an item or for chips
+      const d = G.BOOSTS[cmd.k]; if (!d) return ERR('server');
+      s.items = s.items || {};
+      if (cmd.item) { if (!(s.items[cmd.k] > 0)) return ERR('noItem'); s.items[cmd.k]--; }
+      else { if (s.res.chips < d.chips) return ERR('noChips'); s.res.chips -= d.chips; }
+      s.boost = s.boost || {};
+      if (d.skip) {
+        const cut = d.skip * 1000;
+        for (const b of s.buildings) if (b.busyUntil > now) { b.busyUntil = Math.max(now, b.busyUntil - cut); b.busyStart -= 0; }
+        if (s.research && s.research.until > now) s.research.until = Math.max(now, s.research.until - cut);
+        if (s.heroUp && s.heroUp.until > now) s.heroUp.until = Math.max(now, s.heroUp.until - cut);
+        E.tick(s, now);
+      } else {
+        // finish what was produced/trained so far at the old speed, then switch on
+        E.tick(s, now);
+        s.boost[cmd.k] = Math.max(now, s.boost[cmd.k] || 0) + d.dur * 1000;
+      }
+      return { ok: true };
+    }
+    if (c === 'achClaim') { // claim the next tier of an achievement
+      const a = G.ACH.find((x) => x.id === cmd.id); if (!a) return ERR('server');
+      s.ach = s.ach || {};
+      const got = s.ach[a.id] | 0; if (got >= a.tiers.length) return ERR('missionDone');
+      if (E.achValue(s, a.id) < a.tiers[got]) return ERR('missionNotDone');
+      s.ach[a.id] = got + 1;
+      return Object.assign({ ok: true }, giveReward(s, { res: G.ACH_RW[got], plasma: got === 2 ? G.ACH_PLASMA : 0 }, now));
+    }
+    if (c === 'preset') { // save an army preset (quick train)
+      const i = cmd.i | 0; if (i < 0 || i > 2) return ERR('server');
+      const u = {}; for (const k of G.UNIT_ORDER) u[k] = Math.max(0, Math.min(300, (cmd.units && cmd.units[k]) | 0));
+      s.presets = Array.isArray(s.presets) ? s.presets : [null, null, null];
+      s.presets[i] = u;
+      return { ok: true };
     }
     if (c === 'daily') { // daily login reward
       const st = E.dailyState(s, now);
@@ -406,6 +501,7 @@
       const D = G.DAILY[st.day - 1];
       const g = grant(s, D.pct, D.units);
       s.daily = { last: E.today(now), streak: st.day };
+      E.passXp(s, now, G.PASS_XP.daily);
       return { ok: true, day: st.day, gained: g.gained, units: g.units };
     }
     if (c === 'mission') { // claim a finished daily mission
@@ -413,6 +509,7 @@
       if (!m || m.got) return ERR('missionDone');
       if (m.n < m.goal) return ERR('missionNotDone');
       m.got = true;
+      E.passXp(s, now, G.PASS_XP.mission);
       const g = grant(s, G.MISSION_REWARD);
       return { ok: true, gained: g.gained };
     }
@@ -461,6 +558,7 @@
       const res = G.OBSTACLES[o.type].res, cost = E.obsCost(s, o);
       const e = pay(s, res, cost); if (e) return e;
       s.obstacles = s.obstacles.filter((q) => q !== o);
+      E.stat(s, 'obs', 1);
       return { ok: true, type: o.type };
     }
     if (c === 'revenged') { // revenge used for this attack (the server-side check is in revenge_target)
@@ -499,7 +597,7 @@
       return { ok: true };
     }
     if (c === 'reset') {
-      const keep = { name: s.name, owner: s.owner, trophies: s.trophies, lang: s.lang, settings: s.settings, defLog: s.defLog, vipUntil: s.vipUntil, vipToken: s.vipToken, vipCheck: s.vipCheck, ads: s.ads, daily: s.daily, created: s.created, builders: s.builders };
+      const keep = { name: s.name, owner: s.owner, trophies: s.trophies, lang: s.lang, settings: s.settings, defLog: s.defLog, vipUntil: s.vipUntil, vipToken: s.vipToken, vipCheck: s.vipCheck, ads: s.ads, daily: s.daily, created: s.created, builders: s.builders, pass: s.pass, season: s.season, stats: s.stats, ach: s.ach, items: s.items, presets: s.presets };
       const n = E.newGame(now, s.name);
       for (const k of Object.keys(s)) delete s[k];
       Object.assign(s, n, keep, { tut: 99 });
@@ -527,7 +625,7 @@
       const n = Math.max(0, dep[k] | 0); if (!n) continue;
       const u = k.startsWith('c:') ? k.slice(2) : k, hero = G.HEROES[u], d = hero || G.UNITS[u]; if (!d) continue;
       const mul = (hero ? E.heroMul(s, u) : G.unitMul(s.unitLv && s.unitLv[u])) * (1 + 0.5 * Math.min(1, (dep._spells || 0) / 3));
-      if (u === 'drone') cap += n * d.dmg * mul * 3;
+      if (u === 'drone' || u === 'breacher') cap += n * d.dmg * mul * 3;
       else if (d.interval > 0 && d.dmg > 0) cap += n * (d.dmg * mul / d.interval) * dur;
       if (u === 'ronin') cap += 70 * 3 * 4; // blade storm
     }
@@ -597,7 +695,15 @@
     if (Array.isArray(cmd.fell)) for (const h of cmd.fell) if (G.HEROES[h]) E.heroFell(s, h, now);
     // daily missions: victories, stars, raids
     const st = Math.max(0, Math.min(3, cmd.stars | 0, G.starsFor(pct)));
-    if (st > 0) E.progress(s, now, 'win', 1);
+    if (st > 0) { E.progress(s, now, 'win', 1); E.stat(s, 'wins', 1); E.passXp(s, now, G.PASS_XP.win); }
+    E.stat(s, 'stars', st);
+    if (cmd.mode !== 'pve') E.passXp(s, now, G.PASS_XP.raid);
+    // league bonus for won attacks on real players
+    if (cmd.mode === 'pvp' && st > 0 && (cmd.defender || cmd._base)) {
+      const L = G.LEAGUES[G.leagueOf(s.trophies | 0)];
+      for (const r of ['scrap', 'copper']) { const b = E.addRes(s, r, Math.floor(G.refCap(E.coreLevel(s)) * L.bonus)); gained[r] += b; }
+      gained.league = true;
+    }
     E.progress(s, now, 'stars', st);
     if (cmd.mode !== 'pve') E.progress(s, now, 'raid', 1);
     return { ok: true, gained, chips };
@@ -608,6 +714,7 @@
     for (const a of list) {
       s.res.scrap = Math.max(0, s.res.scrap - (a.loot_scrap | 0));
       s.res.copper = Math.max(0, s.res.copper - (a.loot_copper | 0));
+      if (!(a.stars > 0)) E.stat(s, 'defWins', 1);
       s.defLog.unshift({ aid: a.id, name: a.attacker_name, stars: a.stars, pct: a.pct, scrap: a.loot_scrap, copper: a.loot_copper, trophies: a.trophies, at: a.created_at });
     }
     s.defLog = s.defLog.slice(0, 20);

@@ -30,7 +30,7 @@ G.STR = {
     builders: 'Drony budowlane', buildersHint: 'Każdy dron buduje lub ulepsza jeden budynek naraz. Więcej dronów = szybszy rozwój.', builderN: 'Dron {n}', builderFree: 'wolny', buyBuilder: 'Kup drona', buyBuilderQ: 'Kupić kolejnego drona budowlanego za {n} chipów?', builderBought: 'Nowy dron budowlany gotowy!', buildersMax: 'Masz maksymalną liczbę dronów',
     chatMuted: 'Masz blokadę czatu', report: 'Zgłoś', reportedOk: 'Zgłoszono', blockPlayer: 'Zablokuj', reportThanks: 'Dziękujemy — zgłoszenie trafi do moderacji', blockedOk: 'Zablokowano: {n}', blockedList: 'Zablokowani', unblock: 'Odblokuj', blockedNone: 'Nikogo nie blokujesz',
     delMsg: 'Usuń wiadomość', mute7: 'Wycisz 7 dni', delMsgQ: 'Usunąć tę wiadomość z czatu klanu?', muteQ: 'Wyciszyć tego gracza na czacie na 7 dni?',
-    st_hp: 'Życie (HP)', st_heal: 'Leczenie', st_healR: 'Zasięg leczenia', tiles: 'pól', tilesPerS: 'pól / s', st_blast: 'Wybuch', st_blastHint: 'jednorazowo, dron ginie', st_dmg: 'Obrażenia za cios', st_aps: 'Ataki na sekundę', st_dps: 'Obrażenia na sekundę', st_dpsHint: 'DPS', st_speed: 'Szybkość', st_melee: 'wręcz', tg_any: 'najbliższy budynek', tg_defense: 'najpierw obrona', tg_heal: 'leczy sojuszników', st_move: 'Porusza się', st_fly: 'lata (nad murami)', st_ground: 'po ziemi', st_space: 'Miejsce w oddziale', st_train: 'Czas szkolenia', st_unlock: 'Odblokowanie', st_now: 'Teraz', st_lab: 'Lab → poz. {n}',
+    st_hp: 'Życie (HP)', st_heal: 'Leczenie', st_healR: 'Zasięg leczenia', tiles: 'pól', tilesPerS: 'pól / s', st_blast: 'Wybuch', st_blastHint: 'jednorazowo, jednostka ginie', st_dmg: 'Obrażenia za cios', st_aps: 'Ataki na sekundę', st_dps: 'Obrażenia na sekundę', st_dpsHint: 'DPS', st_speed: 'Szybkość', st_melee: 'wręcz', tg_any: 'najbliższy budynek', tg_defense: 'najpierw obrona', tg_heal: 'leczy sojuszników', st_move: 'Porusza się', st_fly: 'lata (nad murami)', st_ground: 'po ziemi', st_space: 'Miejsce w oddziale', st_train: 'Czas szkolenia', st_unlock: 'Odblokowanie', st_now: 'Teraz', st_lab: 'Lab → poz. {n}',
     o_wreck: 'Wrak poduszkowca', o_crates: 'Sterta kontenerów', o_rubble: 'Rumowisko', o_barrel: 'Toksyczne beczki', o_tree: 'Neonowe drzewo', o_block: 'Blok betonu', obstacle: 'przeszkoda', obsHint: 'Blokuje miejsce na budowę. Usuń, żeby zwolnić teren.', remove: 'Usuń', cleared: 'Usunięto!',
     reports: 'Zgłoszenia graczy', all: 'Wszystkie', rs_open: 'Otwarte', rs_new: 'Nowe', rs_doing: 'W toku', rs_done: 'Zrobione', rs_rejected: 'Odrzucone',
     rp_date: 'Data', rp_player: 'Gracz', rp_text: 'Treść', rp_device: 'Urządzenie', rp_status: 'Status', rp_empty: 'Brak zgłoszeń',
@@ -157,6 +157,27 @@ G.STR = {
     err_offline: 'Brak połączenia z internetem',
     loggedAs: 'Zalogowano jako', logout: 'Wyloguj', offlineMode: 'Nie jesteś zalogowany', deleteAccount: 'Usuń konto',
     deleteConfirm: 'Usunąć konto i cały postęp na zawsze? Tego nie da się cofnąć.',
+    // 0.13: leagues, season pass, boosts, achievements, replays, presets, breacher, sky mine
+    leagues: 'Ligi', lgHint: 'Twoja liga zależy od pucharków. Wyższa liga = większy bonus do łupu z wygranych ataków i lepsza nagroda na koniec sezonu (co miesiąc).',
+    lgBonus: '+{p}% łupu', seasonEnds: 'Koniec sezonu za {t}', seasonEnded: 'Sezon zakończony! Twoja liga: {l}',
+    lg_bronze: 'Brąz', lg_silver: 'Srebro', lg_gold: 'Złoto', lg_crystal: 'Kryształ', lg_master: 'Mistrz', lg_titan: 'Tytan', lg_legend: 'Legenda',
+    pass: 'Przepustka', passTier: 'Poziom {n} / {m}', passXpHint: 'XP za misje, logowanie, wygrane i ataki',
+    passBuy: 'Odblokuj Premium', passFree: 'Darmowe', passPrem: 'Premium', passThanks: 'Dzięki! Przepustka Premium odblokowana.',
+    passLocked: 'Ten poziom jeszcze nie jest odblokowany', passNoPremium: 'Najpierw odblokuj Premium',
+    boosts: 'Przyspieszacze', bo_prod: 'Turbo produkcji', bo_train: 'Turbo treningu', bo_build: 'Skok budowy',
+    bod_prod: 'Kopalnie i złomowiska produkują 2× szybciej przez 24 h', bod_train: 'Trening jednostek 4× szybszy przez 1 h', bod_build: 'Skraca wszystkie trwające budowy o 1 h',
+    boActive: 'Aktywne: {t}', boUse: 'Użyj', boOn: 'Włączono: {n}', boBuyQ: 'Kupić „{n}” za {c} chipów?', noItem: 'Nie masz tego przedmiotu', nothing: 'Nie ma czego przyspieszyć',
+    achievements: 'Osiągnięcia',
+    ach_wins: 'Wygraj {n} ataków', ach_stars: 'Zdobądź {n} gwiazdek w atakach', ach_builds: 'Zbuduj lub ulepsz {n} razy', ach_trained: 'Wyszkol {n} jednostek',
+    ach_mined: 'Zbierz {n} surowców', ach_obs: 'Usuń {n} przeszkód', ach_campaign: 'Zdobądź {n} gwiazdek w kampanii', ach_troMax: 'Osiągnij {n} pucharków',
+    ach_defWins: 'Obroń bazę {n} razy', ach_donated: 'Przekaż klanowi {n} jednostek',
+    replay: 'Powtórka', replayAgain: 'Jeszcze raz', replayNone: 'Brak powtórki dla tego ataku (tylko nowsze ataki ją mają)',
+    presets: 'Szybki trening', presetsHint: '„Zapisz” zapamiętuje obecną armię razem z kolejką. „Trenuj” dodaje do kolejki tylko to, czego brakuje.',
+    presetEmpty: 'pusty', presetSave: 'Zapisz', presetTrain: 'Trenuj', presetSaved: 'Skład zapisany', presetNothing: 'Najpierw wyszkol jakieś jednostki',
+    presetQueued: 'Dodano do kolejki: {n}', presetReady: 'Masz już cały ten skład',
+    u_breacher: 'Saper', ud_breacher: 'Biegnie do najbliższego firewalla i wysadza go — ogromne obrażenia dla murów (×30). Bez murów wybucha na budynku.',
+    st_wall: 'Obrażenia dla murów', tg_wall: 'Mury',
+    b_skymine: 'Mina powietrzna', d_skymine: 'Ukryta pułapka. Wybucha, gdy blisko przeleci jednostka latająca — jeden potężny cios.', ds_skymine: 'Ukryta pułapka na drony.',
   },
   en: {
     scrap: 'Scrap', copper: 'Copper', chips: 'Chips',
@@ -187,7 +208,7 @@ G.STR = {
     builders: 'Builder drones', buildersHint: 'Each drone builds or upgrades one building at a time. More drones = faster progress.', builderN: 'Drone {n}', builderFree: 'free', buyBuilder: 'Buy a drone', buyBuilderQ: 'Buy another builder drone for {n} chips?', builderBought: 'New builder drone ready!', buildersMax: 'You have the maximum number of drones',
     chatMuted: 'You are muted in chat', report: 'Report', reportedOk: 'Reported', blockPlayer: 'Block', reportThanks: 'Thanks — the report goes to moderation', blockedOk: 'Blocked: {n}', blockedList: 'Blocked players', unblock: 'Unblock', blockedNone: "You're not blocking anyone",
     delMsg: 'Delete message', mute7: 'Mute 7 days', delMsgQ: 'Delete this message from the clan chat?', muteQ: 'Mute this player in chat for 7 days?',
-    st_hp: 'Hitpoints', st_heal: 'Heal', st_healR: 'Heal radius', tiles: 'tiles', tilesPerS: 'tiles / s', st_blast: 'Blast', st_blastHint: 'once, the drone is destroyed', st_dmg: 'Damage per hit', st_aps: 'Attacks per second', st_dps: 'Damage per second', st_dpsHint: 'DPS', st_speed: 'Speed', st_melee: 'melee', tg_any: 'nearest building', tg_defense: 'defenses first', tg_heal: 'heals allies', st_move: 'Moves', st_fly: 'flying (over walls)', st_ground: 'on the ground', st_space: 'Squad space', st_train: 'Training time', st_unlock: 'Unlocks at', st_now: 'Now', st_lab: 'Lab → lv {n}',
+    st_hp: 'Hitpoints', st_heal: 'Heal', st_healR: 'Heal radius', tiles: 'tiles', tilesPerS: 'tiles / s', st_blast: 'Blast', st_blastHint: 'once, the unit is destroyed', st_dmg: 'Damage per hit', st_aps: 'Attacks per second', st_dps: 'Damage per second', st_dpsHint: 'DPS', st_speed: 'Speed', st_melee: 'melee', tg_any: 'nearest building', tg_defense: 'defenses first', tg_heal: 'heals allies', st_move: 'Moves', st_fly: 'flying (over walls)', st_ground: 'on the ground', st_space: 'Squad space', st_train: 'Training time', st_unlock: 'Unlocks at', st_now: 'Now', st_lab: 'Lab → lv {n}',
     o_wreck: 'Hover-car wreck', o_crates: 'Container stack', o_rubble: 'Rubble heap', o_barrel: 'Toxic barrels', o_tree: 'Neon tree', o_block: 'Concrete block', obstacle: 'obstacle', obsHint: 'Blocks building space. Remove it to free the ground.', remove: 'Remove', cleared: 'Removed!',
     reports: 'Player reports', all: 'All', rs_open: 'Open', rs_new: 'New', rs_doing: 'In progress', rs_done: 'Done', rs_rejected: 'Rejected',
     rp_date: 'Date', rp_player: 'Player', rp_text: 'Text', rp_device: 'Device', rp_status: 'Status', rp_empty: 'No reports',
@@ -314,6 +335,27 @@ G.STR = {
     err_offline: 'No internet connection',
     loggedAs: 'Logged in as', logout: 'Log out', offlineMode: 'You are not logged in', deleteAccount: 'Delete account',
     deleteConfirm: 'Delete your account and all progress forever? This cannot be undone.',
+    // 0.13: leagues, season pass, boosts, achievements, replays, presets, breacher, sky mine
+    leagues: 'Leagues', lgHint: 'Your league depends on trophies. A higher league gives a bigger loot bonus on won attacks and a better end-of-season reward (monthly).',
+    lgBonus: '+{p}% loot', seasonEnds: 'Season ends in {t}', seasonEnded: 'Season over! Your league: {l}',
+    lg_bronze: 'Bronze', lg_silver: 'Silver', lg_gold: 'Gold', lg_crystal: 'Crystal', lg_master: 'Master', lg_titan: 'Titan', lg_legend: 'Legend',
+    pass: 'Pass', passTier: 'Tier {n} / {m}', passXpHint: 'XP from missions, logins, wins and raids',
+    passBuy: 'Unlock Premium', passFree: 'Free', passPrem: 'Premium', passThanks: 'Thanks! Premium pass unlocked.',
+    passLocked: 'This tier is not unlocked yet', passNoPremium: 'Unlock Premium first',
+    boosts: 'Boosts', bo_prod: 'Production turbo', bo_train: 'Training turbo', bo_build: 'Build jump',
+    bod_prod: 'Mines and scrapyards produce 2× faster for 24 h', bod_train: 'Unit training 4× faster for 1 h', bod_build: 'Cuts every running build by 1 h',
+    boActive: 'Active: {t}', boUse: 'Use', boOn: 'Activated: {n}', boBuyQ: 'Buy "{n}" for {c} chips?', noItem: "You don't have this item", nothing: 'Nothing to speed up',
+    achievements: 'Achievements',
+    ach_wins: 'Win {n} attacks', ach_stars: 'Earn {n} stars in attacks', ach_builds: 'Build or upgrade {n} times', ach_trained: 'Train {n} units',
+    ach_mined: 'Collect {n} resources', ach_obs: 'Clear {n} obstacles', ach_campaign: 'Earn {n} campaign stars', ach_troMax: 'Reach {n} trophies',
+    ach_defWins: 'Defend your base {n} times', ach_donated: 'Donate {n} units to your clan',
+    replay: 'Replay', replayAgain: 'Watch again', replayNone: 'No replay for this attack (only newer attacks have one)',
+    presets: 'Quick train', presetsHint: '"Save" remembers your current army plus the queue. "Train" queues only what is missing.',
+    presetEmpty: 'empty', presetSave: 'Save', presetTrain: 'Train', presetSaved: 'Army saved', presetNothing: 'Train some units first',
+    presetQueued: 'Queued: {n}', presetReady: 'You already have this whole army',
+    u_breacher: 'Breacher', ud_breacher: 'Runs to the nearest firewall and blows it up — huge damage to walls (×30). With no walls left it blows up on a building.',
+    st_wall: 'Damage to walls', tg_wall: 'Walls',
+    b_skymine: 'Sky Mine', d_skymine: 'Hidden trap. Goes off when a flying unit passes close — one massive hit.', ds_skymine: 'Hidden trap against drones.',
   },
 };
 
@@ -337,5 +379,6 @@ G.fmtTime = function (s) {
   const m = Math.floor(s / 60), r = s % 60;
   if (m < 60) return m + 'm' + (r ? ' ' + r + 's' : '');
   const h = Math.floor(m / 60);
+  if (h >= 48) return Math.floor(h / 24) + 'd' + (h % 24 ? ' ' + (h % 24) + 'h' : '');
   return h + 'h' + (m % 60 ? ' ' + (m % 60) + 'm' : '');
 };

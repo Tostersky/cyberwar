@@ -34,7 +34,22 @@
     b.cam.center(); b.cam.z *= 1.05;
     // scouting someone's village: just look, nothing can be deployed
     b.dep = {}; // what was deployed (sent to the server, which checks the result against it)
+    b.rec = []; // replay: what was deployed where and when
+    b.rp = null;
     if (opts.mode === 'scout') { b.avail = {}; b.availClan = {}; b.heroes = {}; b.sel = null; b.ended = true; b.showZone = 0; }
+    else if (opts.mode === 'replay') {
+      // watching someone attack us: their army comes from the recorded events, their levels from the replay
+      const R = opts.replay; b.rp = { ev: R.ev.slice().sort((p, q) => p.t - q.t), i: 0, lv: R.lv || {}, dur: R.dur || G.BATTLE_TIME };
+      b.avail = {}; b.availClan = {}; b.heroes = {}; b.availSpells = {}; b.showZone = 0;
+      for (const e of b.rp.ev) {
+        const k = e.k;
+        if (k.startsWith('s:')) b.availSpells[k.slice(2)] = (b.availSpells[k.slice(2)] || 0) + 1;
+        else if (k.startsWith('c:')) b.availClan[k.slice(2)] = (b.availClan[k.slice(2)] || 0) + 1;
+        else if (G.HEROES[k]) b.heroes[k] = { state: 'ready', unit: null, abil: 'ready' };
+        else if (G.UNITS[k]) b.avail[k] = (b.avail[k] || 0) + 1;
+      }
+      b.sel = null;
+    }
     else { G.state.flags.battled = true; G.act({ c: 'bstart', mode: opts.mode }); }
     G.Sfx.play('open');
     G.scene = b;
@@ -108,8 +123,11 @@
   }
 
   function pickTarget(u) {
-    const pref = u.def.target === 'defense';
+    const pref = u.def.target === 'defense', wallR = u.def.target === 'wall';
     let best = null, bd = 1e9;
+    // wall breachers go for the nearest firewall; with no walls left they hit any building
+    if (wallR) for (const q of Bt.bs) { if (q.dead || !q.wall) continue; const d = distRect(u.x, u.y, q); if (d < bd) { bd = d; best = q.i; } }
+    if (best != null) return best;
     for (let pass = 0; pass < 2 && best == null; pass++) {
       for (const q of Bt.bs) {
         if (q.dead || q.wall || q.trap) continue;
@@ -161,10 +179,12 @@
     }
   }
 
+  // whose levels count: ours, or the recorded attacker's in a replay
+  const lvSrc = () => (Bt.rp ? { unitLv: Bt.rp.lv.unit || {}, heroLv: Bt.rp.lv.hero || {} } : G.state);
   function spawn(type, tx, ty, hero) {
     // laboratory levels make units tougher and stronger
-    const base = hero ? G.HEROES[type] : G.UNITS[type];
-    const mul = hero ? G.Econ.heroMul(G.state, type) : G.unitMul(G.state.unitLv && G.state.unitLv[type]);
+    const base = hero ? G.HEROES[type] : G.UNITS[type], L = lvSrc();
+    const mul = hero ? G.Econ.heroMul(L, type) : G.unitMul(L.unitLv && L.unitLv[type]);
     const def = Object.assign({}, base, { hp: Math.round(base.hp * mul), dmg: Math.round(base.dmg * mul), heal: Math.round((base.heal || 0) * mul) });
     const u = { type, hero, def, x: tx, y: ty, hp: def.hp, maxHp: def.hp, cd: 0.2, target: null, wall: null, path: null,
       dead: false, fly: !!def.fly, flip: false, anim: Math.random() * 5, jx: (Math.random() - 0.5) * 0.5, jy: (Math.random() - 0.5) * 0.5, storm: 0, hitT: 0 };
@@ -175,9 +195,14 @@
   }
 
   Bt.deployAt = function (sx, sy) {
+    if (Bt.ended || !Bt.sel || Bt.rp) return;
+    const [tx, ty] = Bt.cam.toTile(sx, sy);
+    const sel = Bt.sel, ok = deployTile(tx, ty);
+    if (ok) Bt.rec.push({ t: Math.round(Bt.t * 100) / 100, k: sel, x: Math.round(tx * 100) / 100, y: Math.round(ty * 100) / 100 });
+    return ok;
+  };
+  function deployTile(tx, ty) {
     const b = Bt;
-    if (b.ended || !b.sel) return;
-    const [tx, ty] = b.cam.toTile(sx, sy);
     const ix = Math.floor(tx), iy = Math.floor(ty);
     if (b.sel.startsWith('s:') && ix >= 0 && iy >= 0 && ix < M && iy < M) {
       // battle program: a zone of effect, may be cast anywhere (also over the base)
@@ -193,6 +218,7 @@
       return true;
     }
     if (ix < 0 || iy < 0 || ix >= M || iy >= M || b.noDeploy[iy * M + ix]) {
+      if (b.rp) return false;
       b.showZone = 1.5;
       if (!b.zoneToastT || b.t - b.zoneToastT > 1.5) { G.UI.toast(G.t('noDeploy')); b.zoneToastT = b.t; }
       return false;
@@ -219,7 +245,7 @@
     G.Sfx.play('deploy');
     G.UI.battleCards();
     return true;
-  };
+  }
 
   function nextSel() {
     const b = Bt;
@@ -246,6 +272,7 @@
     const hs = Bt.heroes[h];
     if (!hs || !hs.unit || hs.unit.dead || hs.abil !== 'ready') return;
     hs.abil = 'used';
+    if (!Bt.rp) Bt.rec.push({ t: Math.round(Bt.t * 100) / 100, k: 'a:' + h, x: 0, y: 0 });
     const u = hs.unit, w = unitW(u, 6);
     if (h === 'ronin') {
       u.storm = 3; u.hp = Math.min(u.maxHp, u.hp + u.maxHp * 0.35);
@@ -259,7 +286,17 @@
     G.UI.battleCards();
   };
 
-  Bt.wantsHold = () => !!Bt.sel && !Bt.ended && !Bt.heroes[Bt.sel];
+  Bt.wantsHold = () => !!Bt.sel && !Bt.ended && !Bt.rp && !Bt.heroes[Bt.sel];
+  // replay: play the recorded deployments when their time comes
+  function stepReplay() {
+    const R = Bt.rp;
+    while (R.i < R.ev.length && R.ev[R.i].t <= Bt.t) {
+      const e = R.ev[R.i++];
+      if (e.k.startsWith('a:')) { Bt.useAbility(e.k.slice(2)); continue; }
+      Bt.sel = e.k; deployTile(e.x, e.y);
+    }
+    Bt.sel = null;
+  }
   Bt.onTap = function (sx, sy) { Bt.deployAt(sx, sy); };
 
   // field medic: walks behind the nearest (preferably wounded) squad member and heals everyone around
@@ -302,12 +339,14 @@
     if (u.def.target === 'heal') { stepMedic(u, dt); return; }
     if (u.storm > 0) {
       u.storm -= dt;
-      for (const q of b.bs) if (!q.dead && distRect(u.x, u.y, q) <= 1.6) damageB(q, 70 * dt * G.Econ.heroMul(G.state, 'ronin'));
+      for (const q of b.bs) if (!q.dead && distRect(u.x, u.y, q) <= 1.6) damageB(q, 70 * dt * G.Econ.heroMul(lvSrc(), 'ronin'));
     }
     if (u.target == null || b.bs[u.target].dead) {
       u.target = pickTarget(u); u.wall = null; u.path = null;
       if (u.target == null) return;
     }
+    // a breacher reaching any other firewall on its way blows that one up
+    if (u.def.target === 'wall' && u.wall != null && !b.bs[u.wall].dead && b.bs[u.target].wall) u.target = u.wall;
     const tq = b.bs[u.target];
     if (!u.fly && u.path == null) { const r = findPath(u, u.target); u.path = r.path; u.wall = r.wall; }
     let goal = null;
@@ -316,10 +355,11 @@
     if (goal) {
       const [cx, cy] = closest(u.x, u.y, goal);
       u.flip = (cx - cy) < (u.x - u.y);
-      if (u.type === 'drone') {
-        const c = centerW(goal, 6);
-        b.fx.push({ k: 'boom', x: c[0], y: c[1], r: 30, life: 0.45, max: 0.45, color: '#ff3355' });
-        for (const q of b.bs) if (!q.dead && distRect(cx, cy, q) <= u.def.splash) damageB(q, u.def.dmg);
+      if (u.type === 'drone' || u.type === 'breacher') {
+        const c = centerW(goal, 6), wm = u.def.wallMul || 1;
+        b.fx.push({ k: 'boom', x: c[0], y: c[1], r: 30, life: 0.45, max: 0.45, color: u.type === 'breacher' ? '#ffb040' : '#ff3355' });
+        if (u.type === 'breacher') { b.shake = Math.max(b.shake || 0, 0.2); G.Sfx.play('boom'); }
+        for (const q of b.bs) if (!q.dead && !q.trap && distRect(cx, cy, q) <= u.def.splash) damageB(q, u.def.dmg * (q.wall ? wm : 1));
         u.dead = true; u.deadAt = b.t; u.exploded = true; return;
       }
       u.cd -= dt;
@@ -416,6 +456,17 @@
     for (const q of Bt.bs) {
       if (!q.trap || q.dead) continue;
       const cx = q.x + 0.5, cy = q.y + 0.5, d = BD[q.type];
+      if (d.air) { // sky mine: the nearest flying unit within reach takes one big hit
+        let v = null, vd = 1.6;
+        for (const w of Bt.units) { if (w.dead || !w.fly) continue; const dd = Math.hypot(w.x - cx, w.y - cy); if (dd < vd) { vd = dd; v = w; } }
+        if (!v) continue;
+        q.dead = true; q.deadAt = Bt.t; hurtUnit(v, d.dmg[q.level - 1]);
+        const w = unitW(v);
+        Bt.fx.push({ k: 'flash', x: w[0], y: w[1], r: 50, life: 0.4, max: 0.4, color: '#ff2bd6' });
+        Bt.fx.push({ k: 'ring', x: w[0], y: w[1], r: 28, life: 0.45, max: 0.45, color: '#ff2bd6' });
+        G.Sfx.play('zap');
+        continue;
+      }
       if (!Bt.units.some((v) => !v.dead && !v.fly && Math.hypot(v.x - cx, v.y - cy) < 0.9)) continue;
       q.dead = true; q.deadAt = Bt.t;
       for (const v of Bt.units) if (!v.dead && !v.fly && Math.hypot(v.x - cx, v.y - cy) <= d.splash) hurtUnit(v, d.dmg[q.level - 1]);
@@ -429,6 +480,7 @@
 
   Bt.update = function (dt) {
     const b = Bt;
+    if (b.rp && b.rp.fast && !b.rp.inner) { b.rp.inner = true; Bt.update(dt); if (!b.ended) Bt.update(dt); b.rp.inner = false; return; }
     b.t += dt; b.lastDt = dt;
     G.World.update(dt, b.t);
     if (b.shake > 0) b.shake = Math.max(0, b.shake - dt * 1.6);
@@ -453,6 +505,7 @@
     for (const q of b.bs) if (q.hitT > 0) q.hitT -= dt;
     if (b.ended) return;
     b.time -= dt;
+    if (b.rp) stepReplay();
     if (G.Input.mode() === 'hold' && G.Input.holdPos && Bt.wantsHold()) {
       b.holdAcc -= dt;
       if (b.holdAcc <= 0) { b.holdAcc = 0.12; b.deployAt(G.Input.holdPos[0], G.Input.holdPos[1]); }
@@ -467,7 +520,8 @@
     // medics alone can't win: the fight ends when no attacker is left
     const anyAlive = b.units.some((u) => !u.dead && u.def.target !== 'heal');
     const leftToDeploy = G.UNIT_ORDER.some((u) => G.UNITS[u].target !== 'heal' && (b.avail[u] > 0 || b.availClan[u] > 0)) || Object.values(b.heroes).some((h) => h.state === 'ready');
-    if (b.destroyed >= b.total || b.time <= 0 || (!anyAlive && !leftToDeploy && b.deployed > 0)) {
+    const rpWait = b.rp && b.rp.i < b.rp.ev.length;
+    if (b.destroyed >= b.total || b.time <= 0 || (!anyAlive && !leftToDeploy && b.deployed > 0 && !rpWait) || (b.rp && !rpWait && b.t > b.rp.dur + 2)) {
       b.endDelay += dt;
       if (b.endDelay > (b.time <= 0 ? 0 : 1.2)) Bt.finish();
     }
@@ -484,6 +538,7 @@
     if (b.ended) return;
     b.ended = true;
     const { pct, stars } = b.result();
+    if (b.rp) { G.UI.replayDone({ pct, stars }); return; }
     const s = G.state, o = b.opts;
     // only units that died are lost; survivors (and units never deployed) stay in the army
     const used = {};
@@ -510,7 +565,7 @@
     if (real) {
       s.shieldUntil = 0; // attacking a real player drops your own shield
       // the server checks the battle, moves trophies, shields the defender and credits the loot
-      const cmd = Object.assign({ c: 'battle', mode: 'pvp', defender: o.defender, stars, pct, used, usedClan }, proof);
+      const cmd = Object.assign({ c: 'battle', mode: 'pvp', defender: o.defender, stars, pct, used, usedClan, replay: b.rec.slice(0, 800) }, proof);
       G.Net.callNow(cmd)
         .then((res) => { G.UI.setResultTrophies(res && !res.err ? res.delta : null); })
         .catch(() => { G.UI.setResultTrophies(null); G.Net.queue(cmd); });

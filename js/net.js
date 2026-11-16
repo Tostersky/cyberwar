@@ -289,6 +289,12 @@ G.Net = (function () {
   // find players by nickname / look at someone's village
   N.searchPlayers = async function (q) { await ensureFresh(); return (await rpc('search_players', { p_q: q })) || []; };
   N.viewBase = async function (uid) { await ensureFresh(); const r = await rpc('view_base', { p_user: uid }); return r && r[0] ? r[0] : null; };
+  // replay of an attack on us (kept with the attack row; RLS lets only the two players read it)
+  N.replay = async function (attackId) {
+    await ensureFresh();
+    const r = await req('/rest/v1/attacks?select=replay,attacker_name,stars,pct&id=eq.' + (+attackId), { auth: true });
+    return r && r[0] && r[0].replay ? Object.assign({ name: r[0].attacker_name }, r[0].replay) : null;
+  };
   // revenge: the attacker's base (once per attack, within 24 h)
   N.revengeTarget = async function (attackId) {
     await ensureFresh();

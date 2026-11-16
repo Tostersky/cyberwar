@@ -130,7 +130,7 @@
   const HGT = {
     core: (L) => 52 + L * 12, scrapyard: (L) => 46 + L * 4, coppermine: (L) => 58 + L * 5, vault: (L) => 34 + L * 6,
     factory: (L) => 26 + L * 3, squadhq: (L) => 22 + L * 3, laser: (L) => 12 + L * 2, firewall: (L) => 15 + L * 2,
-    mortar: (L) => 14 + L * 2, aa: (L) => 14 + L * 2, emp: (L) => 16 + L * 2, mine: () => 3,
+    mortar: (L) => 14 + L * 2, aa: (L) => 14 + L * 2, emp: (L) => 16 + L * 2, mine: () => 3, skymine: () => 24,
     forge: (L) => 26 + L * 3, extractor: (L) => 20 + L * 3, tank: (L) => 14 + L * 2, lab: (L) => 24 + L * 3, clanhub: (L) => 30 + L * 4,
   };
   A.laserHeight = HGT.laser;
@@ -481,6 +481,18 @@
       dot(x, c[0], c[1] - 5, 2, t, 8);
       return 10;
     },
+    skymine(x, ox, oy, s, L) {
+      // a small floating proximity mine; hidden from attackers like any trap
+      const c = P(ox, oy, 0.5, 0.5), t = TRIM[L - 1];
+      x.fillStyle = 'rgba(0,0,0,.35)'; x.beginPath(); x.ellipse(c[0], c[1], 8, 4, 0, 0, Math.PI * 2); x.fill();
+      const cy = c[1] - 16;
+      x.strokeStyle = '#4a4f62'; x.lineWidth = 1; x.beginPath(); x.moveTo(c[0], c[1] - 2); x.lineTo(c[0], cy + 5); x.stroke();
+      x.fillStyle = '#2a2d3a'; x.beginPath(); x.arc(c[0], cy, 6, 0, Math.PI * 2); x.fill();
+      x.fillStyle = '#ff2bd6';
+      for (let k = 0; k < 6; k++) { const a = k * Math.PI / 3; x.fillRect(c[0] + Math.cos(a) * 6.5 - 1, cy + Math.sin(a) * 6.5 - 1, 2, 2); }
+      dot(x, c[0], cy, 2.4, t, 10);
+      return 24;
+    },
     lab(x, ox, oy, s, L, r) {
       const h = HGT.lab(L), t = TRIM[L - 1];
       shadow(x, ox, oy, s, h + 20); pad(x, ox, oy, s);
@@ -782,7 +794,7 @@
   };
 
   // ---------- units ----------
-  const UCOL = { runner: '#ff2bd6', gunner: '#19f0ff', drone: '#ff3355', mech: '#ffe14d', ronin: '#ff4d4d', nyx: '#b26bff', medic: '#39ff88' };
+  const UCOL = { runner: '#ff2bd6', gunner: '#19f0ff', drone: '#ff3355', mech: '#ffe14d', ronin: '#ff4d4d', nyx: '#b26bff', medic: '#39ff88', breacher: '#ffb040' };
   A.UCOL = UCOL;
   // st (optional): { moving, atk 0..1 (1 = just struck), dead 0..1 (death animation progress) }
   A.drawUnit = function (ctx, type, wx, wy, t, flip, flash, st) {
@@ -867,7 +879,15 @@
       ctx.strokeStyle = '#8a8aa0'; ctx.lineWidth = 0.7; ctx.beginPath(); ctx.moveTo(-6, -21 + by); ctx.lineTo(-7, -28 + by); ctx.stroke();
     } else {
       const by = -bob;
-      const coat = { runner: '#2a1838', gunner: '#16303a', ronin: '#e8e4ec', nyx: '#2c1640', medic: '#dfe9e4' }[type];
+      const coat = { runner: '#2a1838', gunner: '#16303a', ronin: '#e8e4ec', nyx: '#2c1640', medic: '#dfe9e4', breacher: '#3a2a14' }[type];
+      // wall breacher: a big charge strapped on the back, its fuse blinking
+      if (type === 'breacher') {
+        ctx.fillStyle = '#2a2a30'; ctx.beginPath(); ctx.arc(-5.2, -12 + by, 4.2, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = c; ctx.lineWidth = 0.8; ctx.beginPath(); ctx.arc(-5.2, -12 + by, 4.2, 0, Math.PI * 2); ctx.stroke();
+        ctx.fillStyle = '#ffe14d'; ctx.fillRect(-7.6, -12.6 + by, 4.8, 1.2);
+        ctx.strokeStyle = '#8a7a60'; ctx.lineWidth = 0.7; ctx.beginPath(); ctx.moveTo(-5.2, -16.2 + by); ctx.quadraticCurveTo(-4, -19 + by, -6.5, -19.5 + by); ctx.stroke();
+        if (Math.sin(t * 14) > 0) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; G.World.light(ctx, '#ff5a2a', -6.5, -19.5 + by, 3.5, 3.5, 1); ctx.restore(); }
+      }
       // medic: backpack with a green cross behind the body
       if (type === 'medic') {
         ctx.fillStyle = '#3a4a44'; ctx.fillRect(-6.5, -15 + by, 3.4, 6.5);
@@ -886,10 +906,11 @@
       if (type === 'ronin') { ctx.fillStyle = '#c21a30'; ctx.fillRect(-3.8, -14.5 + by, 2, 8); ctx.fillStyle = '#9a9aa8'; ctx.fillRect(-4.5, -15.5 + by, 3, 2.5); ctx.fillRect(1.5, -15.5 + by, 3, 2.5); }
       if (type === 'nyx') { ctx.fillStyle = '#7a3ac0'; ctx.fillRect(-3.8, -11 + by, 7.6, 1); }
       if (type === 'medic') { ctx.fillStyle = c; ctx.fillRect(-1.8, -13.6 + by, 3.6, 1.2); ctx.fillRect(-0.6, -14.8 + by, 1.2, 3.6); }
+      if (type === 'breacher') { ctx.fillStyle = '#ffe14d'; for (let k = 0; k < 3; k++) ctx.fillRect(-3.4 + k * 2.4, -14.2 + by, 1.2, 3.6); }
       // head
       const hx = 0, hy = -17.6 + by;
       if (type === 'nyx') { ctx.fillStyle = '#6a2fa8'; ctx.beginPath(); ctx.arc(hx - 0.5, hy - 0.5, 3.4, Math.PI * 0.8, Math.PI * 2.1); ctx.lineTo(hx - 5, hy + 6); ctx.closePath(); ctx.fill(); }
-      ctx.fillStyle = skin || (type === 'gunner' ? '#2f3e48' : type === 'ronin' ? '#d8d4e0' : type === 'runner' ? '#1f1428' : type === 'medic' ? '#e8efe9' : '#c9a98a');
+      ctx.fillStyle = skin || (type === 'gunner' ? '#2f3e48' : type === 'ronin' ? '#d8d4e0' : type === 'runner' ? '#1f1428' : type === 'medic' ? '#e8efe9' : type === 'breacher' ? '#5a4a30' : '#c9a98a');
       ctx.beginPath(); ctx.arc(hx, hy, 3, 0, Math.PI * 2); ctx.fill();
       if (type === 'runner') { ctx.fillStyle = '#2a1838'; ctx.beginPath(); ctx.arc(hx - 0.6, hy - 0.6, 3.3, Math.PI, Math.PI * 2.2); ctx.fill(); }
       if (type === 'ronin') { ctx.fillStyle = '#b8162a'; ctx.fillRect(hx - 3.2, hy - 1.6, 6.4, 1); }
@@ -924,6 +945,11 @@
         ctx.fillStyle = '#222'; ctx.fillRect(-1, -1, 3, 2);
         ctx.globalCompositeOperation = 'lighter'; G.World.light(ctx, '#ff3048', 9, 0, 9, 3, 0.55);
         ctx.restore();
+      } else if (type === 'breacher') {
+        // demolition charge held forward, pulsing
+        ctx.fillStyle = '#3a3a42'; ctx.fillRect(2, -12 + by, 4.5, 3.4);
+        ctx.fillStyle = c; ctx.fillRect(2.6, -11.4 + by, 3.3, 0.9);
+        ctx.save(); ctx.globalCompositeOperation = 'lighter'; G.World.light(ctx, '#ff5a2a', 4.2, -10.4 + by, 3 + Math.abs(Math.sin(t * 8)) * 3, 2.5, 0.8); ctx.restore();
       } else if (type === 'medic') {
         // nano-injector with a glowing green canister; glows brighter while healing
         ctx.fillStyle = '#9aa8a2'; ctx.fillRect(1.5, -11.5 + by, 6, 1.8);

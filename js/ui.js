@@ -25,6 +25,11 @@
     clan: '<svg viewBox="0 0 24 24"><path d="M12 2l8 3v6c0 5-3.5 9-8 11-4.5-2-8-6-8-11V5z" fill="none" stroke="#ff2bd6" stroke-width="2" stroke-linejoin="round"/><path d="M8 13l2.5-5 1.5 3 1.5-3L16 13" fill="none" stroke="#ff2bd6" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
     drone: '<svg viewBox="0 0 24 24"><g fill="none" stroke="#ffe14d" stroke-width="1.8"><rect x="8" y="9" width="8" height="6" rx="2"/><path d="M8 10L4 7M16 10l4-3M8 14l-4 3M16 14l4 3"/></g><circle cx="12" cy="12" r="1.3" fill="#ff3355"/></svg>',
     plasma: '<svg viewBox="0 0 24 24"><defs><radialGradient id="gp" cx="40%" cy="35%" r="70%"><stop offset="0" stop-color="#f3d6ff"/><stop offset=".45" stop-color="#b26bff"/><stop offset="1" stop-color="#3d0f7a"/></radialGradient></defs><path d="M12 2.5c3.6 4.6 6.5 8.2 6.5 11.7a6.5 6.5 0 0 1-13 0C5.5 10.7 8.4 7.1 12 2.5z" fill="url(#gp)" stroke="#2a0a55" stroke-width=".8"/><path d="M9 13.5c0 2 1.2 3.4 3 3.6" stroke="#fff" stroke-width="1.3" fill="none" stroke-linecap="round" opacity=".6"/><circle cx="12" cy="14" r="1.6" fill="#ff7af0"/></svg>',
+    bo_prod: '<svg viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="17" rx="3" fill="rgba(255,138,31,.2)" stroke="#ff8a1f" stroke-width="1.6"/><path d="M8 4V2.5h8V4" stroke="#ff8a1f" stroke-width="1.6" fill="none"/><path d="M9 15l3-6 3 6M10 13h4" stroke="#ffe14d" stroke-width="1.8" fill="none" stroke-linecap="round"/></svg>',
+    bo_train: '<svg viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="17" rx="3" fill="rgba(25,240,255,.2)" stroke="#19f0ff" stroke-width="1.6"/><path d="M8 4V2.5h8V4" stroke="#19f0ff" stroke-width="1.6" fill="none"/><circle cx="12" cy="10.5" r="2.4" fill="#19f0ff"/><path d="M8 18c0-2.6 1.8-4 4-4s4 1.4 4 4" fill="#19f0ff"/></svg>',
+    bo_build: '<svg viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="17" rx="3" fill="rgba(57,255,136,.2)" stroke="#39ff88" stroke-width="1.6"/><path d="M8 4V2.5h8V4" stroke="#39ff88" stroke-width="1.6" fill="none"/><path d="M13 8l-4 6h3l-1 4 4-6h-3z" fill="#39ff88"/></svg>',
+    pass: '<svg viewBox="0 0 24 24"><path d="M4 6h16v4a2 2 0 0 0 0 4v4H4v-4a2 2 0 0 0 0-4z" fill="rgba(255,225,77,.2)" stroke="#ffe14d" stroke-width="1.6" stroke-linejoin="round"/><path d="M12 9l1 2 2.2.3-1.6 1.5.4 2.2-2-1.1-2 1.1.4-2.2-1.6-1.5 2.2-.3z" fill="#ffe14d"/></svg>',
+    replay: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="#19f0ff" stroke-width="1.8"/><path d="M10 8.5l6 3.5-6 3.5z" fill="#19f0ff"/></svg>',
     sp_heal: '<svg viewBox="0 0 24 24"><path d="M12 2l8.5 5v10L12 22l-8.5-5V7z" fill="rgba(57,255,136,.18)" stroke="#39ff88" stroke-width="1.6"/><path d="M12 7.5v9M7.5 12h9" stroke="#39ff88" stroke-width="3" stroke-linecap="round"/></svg>',
     sp_rage: '<svg viewBox="0 0 24 24"><path d="M12 2l8.5 5v10L12 22l-8.5-5V7z" fill="rgba(255,43,214,.18)" stroke="#ff2bd6" stroke-width="1.6"/><path d="M13.5 5L8 13h4l-1.5 6L16 11h-4z" fill="#ff2bd6"/></svg>',
     sp_jam: '<svg viewBox="0 0 24 24"><path d="M12 2l8.5 5v10L12 22l-8.5-5V7z" fill="rgba(127,216,255,.18)" stroke="#7fd8ff" stroke-width="1.6"/><path d="M8 9.5c2.2-2 5.8-2 8 0M9.6 11.7c1.3-1.1 3.5-1.1 4.8 0" stroke="#7fd8ff" stroke-width="1.8" fill="none" stroke-linecap="round"/><circle cx="12" cy="14.2" r="1.4" fill="#7fd8ff"/><path d="M6 18L18 6" stroke="#ff3355" stroke-width="2" stroke-linecap="round"/></svg>',
@@ -39,7 +44,7 @@
     const ui = $('#ui');
     ui.innerHTML = `
       <div id="hud-top">
-        <div class="player pe" id="btn-profile"><div class="pl-name" id="pl-name"></div><div class="pl-tro">${IC.trophy}<span id="pl-tro">0</span></div></div>
+        <div class="player pe" id="btn-profile"><div class="pl-name" id="pl-name"></div><div class="pl-tro">${IC.trophy}<span id="pl-tro">0</span><small id="pl-league" class="pl-league"></small></div></div>
         <div class="res-wrap">
           ${['scrap', 'copper', 'plasma', 'chips'].map((r) => `<div class="res" data-r="${r}"><i>${IC[r]}</i><div class="bar"><b></b></div><span class="v"></span><span class="cap"></span></div>`).join('')}
         </div>
@@ -49,6 +54,7 @@
       <div id="hud-shield" class="chip-info hidden" title="">${IC.shield}<span id="shield-v"></span></div>
       <button id="btn-layout" class="chip-info pe">${IC.move}<span data-t="layout"></span></button>
       <button id="btn-quests" class="chip-info pe">${IC.gift}<span data-t="quests"></span><i class="dot hidden"></i></button>
+      <button id="btn-pass" class="chip-info pe">${IC.pass}<span data-t="pass"></span><i class="dot hidden"></i></button>
       <div id="editbar" class="pe hidden"><span>${IC.move}</span><b data-t="layoutHint"></b><button class="btn primary sm" id="edit-done" data-t="done"></button></div>
       <div id="hud-bottom">
         <button class="btn-attack pe" id="btn-attack">${IC.sword}<span data-t="attack"></span></button>
@@ -68,6 +74,7 @@
     $('#btn-clan').onclick = () => G.Clan.open();
     $('#btn-layout').onclick = () => G.Village.setEditMode(true);
     $('#btn-quests').onclick = U.openQuests;
+    $('#btn-pass').onclick = U.openPass;
     $('#hud-builders').onclick = () => { G.Sfx.play('click'); U.openBuilders(); };
     $('#edit-done').onclick = () => G.Village.setEditMode(false);
     $('#btn-attack').onclick = U.openAttack;
@@ -101,7 +108,7 @@
   U.showEditBar = function (on) {
     $('#editbar').classList.toggle('hidden', !on);
     $('#hud-bottom').classList.toggle('hidden', on);
-    $('#btn-layout').classList.toggle('hidden', on); $('#btn-quests').classList.toggle('hidden', on);
+    $('#btn-layout').classList.toggle('hidden', on); $('#btn-quests').classList.toggle('hidden', on); $('#btn-pass').classList.toggle('hidden', on);
     if (on) U.hideSel();
   };
   // positive message (green) — toast() is for errors
@@ -138,7 +145,7 @@
   // ---------- village HUD ----------
   U.showVillage = function () {
     $('#hud-top').classList.remove('hidden'); $('#hud-bottom').classList.remove('hidden'); $('#hud-builders').classList.remove('hidden');
-    $('#btn-layout').classList.remove('hidden'); $('#btn-quests').classList.remove('hidden'); $('#editbar').classList.add('hidden');
+    $('#btn-layout').classList.remove('hidden'); $('#btn-quests').classList.remove('hidden'); $('#btn-pass').classList.remove('hidden'); $('#editbar').classList.add('hidden');
     $('#battle-hud').classList.add('hidden'); $('#battle-hud').innerHTML = '';
     U.hideSel(); U.hidePlace(); U.closeModal();
     U.refreshHud();
@@ -148,6 +155,9 @@
     $('#pl-name').textContent = s.name;
     $('#btn-profile').classList.toggle('vip', G.isVip());
     $('#btn-quests .dot').classList.toggle('hidden', !G.Econ.questDot(s, Date.now()));
+    // season pass: a dot when a tier can be claimed
+    { const P = s.pass, tr = P ? G.Econ.passTier(s) : 0; let can = false; if (P) for (let i = 1; i <= tr && !can; i++) if (!P.free.includes(i) || (P.premium && !P.prem.includes(i))) can = true; $('#btn-pass .dot').classList.toggle('hidden', !can && !s.seasonReward); }
+    $('#pl-league') && ($('#pl-league').textContent = t('lg_' + G.LEAGUES[G.leagueOf(s.trophies | 0)].id));
     // PvP shield (set by the server after someone attacks us)
     const sh = $('#hud-shield'), left = Math.ceil(((s.shieldUntil || 0) - Date.now()) / 1000);
     if (sh) { sh.classList.toggle('hidden', !(left > 0)); if (left > 0) $('#shield-v').textContent = G.fmtTime(left); }
@@ -354,7 +364,9 @@
         ${inApp ? '' : `<p class="hint iap-note">${t(G.Pay.available() ? 'iapLoading' : 'iapOnlyApp')}</p>`}
         <div class="grid packs">${packs}</div>
         ${ad ? `<div class="sec-h">${t('freeRes')}</div>${ad}` : ''}
+        <div class="sec-h">${t('boosts')}</div>${U.boostsHtml()}
         <div class="sec-h">${t('exchange')}</div>${ex}`, { cls: 'wide' });
+      U.bindBoosts(draw);
       document.querySelectorAll('#modal .pack').forEach((b) => {
         b.onclick = async () => {
           if (busy) return;
@@ -406,6 +418,30 @@
   };
 
   // ---------- army ----------
+  // quick train: 3 saved army compositions
+  const presetsHtml = (s) => {
+    const slots = [0, 1, 2].map((i) => {
+      const p = s.presets && s.presets[i], list = p ? G.UNIT_ORDER.filter((u) => p[u] > 0) : [];
+      const sp = p ? G.UNIT_ORDER.reduce((m, u) => m + (p[u] || 0) * G.UNITS[u].space, 0) : 0;
+      return `<div class="pre"><div class="pre-h"><b>#${i + 1}</b>${p ? `<small class="dim">${sp} ${t('housing').toLowerCase()}</small>` : ''}</div>
+        <div class="pre-u">${list.length ? list.map((u) => `<span><img src="${G.Art.unitThumb(u)}" alt="">×${p[u]}</span>`).join('') : `<small class="dim">${t('presetEmpty')}</small>`}</div>
+        <div class="pre-b"><button class="btn sm" data-ps="${i}">${t('presetSave')}</button><button class="btn sm primary" data-pt="${i}" ${list.length ? '' : 'disabled'}>${t('presetTrain')}</button></div></div>`;
+    }).join('');
+    return `<h3>${t('presets')}</h3><p class="hint">${t('presetsHint')}</p><div class="presets">${slots}</div>`;
+  };
+  // queue whatever the preset has more of than the army + queue already holds
+  const trainPreset = (i) => {
+    const s = G.state, p = s.presets && s.presets[i]; if (!p) return;
+    let n = 0, err = null;
+    for (const u of G.UNIT_ORDER) {
+      let need = (p[u] || 0) - (s.army[u] || 0) - s.queue.filter((x) => x === u).length;
+      while (need-- > 0) { const r = G.act({ c: 'train', u }); if (r.err) { err = r; break; } n++; }
+      if (err) break;
+    }
+    if (n) { s.flags.trained = true; G.Sfx.play('train'); G.save(); U.notify(t('presetQueued', { n })); }
+    if (err) U.toast(G.t(err.err, err.p && err.p.r ? { r: t(err.p.r) } : err.p));
+    else if (!n) U.toast(t('presetReady'));
+  };
   U.openArmy = function () {
     const draw = () => {
       const s = G.state, fl = G.factoryLevel(), cap = G.housing(), used = G.armySpace(), q = G.queueSpace();
@@ -475,6 +511,7 @@
       return `<div class="cap-row"><span>${t('capacity')}</span><div class="bar big"><b style="width:${cap ? Math.min(100, used / cap * 100) : 0}%"></b><i style="left:${cap ? Math.min(100, used / cap * 100) : 0}%;width:${cap ? Math.min(100 - used / cap * 100, q / cap * 100) : 0}%"></i></div><b>${used + q}/${cap}</b></div>
         ${fl < 1 ? `<p class="warn">${t('needFactory')}</p>` : ''}
         <div class="grid">${units}</div>${qhtml}
+        ${fl >= 1 ? presetsHtml(s) : ''}
         ${spells}
         <h3>${t('heroes')}</h3><div class="heroes">${heroes}</div>`;
     };
@@ -485,6 +522,15 @@
       document.querySelectorAll('#modal [data-hf]').forEach((c) => { c.onclick = () => actR({ c: 'heroFinish' }); });
       document.querySelectorAll('#modal .spellc').forEach((c) => { c.onclick = () => { if (!c.classList.contains('locked')) actR({ c: 'brew', sp: c.dataset.sp }); else U.toast(t('forgeAt', { n: G.SPELLS[c.dataset.sp].unlock })); }; });
       document.querySelectorAll('#modal .sq-item').forEach((c) => { c.onclick = () => actR({ c: 'unbrew', i: +c.dataset.si }); });
+      document.querySelectorAll('#modal [data-ps]').forEach((c) => {
+        c.onclick = () => {
+          const s = G.state, units = {};
+          for (const u of G.UNIT_ORDER) units[u] = (s.army[u] || 0) + s.queue.filter((x) => x === u).length;
+          if (!G.UNIT_ORDER.some((u) => units[u] > 0)) { U.toast(t('presetNothing')); return; }
+          G.act({ c: 'preset', i: +c.dataset.ps, units }); U.toast(t('presetSaved')); refresh();
+        };
+      });
+      document.querySelectorAll('#modal [data-pt]').forEach((c) => { c.onclick = () => { trainPreset(+c.dataset.pt); refresh(); U.refreshHud(); }; });
       document.querySelectorAll('#modal .card.unit').forEach((c) => {
         c.onclick = (ev) => {
           if (ev.target.closest('.c-info')) { U.openUnitInfo(c.dataset.u, true); return; }
@@ -515,9 +561,10 @@
       const hv = (m) => num(Math.round(base.heal * m), 0);
       row(t('st_heal'), hv(mul) + ' / ' + num(base.interval) + ' s', nmul && hv(nmul) + ' / ' + num(base.interval) + ' s');
       row(t('st_healR'), num(base.healR) + ' ' + t('tiles'));
-    } else if (u === 'drone') {
+    } else if (u === 'drone' || u === 'breacher') {
       const dm = (m) => num(Math.round(base.dmg * m), 0);
       row(t('st_blast'), dm(mul), nmul && dm(nmul), t('st_blastHint'));
+      if (base.wallMul) row(t('st_wall'), dm(mul * base.wallMul), nmul && dm(nmul * base.wallMul), 'x' + base.wallMul);
       row(t('splash'), num(base.splash) + ' ' + t('tiles'));
     } else {
       const dm = (m) => num(Math.round(base.dmg * m), 0), aps = 1 / base.interval;
@@ -590,11 +637,12 @@
       <button class="mode-card" id="a-pve"><div class="mc-t">${t('campaign')}</div><p>${t('campaignDesc')}</p></button>
       <button class="mode-card mp" id="a-pvp"><div class="mc-t">${t('multiplayer')}</div><p>${t('mpDesc')}</p>
         <div class="mc-c">${t('findMatch')} · ${costHtml('copper', cost, G.state.res.copper >= cost)}</div></button></div>
-      <div class="row-btns"><button class="btn" id="a-rank">${IC.trophy}${t('ranking')}</button><button class="btn" id="a-find">🔍 ${t('findPlayer')}</button><button class="btn" id="a-def">${t('defenseLog')}</button></div>
+      <div class="row-btns"><button class="btn" id="a-rank">${IC.trophy}${t('ranking')}</button><button class="btn" id="a-league">${t('leagues')}</button><button class="btn" id="a-find">🔍 ${t('findPlayer')}</button><button class="btn" id="a-def">${t('defenseLog')}</button></div>
       ${(G.state.shieldUntil || 0) > Date.now() ? `<p class="hint shield-note">${IC.shield} ${t('shieldWarn', { t: G.fmtTime(Math.ceil((G.state.shieldUntil - Date.now()) / 1000)) })}</p>` : ''}
       <p class="hint">${t(G.Net.session ? 'pvpNote' : 'pvpNoteOffline')}</p>`, { cls: 'wide' });
     $('#a-pve').onclick = U.openCampaign;
     $('#a-rank').onclick = U.openRanking;
+    $('#a-league').onclick = U.openLeague;
     $('#a-find').onclick = U.openPlayerSearch;
     $('#a-def').onclick = () => U.openDefenseLog(0);
     let searching = false;
@@ -616,7 +664,8 @@
       if (opp) {
         const buildings = G.Battle.baseFromLayout(opp.layout);
         if (buildings.some((q) => q.type !== 'firewall')) {
-          G.Battle.start({ mode: 'pvp', base: { buildings, loot: { scrap: opp.loot_scrap, copper: opp.loot_copper } }, name: opp.username, defender: opp.user_id, trophies: opp.trophies });
+          const lm = G.lootMul(G.coreLevel(), opp.core | 0 || 1);
+          G.Battle.start({ mode: 'pvp', base: { buildings, loot: { scrap: Math.floor(opp.loot_scrap * lm), copper: Math.floor(opp.loot_copper * lm) } }, name: opp.username, defender: opp.user_id, trophies: opp.trophies });
           return;
         }
       }
@@ -684,12 +733,13 @@
       const stars = [0, 1, 2].map((k) => `<span class="st ${k < a.stars ? 'on' : ''}">${IC.star}</span>`).join('');
       return `<div class="dl ${i < fresh ? 'new' : ''}"><div class="dl-h"><b>${escHtml(a.name)}</b><span class="l-s">${stars}</span><small>${a.pct}% · ${ago(a.at)}</small></div>
         <div class="dl-b">${a.stars > 0 ? `${t('stolen')}: ${costHtml('scrap', a.scrap)} ${costHtml('copper', a.copper)} · ${IC.trophy.replace('<svg', '<svg class="tro-ic"')} −${a.trophies}` : `<span class="ok">${t('defended')}</span> · ${IC.trophy.replace('<svg', '<svg class="tro-ic"')} +${-a.trophies}`}</div>
-        ${a.aid && !a.rev && G.Net.session && Date.now() - new Date(a.at).getTime() < 86400000 ? `<button class="btn sm primary rev" data-aid="${a.aid}">${IC.sword}${t('revenge')}</button>` : ''}</div>`;
+        <div class="dl-btns">${a.aid && G.Net.session ? `<button class="btn sm rpl" data-aid="${a.aid}">${IC.replay}${t('replay')}</button>` : ''}${a.aid && !a.rev && G.Net.session && Date.now() - new Date(a.at).getTime() < 86400000 ? `<button class="btn sm primary rev" data-aid="${a.aid}">${IC.sword}${t('revenge')}</button>` : ''}</div></div>`;
     }).join('');
     const sh = Math.ceil(((G.state.shieldUntil || 0) - Date.now()) / 1000);
     U.modal(fresh ? t('youWereAttacked') : t('defenseLog'), (sh > 0 ? `<p class="hint shield-note">${IC.shield} ${t('shieldFor', { t: G.fmtTime(sh) })}</p>` : '')
       + (log.length ? `<div class="levels">${rows}</div>` : `<p class="center hint">${t('noDefenses')}</p>`), { cls: 'small' });
     document.querySelectorAll('#modal .rev').forEach((b) => { b.onclick = () => U.revenge(+b.dataset.aid); });
+    document.querySelectorAll('#modal .rpl').forEach((b) => { b.onclick = () => U.watchReplay(+b.dataset.aid); });
     U.refreshHud();
   };
   // attack back whoever raided us (once per attack, within 24 h)
@@ -752,11 +802,21 @@
           ${m.got ? `<span class="ok">${t('claimed')}</span>` : `<button class="btn sm ${done ? 'primary' : ''}" data-m="${i}" ${done ? '' : 'disabled'}>${t('claim')}</button>`}</div>`;
       }).join('');
       const resetIn = Math.ceil((Date.parse(G.Econ.today(now) + 'T00:00:00Z') + 86400000 - now) / 1000);
+      // achievements: 3 tiers each, the next tier shows its progress
+      const ach = G.ACH.map((a) => {
+        const got = (s.ach && s.ach[a.id]) | 0, v = G.Econ.achValue(s, a.id), max = got >= a.tiers.length, goal = a.tiers[Math.min(got, a.tiers.length - 1)];
+        const done = !max && v >= goal, pct = max ? 100 : Math.min(100, v / goal * 100);
+        const st = [0, 1, 2].map((k) => `<span class="st ${k < got ? 'on' : ''}">${IC.star}</span>`).join('');
+        return `<div class="mis ach ${max ? 'got' : ''}"><div class="mis-b"><b>${t('ach_' + a.id, { n: G.fmt(goal) })} <span class="l-s">${st}</span></b>
+          <div class="mis-bar"><i style="width:${pct}%"></i><span>${G.fmt(Math.min(v, goal))} / ${G.fmt(goal)}</span></div></div>
+          ${max ? `<span class="ok">MAX</span>` : `<div class="ach-r"><small>${rwHtml({ res: G.ACH_RW[got], plasma: got === 2 ? G.ACH_PLASMA : 0 })}</small><button class="btn sm ${done ? 'primary' : ''}" data-a="${a.id}" ${done ? '' : 'disabled'}>${t('claim')}</button></div>`}</div>`;
+      }).join('');
       return `<div class="sec-h">${t('dailyReward')}</div>
         <div class="days">${days}</div>
         <div class="row-btns"><button class="btn primary" id="q-daily" ${ds.claimable ? '' : 'disabled'}>${ds.claimable ? t('claimDay', { n: ds.day }) : t('dailyCome')}</button></div>
         <div class="sec-h">${t('dailyMissions')} <small class="hint">· ${t('newIn', { t: G.fmtTime(resetIn) })}</small></div>
-        <p class="hint mis-rw">${t('missionReward', { p: Math.round(G.MISSION_REWARD * 100) })}</p>${ms}`;
+        <p class="hint mis-rw">${t('missionReward', { p: Math.round(G.MISSION_REWARD * 100) })}</p>${ms}
+        <div class="sec-h">${t('achievements')}</div>${ach}`;
     };
     const bind = () => {
       const d = $('#q-daily');
@@ -774,16 +834,106 @@
           refresh(); U.refreshHud();
         };
       });
+      document.querySelectorAll('#modal [data-a]').forEach((b) => {
+        b.onclick = () => {
+          const r = G.act({ c: 'achClaim', id: b.dataset.a });
+          if (r.err) { U.toast(t(r.err)); return; }
+          G.Sfx.play('star'); U.notify(claimNote(r));
+          refresh(); U.refreshHud();
+        };
+      });
     };
-    const refresh = () => { const b = $('#modal .panel-b'); if (!b) return; b.innerHTML = draw(); bind(); };
+    const refresh = () => { const b = $('#modal .panel-b'); if (!b) return; const st = b.scrollTop; b.innerHTML = draw(); b.scrollTop = st; bind(); };
     U.modal(t('quests'), draw(), { cls: 'wide' });
     bind();
   };
+  // ---------- rewards described from their definition (pass tiers, leagues, achievements) ----------
+  const rwHtml = (rw) => {
+    const ref = G.refCap(G.coreLevel()), parts = [];
+    if (rw.res) parts.push(`${resIc('scrap')}${resIc('copper')}${G.fmt(Math.floor(ref * rw.res))}`);
+    if (rw.plasma) parts.push(`${resIc('plasma')}${G.fmt(rw.plasma)}`);
+    if (rw.item) parts.push(`<span class="itm">${IC['bo_' + rw.item]}${rw.n > 1 ? '×' + rw.n : ''}</span>`);
+    return parts.join(' ');
+  };
+  const claimNote = (r) => {
+    const p = [];
+    if (r.gained && (r.gained.scrap || r.gained.copper)) p.push(`+${G.fmt(r.gained.scrap)} / +${G.fmt(r.gained.copper)}`);
+    if (r.plasma) p.push(`+${G.fmt(r.plasma)} ${t('plasma').toLowerCase()}`);
+    if (r.item) p.push(t('bo_' + r.item));
+    return p.join(', ');
+  };
+
+  // ---------- leagues & seasons ----------
+  U.openLeague = function () {
+    const s = G.state, now = Date.now(); G.Econ.season(s, now);
+    const cur = G.leagueOf(s.trophies | 0), end = G.Econ.seasonEnd(now);
+    const rows = G.LEAGUES.map((L, i) => `<div class="lg ${i === cur ? 'cur' : ''} lg-${L.id}"><span class="lg-badge">${IC.trophy}</span><div class="lg-b"><b>${t('lg_' + L.id)}</b><small>${IC.trophy.replace('<svg', '<svg class="tro-ic"')} ${L.min}+ · ${t('lgBonus', { p: Math.round(L.bonus * 100) })}</small></div><div class="lg-r">${rwHtml(L.reward)}</div></div>`).join('');
+    const rw = s.seasonReward;
+    U.modal(t('leagues'), `<p class="hint">${t('lgHint')}</p>
+      ${rw ? `<div class="vip-box on"><div><b>${t('seasonEnded', { l: t('lg_' + G.LEAGUES[rw.league].id) })}</b><small>${rwHtml(G.LEAGUES[rw.league].reward)}</small></div><button class="btn primary sm" id="lg-claim">${t('claim')}</button></div>` : ''}
+      <div class="sec-h">${t('seasonEnds', { t: G.fmtTime((end - now) / 1000) })}</div><div class="lg-list">${rows}</div>`, { cls: 'small' });
+    if ($('#lg-claim')) $('#lg-claim').onclick = () => { const r = G.act({ c: 'seasonClaim' }); if (r.err) U.toast(t(r.err)); else { G.Sfx.play('star'); U.notify(claimNote(r)); } U.refreshHud(); U.openLeague(); };
+  };
+
+  // ---------- season pass ----------
+  U.openPass = function () {
+    const draw = () => {
+      const s = G.state, now = Date.now(); G.Econ.season(s, now);
+      const P = s.pass, tier = G.Econ.passTier(s), xpIn = P.xp % G.PASS.xpPer, end = G.Econ.seasonEnd(now);
+      const rows = [];
+      for (let i = 1; i <= G.PASS.tiers; i++) {
+        const fr = G.PASS_FREE[i - 1], pr = G.PASS_PREM[i - 1], open = i <= tier;
+        const fb = P.free.includes(i) ? `<span class="ok">✓</span>` : `<button class="btn sm ${open ? 'primary' : ''}" data-pc="${i}" ${open ? '' : 'disabled'}>${t('claim')}</button>`;
+        const pb = P.prem.includes(i) ? `<span class="ok">✓</span>` : `<button class="btn sm ${open && P.premium ? 'primary' : ''}" data-pp="${i}" ${open && P.premium ? '' : 'disabled'}>${P.premium ? t('claim') : '🔒'}</button>`;
+        rows.push(`<div class="ps ${open ? 'open' : ''}"><div class="ps-n">${i}</div><div class="ps-f">${rwHtml(fr)}${fb}</div><div class="ps-p">${rwHtml(pr)}${pb}</div></div>`);
+      }
+      return `<div class="ps-head"><div><b>${t('passTier', { n: tier, m: G.PASS.tiers })}</b><div class="mis-bar"><i style="width:${tier >= G.PASS.tiers ? 100 : xpIn / G.PASS.xpPer * 100}%"></i><span>${tier >= G.PASS.tiers ? 'MAX' : xpIn + ' / ' + G.PASS.xpPer + ' XP'}</span></div>
+          <small class="hint">${t('passXpHint')} · ${t('seasonEnds', { t: G.fmtTime((end - now) / 1000) })}</small></div>
+          ${P.premium ? `<span class="vip-badge">PREMIUM</span>` : `<button class="btn primary" id="ps-buy">${t('passBuy')} · ${escHtml(G.Pay.priceOf({ id: G.PASS.id, price: G.PASS.price }))}</button>`}</div>
+        <div class="ps-cols"><span></span><span>${t('passFree')}</span><span>${t('passPrem')}</span></div><div class="ps-list">${rows.join('')}</div>`;
+    };
+    const bind = () => {
+      const claim = (i, prem) => { const r = G.act({ c: 'passClaim', i, prem }); if (r.err) U.toast(t(r.err)); else { G.Sfx.play('collect'); U.notify(claimNote(r)); } refresh(); U.refreshHud(); };
+      document.querySelectorAll('#modal [data-pc]').forEach((b) => { b.onclick = () => claim(+b.dataset.pc, false); });
+      document.querySelectorAll('#modal [data-pp]').forEach((b) => { b.onclick = () => claim(+b.dataset.pp, true); });
+      if ($('#ps-buy')) $('#ps-buy').onclick = async () => {
+        if (!G.Pay.available()) { U.toast(t('iapOnlyAppShort')); return; }
+        U.loading(true); const r = await G.Pay.buyPass(); U.loading(false);
+        if (r.ok) { G.Sfx.play('star'); U.notify(t('passThanks')); } else if (r.err !== 'iapCancel') U.toast(t(r.err));
+        refresh();
+      };
+    };
+    const refresh = () => { const b = $('#modal .panel-b'); if (!b) return; const st = b.scrollTop; b.innerHTML = draw(); b.scrollTop = st; bind(); };
+    U.modal(t('pass'), draw(), { cls: 'wide' });
+    bind();
+  };
+
+  // ---------- boosts (in the chip shop) ----------
+  U.boostsHtml = function () {
+    const s = G.state, now = Date.now();
+    return G.Econ && Object.keys(G.BOOSTS).map((k) => {
+      const d = G.BOOSTS[k], on = G.Econ.boostOn(s, k, now), have = (s.items && s.items[k]) || 0;
+      return `<div class="bo-card"><div class="bo-ic">${IC['bo_' + k]}</div><div class="bo-b"><b>${t('bo_' + k)}</b><small>${t('bod_' + k)}</small>
+        ${on ? `<small class="ok">${t('boActive', { t: G.fmtTime((s.boost[k] - now) / 1000) })}</small>` : ''}</div>
+        <div class="bo-btns">${have ? `<button class="btn sm primary" data-bi="${k}">${t('boUse')} (${have})</button>` : ''}<button class="btn sm" data-bc="${k}">${costHtml('chips', d.chips, s.res.chips >= d.chips)}</button></div></div>`;
+    }).join('');
+  };
+  U.bindBoosts = function (after) {
+    const go = (k, item) => {
+      const fire = () => { const r = G.act({ c: 'boost', k, item }); if (r.err) U.toast(t(r.err)); else { G.Sfx.play('star'); U.notify(t('boOn', { n: t('bo_' + k) })); } U.refreshHud(); after(); };
+      if (item) fire(); else U.confirm(t('boBuyQ', { n: t('bo_' + k), c: G.BOOSTS[k].chips }), fire);
+    };
+    document.querySelectorAll('#modal [data-bi]').forEach((b) => { b.onclick = () => go(b.dataset.bi, true); });
+    document.querySelectorAll('#modal [data-bc]').forEach((b) => { b.onclick = () => go(b.dataset.bc, false); });
+  };
+
   // after logging in: show the daily reward once if it's waiting (not during the tutorial)
   U.maybeDaily = function () {
     setTimeout(() => {
       if (G.scene !== G.Village || U.isModal() || (G.Tut && G.Tut.active && G.Tut.active())) return;
-      if (G.Econ.dailyState(G.state, Date.now()).claimable) U.openQuests();
+      G.Econ.season(G.state, Date.now());
+      if (G.state.seasonReward) U.openLeague();
+      else if (G.Econ.dailyState(G.state, Date.now()).claimable) U.openQuests();
     }, 1500);
   };
 
@@ -958,7 +1108,7 @@
   U.showBattle = function () {
     U.closeModal(); U.hideSel(); U.hidePlace();
     $('#hud-top').classList.add('hidden'); $('#hud-bottom').classList.add('hidden'); $('#hud-builders').classList.add('hidden');
-    $('#btn-layout').classList.add('hidden'); $('#btn-quests').classList.add('hidden'); $('#hud-shield').classList.add('hidden'); $('#editbar').classList.add('hidden');
+    $('#btn-layout').classList.add('hidden'); $('#btn-quests').classList.add('hidden'); $('#btn-pass').classList.add('hidden'); $('#hud-shield').classList.add('hidden'); $('#editbar').classList.add('hidden');
     const b = G.Battle, el = $('#battle-hud');
     if (b.opts.mode === 'scout') {
       const o = b.opts;
@@ -968,6 +1118,15 @@
         <div class="bh-hint">${t('scoutHint')}</div>`;
       el.classList.remove('hidden');
       $('#bh-back').onclick = () => { G.Village.enter(); };
+      return;
+    }
+    if (b.opts.mode === 'replay') {
+      el.innerHTML = `<div class="bh-tl"><div class="bh-name">${IC.replay.replace('<svg', '<svg class="tro-ic"')} ${t('replay')}: ${escHtml(b.opts.name)}</div>
+          <div class="row-btns pe"><button class="btn primary sm" id="bh-back">← ${t('backHome')}</button><button class="btn sm" id="bh-fast">x1</button></div></div>
+        <div class="bh-tr"><div class="bh-time" id="bh-time">3:00</div><div class="bh-pct"><span id="bh-pct">0%</span><span class="bh-stars" id="bh-stars"></span></div></div>`;
+      el.classList.remove('hidden');
+      $('#bh-back').onclick = () => { G.Village.enter(); };
+      $('#bh-fast').onclick = () => { b.rp.fast = !b.rp.fast; $('#bh-fast').textContent = b.rp.fast ? 'x2' : 'x1'; };
       return;
     }
     const loot = b.opts.mode === 'pve' ? (() => { const L = G.PVE[b.opts.level - 1], rec = G.state.pve[b.opts.level]; const tk = rec ? rec.taken : { scrap: 0, copper: 0 }; return { scrap: L.loot.scrap - tk.scrap, copper: L.loot.copper - tk.copper }; })() : b.opts.base.loot;
@@ -1020,6 +1179,24 @@
         U.battleCards();
       };
     });
+  };
+  // end of a replay: the result, watch again or go home
+  U.replayDone = function (r) {
+    const o = G.Battle.opts;
+    U.modal(t('replay'), `<div class="res-stars">${U.starBar(r.pct, true)}</div>
+      <div class="res-pct">${escHtml(o.name)} · ${t('destruction')}: <b>${Math.round(r.pct * 100)}%</b></div>
+      <div class="row-btns"><button class="btn" id="rp-again">${IC.replay}${t('replayAgain')}</button><button class="btn primary" id="r-home">${t('returnHome')}</button></div>`, { cls: 'small', noClose: true });
+    $('#r-home').onclick = () => { U.closeModal(); G.Village.enter(); };
+    $('#rp-again').onclick = () => { U.closeModal(); G.Battle.start(o); };
+  };
+  U.watchReplay = async function (aid) {
+    U.loading(true);
+    let rp = null;
+    try { rp = await G.Net.replay(aid); } catch (_) {}
+    U.loading(false);
+    if (!rp || !Array.isArray(rp.ev) || !Array.isArray(rp.base)) { U.toast(t('replayNone')); return; }
+    U.closeModal();
+    G.Battle.start({ mode: 'replay', base: { buildings: G.Battle.baseFromLayout(rp.base), loot: { scrap: 0, copper: 0 } }, name: rp.name, replay: rp });
   };
   U.setResultTrophies = function (delta) {
     const el = $('#res-tro');

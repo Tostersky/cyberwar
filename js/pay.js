@@ -12,7 +12,7 @@
     try {
       P.service = await window.getDigitalGoodsService(PLAY);
       if (!P.service) return false;
-      const details = await P.service.getDetails(G.CHIP_PACKS.map((p) => p.id).concat(G.VIP.id));
+      const details = await P.service.getDetails(G.CHIP_PACKS.map((p) => p.id).concat(G.VIP.id, G.PASS.id));
       for (const d of details || []) {
         const v = d.price;
         try { P.prices[d.itemId] = new Intl.NumberFormat(G.lang === 'en' ? 'en' : 'pl', { style: 'currency', currency: v.currency }).format(+v.value); }
@@ -32,6 +32,7 @@
       for (const p of list || []) {
         // an active VIP subscription (e.g. bought on another account login or renewed) is re-checked by the server
         if (p.itemId === G.VIP.id) { if (!G.isVip()) await G.Net.callNow({ c: 'vip', token: p.purchaseToken }).catch(() => {}); continue; }
+        if (p.itemId === G.PASS.id) { await G.Net.callNow({ c: 'iap', product: G.PASS.id, token: p.purchaseToken }).catch(() => {}); continue; }
         if (!G.packById(p.itemId)) continue;
         const r = await G.Net.callNow({ c: 'iap', product: p.itemId, token: p.purchaseToken });
         if (r.ok && r.chips > 0) G.UI.notify(G.t('iapThanks', { n: r.chips }));
@@ -59,6 +60,16 @@
     if (p.err) return p;
     for (let i = 0; i < 3; i++) {
       try { const r = await G.Net.callNow({ c: 'vip', token: p.token }); if (r.err !== 'server') return r; } catch (_) {}
+      await new Promise((ok) => setTimeout(ok, 1500 * (i + 1)));
+    }
+    return { err: 'iapLater' };
+  };
+  // season pass premium track (bought once per season)
+  P.buyPass = async function () {
+    const p = await payWithPlay(G.PASS.id);
+    if (p.err) return p;
+    for (let i = 0; i < 3; i++) {
+      try { const r = await G.Net.callNow({ c: 'iap', product: G.PASS.id, token: p.token }); if (r.err !== 'server') return r; } catch (_) {}
       await new Promise((ok) => setTimeout(ok, 1500 * (i + 1)));
     }
     return { err: 'iapLater' };

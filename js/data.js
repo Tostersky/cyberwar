@@ -1,5 +1,5 @@
 // Game data: buildings, units, heroes, campaign. All numbers are CyberWar's own.
-G.TW = 64; G.TH = 32; G.MAP = 40; G.VERSION = '0.12.0';
+G.TW = 64; G.TH = 32; G.MAP = 40; G.VERSION = '0.13.0';
 G.BUILDERS = 2; // builder drones at the start; more can be bought with chips (up to 5)
 G.BUILDER_PRICE = [0, 0, 250, 500, 1000]; // price of the 3rd, 4th and 5th drone
 G.BUILDERS_MAX = 5;
@@ -43,6 +43,9 @@ G.BUILDINGS = {
   // Program Forge: compiles battle programs (spells); housing = how many programs it can hold
   forge:      { size: 3, res: 'copper', cost: [6000, 12000, 20000, 40000, 80000, 130000, 200000, 260000], time: [600, 1800, 3600, 10800, 18000, 28800, 36000, 43200],
                 hp: [550, 650, 750, 850, 950, 1050, 1150, 1250], housing: [2, 2, 3, 3, 4, 4, 5, 6] },
+  // hidden sky mine: blows up once when a flying unit comes close (single target, big damage)
+  skymine:    { size: 1, res: 'scrap',  cost: [2000, 3000, 4000, 5500, 7500, 10000, 13000, 17000], time: [0, 0, 0, 0, 0, 0, 0, 0],
+                hp: [1, 1, 1, 1, 1, 1, 1, 1], dmg: [180, 230, 290, 360, 440, 530, 630, 750], trap: true, air: true },
   // hidden trap: explodes once when a ground unit steps close
   mine:       { size: 1, res: 'scrap',  cost: [500, 800, 1200, 1800, 2600, 3600, 5000, 7000], time: [0, 0, 0, 0, 0, 0, 0, 0],
                 hp: [1, 1, 1, 1, 1, 1, 1, 1], dmg: [60, 80, 105, 135, 170, 210, 255, 305], trap: true, splash: 1.5 },
@@ -68,9 +71,9 @@ G.LIMITS = {
   core: [1, 1, 1, 1, 1, 1, 1, 1], scrapyard: [2, 3, 4, 5, 6, 6, 7, 7], coppermine: [2, 3, 4, 5, 6, 6, 7, 7],
   vault: [1, 1, 2, 2, 3, 3, 4, 4], factory: [1, 1, 1, 1, 1, 1, 1, 1], squadhq: [1, 1, 1, 1, 1, 1, 1, 1],
   lab: [0, 1, 1, 1, 1, 1, 1, 1], forge: [0, 0, 0, 1, 1, 1, 1, 1], extractor: [0, 0, 0, 0, 1, 2, 2, 3], tank: [0, 0, 0, 0, 1, 1, 2, 2], clanhub: [0, 0, 1, 1, 1, 1, 1, 1], laser: [1, 2, 3, 4, 5, 5, 6, 6], mortar: [0, 0, 1, 1, 2, 2, 3, 3],
-  aa: [0, 0, 0, 1, 1, 2, 2, 3], emp: [0, 0, 0, 0, 1, 1, 2, 2], mine: [0, 0, 2, 3, 4, 5, 6, 8], firewall: [25, 50, 75, 100, 150, 175, 200, 225],
+  aa: [0, 0, 0, 1, 1, 2, 2, 3], emp: [0, 0, 0, 0, 1, 1, 2, 2], mine: [0, 0, 2, 3, 4, 5, 6, 8], skymine: [0, 0, 0, 1, 2, 2, 3, 4], firewall: [25, 50, 75, 100, 150, 175, 200, 225],
 };
-G.SHOP = ['laser', 'mortar', 'aa', 'emp', 'mine', 'firewall', 'scrapyard', 'coppermine', 'vault', 'factory', 'squadhq', 'lab', 'forge', 'extractor', 'tank', 'clanhub'];
+G.SHOP = ['laser', 'mortar', 'aa', 'emp', 'mine', 'skymine', 'firewall', 'scrapyard', 'coppermine', 'vault', 'factory', 'squadhq', 'lab', 'forge', 'extractor', 'tank', 'clanhub'];
 
 // laboratory research: unit level 2..5 (cost in copper, time in seconds); each level = +15% hitpoints and damage
 G.RESEARCH = { cost: [0, 1500, 5000, 14000, 32000], time: [0, 600, 3600, 3 * 3600, 8 * 3600], maxLv: 5, bonus: 0.15 };
@@ -82,9 +85,11 @@ G.UNITS = {
   drone:  { cost: 120, space: 2, hp: 45,  dmg: 160, interval: 0,   speed: 2.8, range: 0.4, time: 10, unlock: 3, target: 'defense', fly: true, splash: 1.3 },
   mech:   { cost: 300, space: 5, hp: 520, dmg: 42,  interval: 1.6, speed: 0.9, range: 0.9, time: 20, unlock: 4, target: 'defense' },
   // field medic: doesn't attack; follows the squad and heals ground units and heroes around it
+  // wall breacher: runs to the nearest firewall and blows it up (huge damage to walls only)
+  breacher: { cost: 120, space: 2, hp: 55, dmg: 25, wallMul: 30, interval: 0, speed: 2.5, range: 0.5, time: 12, unlock: 3, target: 'wall', splash: 1.5 },
   medic:  { cost: 150, space: 3, hp: 180, dmg: 0, heal: 18, healR: 2.6, interval: 1.0, speed: 1.5, range: 1.4, time: 15, unlock: 5, target: 'heal' },
 };
-G.UNIT_ORDER = ['runner', 'gunner', 'drone', 'mech', 'medic'];
+G.UNIT_ORDER = ['runner', 'gunner', 'drone', 'mech', 'medic', 'breacher'];
 
 G.HEROES = {
   ronin: { hp: 950, dmg: 40, interval: 0.8, speed: 1.6, range: 0.7, unlock: 2, target: 'any' },
@@ -203,6 +208,13 @@ G.genBase = function (p, seed) {
       if (free(x, y, 1, 0)) { put('mine', Math.min(blv, G.MAXLV), x, y); break; }
     }
   }
+  // sky mines a bit further out, against drones
+  for (let i = 0; i < (p.skymines || 0); i++) {
+    for (let tries = 0; tries < 200; tries++) {
+      const x = 10 + Math.floor(r() * 20), y = 10 + Math.floor(r() * 20);
+      if (free(x, y, 1, 0)) { put('skymine', Math.min(blv, G.MAXLV), x, y); break; }
+    }
+  }
   return out;
 };
 
@@ -230,6 +242,44 @@ for (let n = 9; n <= 20; n++) {
   });
 }
 
+// loot multiplier when a stronger player raids a weaker base (Core level difference)
+G.lootMul = (attCore, defCore) => { const d = attCore - defCore; return d <= 1 ? 1 : d === 2 ? 0.5 : 0.25; };
+
+// leagues by trophies: loot bonus for each won attack (share of reference storage) and end-of-season reward
+G.LEAGUES = [
+  { id: 'bronze', min: 0, bonus: 0.01, reward: { res: 0.05, plasma: 0 } },
+  { id: 'silver', min: 400, bonus: 0.02, reward: { res: 0.10, plasma: 0 } },
+  { id: 'gold', min: 800, bonus: 0.03, reward: { res: 0.15, plasma: 300 } },
+  { id: 'crystal', min: 1200, bonus: 0.04, reward: { res: 0.20, plasma: 800 } },
+  { id: 'master', min: 1600, bonus: 0.05, reward: { res: 0.25, plasma: 1500 } },
+  { id: 'titan', min: 2000, bonus: 0.06, reward: { res: 0.30, plasma: 2500 } },
+  { id: 'legend', min: 2600, bonus: 0.08, reward: { res: 0.40, plasma: 4000 } },
+];
+G.leagueOf = (tro) => { let L = 0; for (let i = 0; i < G.LEAGUES.length; i++) if (tro >= G.LEAGUES[i].min) L = i; return L; };
+
+// season pass (one season = one calendar month, UTC): 20 tiers x 100 XP; free track for everyone,
+// premium track after buying the pass in Google Play. Rewards: res = share of reference storage, plasma, boost items.
+G.PASS = { id: 'pass_season', price: '24,99 zł', tiers: 20, xpPer: 100 };
+G.PASS_XP = { mission: 60, daily: 40, win: 25, raid: 10 };
+G.PASS_FREE = []; G.PASS_PREM = [];
+for (let i = 1; i <= 20; i++) {
+  G.PASS_FREE.push(i % 10 === 0 ? { item: i === 20 ? 'prod' : 'train' } : i % 5 === 0 ? { plasma: 150 * i } : { res: 0.03 });
+  G.PASS_PREM.push(i === 20 ? { item: 'build', n: 3, plasma: 3000 } : i % 5 === 0 ? { plasma: 400 * i } : i % 3 === 0 ? { item: ['build', 'train', 'prod'][(i / 3) % 3] } : { res: 0.06 });
+}
+// boosts (bought with chips or used from items won in the pass)
+G.BOOSTS = {
+  prod:  { chips: 100, dur: 24 * 3600, mul: 2 },   // collectors produce x2 for 24 h
+  train: { chips: 60,  dur: 3600, mul: 4 },        // units train x4 faster for 1 h
+  build: { chips: 90,  skip: 3600 },               // every running construction / research / hero upgrade: -1 h right away
+};
+// achievements: 3 tiers each; reward = share of reference storage (+ plasma on the last tier)
+G.ACH = [
+  { id: 'wins', tiers: [10, 50, 200] }, { id: 'stars', tiers: [30, 150, 600] }, { id: 'builds', tiers: [20, 80, 250] },
+  { id: 'trained', tiers: [100, 500, 2000] }, { id: 'mined', tiers: [50000, 500000, 3000000] }, { id: 'obs', tiers: [10, 40, 120] },
+  { id: 'campaign', tiers: [10, 30, 60] }, { id: 'troMax', tiers: [500, 1200, 2000] }, { id: 'defWins', tiers: [5, 25, 100] }, { id: 'donated', tiers: [25, 150, 500] },
+];
+G.ACH_RW = [0.08, 0.15, 0.3]; G.ACH_PLASMA = 500;
+
 G.BOT_NAMES = ['Vex_77', 'NeonGhost', 'KiloByte', 'RustQueen', 'Zer0Day', 'GlitchRat', 'ChromeFox', 'NullPtr',
   'VoltaKid', 'SynthWolf', 'Hexa', 'D4rkM4tter', 'PixelMonk', 'IronLotus', 'ByteBandit', 'OverClock'];
 
@@ -241,7 +291,7 @@ G.genBot = function (coreLv, seed) {
     core: c, lasers: Math.max(1, G.LIMITS.laser[c - 1] - (r() < 0.5 ? 1 : 0)), laserLv: c,
     rings: c >= 4 ? 2 : (c >= 2 ? 1 : (r() < 0.5 ? 1 : 0)), wallLv: Math.max(1, c - 1), wallLv2: Math.max(1, c - 2),
     scrap: Math.min(6, 1 + c), copper: Math.min(6, 1 + c), vault: G.LIMITS.vault[c - 1], factory: 1, hq: 1, blv: c,
-    mortar: G.LIMITS.mortar[c - 1], aa: G.LIMITS.aa[c - 1], emp: G.LIMITS.emp[c - 1], mines: G.LIMITS.mine[c - 1], lab: G.LIMITS.lab[c - 1],
+    mortar: G.LIMITS.mortar[c - 1], aa: G.LIMITS.aa[c - 1], emp: G.LIMITS.emp[c - 1], mines: G.LIMITS.mine[c - 1], lab: G.LIMITS.lab[c - 1], skymines: G.LIMITS.skymine[c - 1],
   };
   const loot = { scrap: Math.floor((300 + r() * 500) * c * c), copper: Math.floor((300 + r() * 500) * c * c) };
   const name = G.BOT_NAMES[Math.floor(r() * G.BOT_NAMES.length)];
