@@ -28,14 +28,30 @@
   function hitBuilding(sx, sy) {
     const [wx, wy] = V.cam.toWorld(sx, sy);
     const [tx, ty] = G.worldToTile(wx, wy);
-    const list = G.state.buildings.slice().sort((a, b) => (b.x + b.y + B[b.type].size) - (a.x + a.y + B[a.type].size));
-    for (const b of list) {
+    const all = G.state.buildings;
+    const front = (a, b) => (b.x + b.y + B[b.type].size) - (a.x + a.y + B[a.type].size);
+    // 1) the standing body of small objects (firewall pillars, turrets) — they can stick out in front of big buildings
+    for (const b of all.filter((q) => B[q.type].size <= 2).sort(front)) {
+      const s = B[b.type].size;
+      const sp = G.Art.sprite(b.type, Math.max(1, b.level || b.upTo));
+      const [cx, cy] = G.tileToWorld(b.x + s / 2, b.y + s / 2);
+      const half = s === 1 ? 13 : 24;
+      if (wx > cx - half && wx < cx + half && wy > cy - sp.top + 6 && wy < cy + s * G.TH / 4 + 4) return b;
+    }
+    // 2) the tile you touched belongs to exactly one building
+    for (const b of all) {
       const s = B[b.type].size;
       if (tx >= b.x && tx < b.x + s && ty >= b.y && ty < b.y + s) return b;
+    }
+    // 3) otherwise the tall part of a sprite, front-most first
+    const list = all.slice().sort(front);
+    for (const b of list) {
+      const s = B[b.type].size;
       const sp = G.Art.sprite(b.type, Math.max(1, b.level || b.upTo));
       const [bx, by] = G.tileToWorld(b.x, b.y);
-      const half = s * G.TW / 2 * 0.65;
-      if (wx > bx - half && wx < bx + half && wy > by - sp.top && wy < by + s * G.TH / 2) return b;
+      const half = Math.max(14, s * G.TW / 2 * 0.65);
+      const cy = by + s * G.TH / 2;
+      if (wx > bx - half && wx < bx + half && wy > cy - sp.top - s * G.TH / 2 && wy < cy + 4) return b;
     }
     return null;
   }
