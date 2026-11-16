@@ -259,6 +259,23 @@ table.stats td.nx { color: var(--grn); font-weight: 800; width: 90px; }
 .ex-btn { flex-direction: column; gap: 0; min-width: 84px; padding: 4px 8px; line-height: 1.2; }
 .ex-btn .ex-n { font-size: 11px; color: var(--dim); }
 
+/* ---- VIP ---- */
+.vip-badge { display: inline-block; padding: 2px 7px; font-family: Orbitron, sans-serif; font-weight: 900; font-size: 13px; letter-spacing: 1px; color: #2a1c00;
+  background: linear-gradient(180deg, #fff3a8, #ffd23d 45%, #c98a00); box-shadow: 0 0 10px rgba(255,210,61,.6); clip-path: var(--cut); vertical-align: middle; }
+.vip-badge.sm { font-size: 9px; padding: 1px 5px; }
+.vip-box { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 14px; margin-bottom: 4px;
+  background: linear-gradient(90deg, rgba(255,210,61,.18), rgba(255,43,214,.10)); border: 1px solid #ffd23d; clip-path: var(--cut); }
+.vip-box .vip-l { display: flex; align-items: flex-start; gap: 10px; }
+.vip-box .vip-l .vip-badge { font-size: 18px; padding: 4px 10px; }
+.vip-box b { color: #ffe27a; } .vip-box small { color: var(--dim); display: block; }
+.vip-box ul { margin: 4px 0 0; padding-left: 16px; font-size: 13px; } .vip-box li { margin: 1px 0; }
+.vip-box .vip-r { display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center; }
+.vip-box .vip-r .btn { background: linear-gradient(180deg, #ffe27a, #e0a800); color: #2a1c00; white-space: nowrap; }
+#btn-profile.vip { border-color: #ffd23d; box-shadow: 0 0 12px rgba(255,210,61,.45); }
+#btn-profile.vip .pl-name { color: #ffd23d; text-shadow: 0 0 8px rgba(255,210,61,.7); }
+#btn-profile.vip .pl-name::after { content: 'VIP'; margin-left: 6px; padding: 0 4px; font-size: 9px; color: #2a1c00; background: #ffd23d; vertical-align: middle; text-shadow: none; }
+@media (max-width: 700px) { .vip-box { flex-direction: column; align-items: stretch; } }
+
 /* ---- landscape only: "rotate your phone" screen on upright touch devices ---- */
 #rotate { display: none; position: fixed; inset: 0; z-index: 9999; background: radial-gradient(circle at 50% 40%, #241047, #07060f 70%);
   flex-direction: column; align-items: center; justify-content: center; gap: 10px; text-align: center; padding: 24px; color: var(--txt); }
