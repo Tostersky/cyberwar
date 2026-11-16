@@ -100,6 +100,8 @@
       if (moved > 0) { b.flow = (b.flow || 0) + moved; E.progress(s, now, 'collect_' + d.prod, moved); }
     }
   };
+  // total production per hour of one resource (all finished collectors)
+  E.prodRate = (s, res) => s.buildings.reduce((n, b) => n + (b.level > 0 && BD()[b.type].prod === res ? BD()[b.type].rate[b.level - 1] : 0), 0);
   E.ratePer = (b, sec) => (b.level > 0 && BD()[b.type].prod ? BD()[b.type].rate[b.level - 1] * sec / 3600 : 0);
   // finishes constructions and training up to `now`; returns events [{kind:'built', id}]
   E.tick = function (s, now) {
@@ -161,7 +163,7 @@
   // gives resources (share of storage) and units that fit in the squad
   function grant(s, pct, units) {
     const gained = { scrap: 0, copper: 0 }, got = {};
-    for (const r of ['scrap', 'copper']) gained[r] = E.addRes(s, r, Math.floor(E.capOf(s, r) * pct));
+    for (const r of ['scrap', 'copper']) gained[r] = E.addRes(s, r, Math.floor(G.refCap(E.coreLevel(s)) * pct));
     for (const u in units || {}) {
       for (let i = 0; i < units[u]; i++) {
         if (E.armySpace(s) + E.queueSpace(s) + G.UNITS[u].space > E.housing(s)) break;
@@ -180,7 +182,7 @@
     while (pick.length < 3) { const id = ids[Math.floor(r() * ids.length)]; if (!pick.includes(id)) pick.push(id); }
     const list = pick.map((id) => {
       const m = G.MISSIONS[id], res = id === 'collect_copper' ? 'copper' : 'scrap';
-      const goal = m.cap ? Math.max(500, Math.round(E.capOf(s, res) * m.cap / 100) * 100) : m.goal;
+      const goal = m.hours ? Math.max(500, Math.round(E.prodRate(s, res) * m.hours / 100) * 100) : m.goal;
       return { id, goal, n: 0, got: false };
     });
     s.mis = { day, list };
@@ -346,7 +348,7 @@
       if (!vip && st.wait > 0) return ERR('adWait', { n: st.wait });
       s.ads.n++; s.ads.last = now;
       const gained = {};
-      for (const r of ['scrap', 'copper']) gained[r] = E.addRes(s, r, Math.floor(E.capOf(s, r) * G.ADS.resPct));
+      for (const r of ['scrap', 'copper']) gained[r] = E.addRes(s, r, Math.floor(G.refCap(E.coreLevel(s)) * G.ADS.resPct));
       return { ok: true, gained };
     }
     if (c === 'battle') return battle(s, cmd, now);

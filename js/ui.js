@@ -404,8 +404,19 @@
       }).join('');
       let qhtml = '';
       if (s.queue.length) {
-        const left = (s.qStart + G.UNITS[s.queue[0]].time * 1000 - now) / 1000;
-        qhtml = `<div class="queue">${s.queue.map((u, i) => `<button class="q-item" data-i="${i}"><img src="${G.Art.unitThumb(u)}" alt="">${i === 0 ? `<span>${G.fmtTime(left)}</span>` : ''}</button>`).join('')}</div><p class="hint">${t('cancelTrain')}</p>`;
+        // one card per unit type: how many are queued and when the last of them is ready; plus the whole army's time
+        const left0 = Math.max(0, (s.qStart + G.UNITS[s.queue[0]].time * 1000 - now) / 1000);
+        const groups = [];
+        let tAcc = 0;
+        s.queue.forEach((u, i) => {
+          tAcc += i === 0 ? left0 : G.UNITS[u].time;
+          let g = groups.find((x) => x.u === u);
+          if (!g) { g = { u, n: 0, done: 0, active: i === 0 }; groups.push(g); }
+          g.n++; g.done = tAcc;
+        });
+        qhtml = `<div class="q-total">${IC.army}<span>${t('armyReadyIn')}</span><b>${G.fmtTime(tAcc)}</b><small>(${s.queue.length} ${t('unitsShort')})</small></div>
+          <div class="queue">${groups.map((g) => `<button class="q-item q-group ${g.active ? 'active' : ''}" data-u="${g.u}"><img src="${G.Art.unitThumb(g.u)}" alt="">
+            <em>×${g.n}</em><span>${G.fmtTime(g.done)}</span></button>`).join('')}</div><p class="hint">${t('cancelTrain')}</p>`;
       }
       const heroes = G.HERO_ORDER.map((h) => {
         const ok = G.heroUnlocked(h);
@@ -425,7 +436,8 @@
           refresh(); U.refreshHud();
         };
       });
-      document.querySelectorAll('#modal .q-item').forEach((c) => { c.onclick = () => { G.cancelTrain(+c.dataset.i); refresh(); U.refreshHud(); }; });
+      // tapping a card cancels the last queued unit of that type (refund)
+      document.querySelectorAll('#modal .q-item').forEach((c) => { c.onclick = () => { G.cancelTrain(G.state.queue.lastIndexOf(c.dataset.u)); refresh(); U.refreshHud(); }; });
     };
     const refresh = () => { const b = $('#modal .panel-b'); if (!b) return; const st = b.scrollTop; b.innerHTML = draw(); b.scrollTop = st; bind(); };
     U.modal(t('army'), draw(), { cls: 'wide', refresh });
@@ -585,7 +597,7 @@
   U.openQuests = function () {
     const draw = () => {
       const s = G.state, now = Date.now(), ds = G.Econ.dailyState(s, now);
-      const capS = G.capOf('scrap'), capC = G.capOf('copper');
+      const capS = G.refCap(G.coreLevel()), capC = capS;
       const days = G.DAILY.map((D, i) => {
         const n = i + 1, past = ds.claimable ? n < ds.day : n <= ds.day, cur = ds.claimable && n === ds.day;
         const units = Object.keys(D.units || {}).map((u) => `<img src="${G.Art.unitThumb(u)}" alt="">×${D.units[u]}`).join('');
