@@ -1,10 +1,9 @@
-// AUTO-GENERATED bundle for the Supabase Edge Function "game" — built from js/data.js + js/econ.js + server/game-handler.js
 import { createClient } from 'npm:@supabase/supabase-js@2';
 // deno-lint-ignore-file
 // @ts-nocheck
 const G: any = {};
 // Game data: buildings, units, heroes, campaign. All numbers are CyberWar's own.
-G.TW = 64; G.TH = 32; G.MAP = 40; G.VERSION = '0.9.0';
+G.TW = 64; G.TH = 32; G.MAP = 40; G.VERSION = '0.9.1';
 G.BUILDERS = 2;
 
 // every array has one value per level (1..8)
@@ -69,6 +68,10 @@ G.HEROES = {
 G.HERO_ORDER = ['ronin', 'nyx'];
 
 G.BATTLE_TIME = 180;
+// creating a clan costs premium chips (500 chips = the 8,99 zł chip pack in the shop)
+G.CLAN_PRICE = 500;
+// full stars earned for a destruction share 0..1 (every third = one star; 33% counts as 1)
+G.starsFor = (pct) => Math.max(0, Math.min(3, Math.floor(pct * 3 + 0.02)));
 
 // Seeded random (mulberry32)
 G.rng = function (seed) {
@@ -442,7 +445,7 @@ G.genBot = function (coreLv, seed) {
       const L = G.PVE[(cmd.level | 0) - 1]; if (!L) return ERR('server');
       if (cmd.level > 1 && !(s.pve[cmd.level - 1] && s.pve[cmd.level - 1].stars > 0)) return ERR('beatPrev');
       // stars can't exceed what the destruction allows (+1 for a destroyed core)
-      const stars = Math.max(0, Math.min(cmd.stars | 0, (pct >= 0.5 ? 1 : 0) + (pct >= 1 ? 1 : 0) + 1, 3));
+      const stars = Math.max(0, Math.min(cmd.stars | 0, G.starsFor(pct)));
       const rec = s.pve[cmd.level] || { stars: 0, taken: { scrap: 0, copper: 0 } };
       for (const r of ['scrap', 'copper']) {
         const want = Math.min(L.loot[r], Math.floor(L.loot[r] * pct)) - rec.taken[r];
@@ -552,6 +555,15 @@ Deno.serve(async (req) => {
       if (!cmd || typeof cmd !== 'object') { results.push({ err: 'server' }); continue; }
       if (cmd.c === 'donate') { try { results.push(await donate(uid, prof, s, cmd, now)); } catch (e) { results.push({ err: 'server' }); } continue; }
       if (cmd.c === 'donate_out') { results.push({ err: 'server' }); continue; } // only via 'donate'
+      if (cmd.c === 'createClan') {
+        // paid: charge the chips only if the clan was really created
+        if (s.res.chips < G.CLAN_PRICE) { results.push({ err: 'noChips' }); continue; }
+        const { data: cid, error } = await admin.rpc('clan_create_for', { p_user: uid, p_name: String(cmd.name || ''), p_desc: String(cmd.desc || ''), p_emblem: cmd.emblem | 0, p_min: cmd.min | 0 });
+        if (error) { results.push({ err: 'clan', message: error.message }); continue; }
+        s.res.chips -= G.CLAN_PRICE;
+        results.push({ ok: true, clanId: cid });
+        continue;
+      }
       if (cmd.c === 'battle' && cmd.mode === 'pvp') {
         // loot from a real player is credited once, from our own attack record
         cmd.loot = null;
