@@ -101,7 +101,8 @@
     // the city skyline was removed: the map now ends in a junkyard border over a plain dark backdrop
     ctx.setTransform(d, 0, 0, d, 0, 0);
     const bg = ctx.createRadialGradient(w / 2, h / 2, 10, w / 2, h / 2, Math.max(w, h) * 0.75);
-    bg.addColorStop(0, '#120e1c'); bg.addColorStop(1, '#06050a');
+    if (Wd.city === 2) { bg.addColorStop(0, '#2a160e'); bg.addColorStop(1, '#0a0605'); }
+    else { bg.addColorStop(0, '#120e1c'); bg.addColorStop(1, '#06050a'); }
     ctx.fillStyle = bg; ctx.fillRect(0, 0, w, h);
     if (Wd.SKYLINE !== true) return;
     if (!sky || sky.w !== w || sky.h !== h || sky.d !== d) sky = buildSky(w, h);
@@ -137,8 +138,13 @@
 
   // ---------- junkyard border: rusty ground ring around the map (cannot be used) ----------
   const BORDER = 12; Wd.BORDER = BORDER;
-  let dirtPat = null;
+  Wd.city = 1; // 1 = home city, 2 = the colony
+  // the shuttle stands on a pad in the junkyard just outside the bottom-left edge of the map (a gap in the fence)
+  const SHIP = Wd.SHIP = { x: 8, y: 38.6 };
+  const nearShip = (x, y, s) => x + s > 5 && x < 14 && y + s > 37.5 && y < 45;
+  let dirtPat = null, sandPat = null;
   Wd.drawBorderGround = function (ctx) {
+    if (Wd.city === 2) return drawSandBorder(ctx);
     if (!dirtPat) {
       const [pc, px] = mk(160, 80, 1), r = G.rng(777);
       px.fillStyle = '#1a1410'; px.fillRect(0, 0, 160, 80);
@@ -164,6 +170,108 @@
     }
     ctx.restore();
   };
+  function drawSandBorder(ctx) {
+    if (!sandPat) {
+      const [pc, px] = mk(160, 80, 1), r = G.rng(778);
+      px.fillStyle = '#4a2a18'; px.fillRect(0, 0, 160, 80);
+      for (let i = 0; i < 900; i++) {
+        px.fillStyle = ['rgba(150,90,50,.35)', 'rgba(90,50,30,.5)', 'rgba(190,120,70,.25)', 'rgba(30,16,10,.4)'][Math.floor(r() * 4)];
+        px.fillRect(r() * 160, r() * 80, 1 + r() * 3, 1 + r() * 2);
+      }
+      px.strokeStyle = 'rgba(200,130,80,.18)'; px.lineWidth = 1;
+      for (let i = 0; i < 10; i++) { const y0 = r() * 80; px.beginPath(); px.moveTo(0, y0); px.bezierCurveTo(50, y0 - 6, 110, y0 + 6, 160, y0); px.stroke(); }
+      sandPat = ctx.createPattern(pc, 'repeat');
+    }
+    const W0 = (tx, ty) => G.tileToWorld(tx, ty);
+    const o = [W0(-BORDER, -BORDER), W0(M + BORDER, -BORDER), W0(M + BORDER, M + BORDER), W0(-BORDER, M + BORDER)];
+    const i = [W0(0, 0), W0(M, 0), W0(M, M), W0(0, M)];
+    ctx.save();
+    ctx.beginPath(); ctx.moveTo(...o[0]); ctx.lineTo(...o[1]); ctx.lineTo(...o[2]); ctx.lineTo(...o[3]); ctx.closePath();
+    ctx.moveTo(...i[0]); ctx.lineTo(...i[3]); ctx.lineTo(...i[2]); ctx.lineTo(...i[1]); ctx.closePath();
+    ctx.fillStyle = sandPat; ctx.fill('evenodd');
+    for (let k = 0; k < 3; k++) {
+      const a = [W0(-BORDER + k, -BORDER + k), W0(M + BORDER - k, -BORDER + k), W0(M + BORDER - k, M + BORDER - k), W0(-BORDER + k, M + BORDER - k)];
+      ctx.strokeStyle = 'rgba(10,6,5,' + (0.85 - k * 0.25) + ')'; ctx.lineWidth = TW * 0.9;
+      ctx.beginPath(); ctx.moveTo(...a[0]); ctx.lineTo(...a[1]); ctx.lineTo(...a[2]); ctx.lineTo(...a[3]); ctx.closePath(); ctx.stroke();
+    }
+    ctx.restore();
+  }
+  // concrete landing pad with hazard rings under the shuttle
+  function drawShipPad(ctx) {
+    const [cx, cy] = G.tileToWorld(SHIP.x + 1.5, SHIP.y + 1.5);
+    ctx.save();
+    ctx.fillStyle = Wd.city === 2 ? '#6a5040' : '#2a2632'; ctx.beginPath(); ctx.ellipse(cx, cy, 96, 48, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = Wd.city === 2 ? '#7a5e4a' : '#34303e'; ctx.beginPath(); ctx.ellipse(cx, cy, 84, 42, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,225,77,.7)'; ctx.lineWidth = 3; ctx.setLineDash([14, 10]);
+    ctx.beginPath(); ctx.ellipse(cx, cy, 90, 45, 0, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
+    ctx.strokeStyle = 'rgba(255,225,77,.45)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.ellipse(cx, cy, 58, 29, 0, 0, Math.PI * 2); ctx.stroke();
+    ctx.translate(cx, cy); ctx.transform(1, 0, 0, 0.5, 0, 0); ctx.rotate(Math.PI / 4);
+    ctx.fillStyle = 'rgba(255,225,77,.35)'; ctx.fillRect(-22, -26, 9, 52); ctx.fillRect(13, -26, 9, 52); ctx.fillRect(-13, -4.5, 26, 9);
+    ctx.restore();
+  }
+
+  // ---------- the shuttle between the city and the colony ----------
+  Wd.shipOn = () => Wd.city === 2 || !!(G.state && G.Econ.city2Open(G.state));
+  let shipSp = null;
+  function shipSprite() {
+    if (shipSp) return shipSp;
+    const w = 280, h = 220, ox = 140, oy = 160;
+    const [c, x] = mk(w, h, 2);
+    const u = [0.894, -0.447], v = [0.894, 0.447]; // along the hull / across it (screen directions)
+    const Z = 30; // hull height above the pad
+    const at = (a, b, z) => [ox + u[0] * a + v[0] * b, oy + u[1] * a + v[1] * b - z];
+    // landing legs
+    for (const [a, b] of [[30, 0], [-26, -22], [-26, 22]]) { const top = at(a * 0.7, b * 0.6, Z), foot = at(a, b, 0); line(x, top, foot, '#3a3a48', 3); x.fillStyle = '#1a1a22'; x.beginPath(); x.ellipse(foot[0], foot[1], 6, 3, 0, 0, Math.PI * 2); x.fill(); }
+    // wings (back one first)
+    poly(x, [at(-6, -12, Z), at(-36, -52, Z - 4), at(-46, -50, Z - 4), at(-40, -12, Z)], '#4a5060', '#8a96b0', 0.8);
+    // hull: a tapered body with a lighter top
+    const hull = [at(60, 0, Z + 6), at(44, -12, Z + 2), at(-30, -16, Z), at(-44, -12, Z), at(-44, 12, Z - 4), at(-30, 16, Z - 6), at(44, 12, Z - 2)];
+    const g = x.createLinearGradient(0, oy - Z - 30, 0, oy - Z + 20); g.addColorStop(0, '#e8ecf4'); g.addColorStop(0.5, '#9aa4b8'); g.addColorStop(1, '#4a5264');
+    poly(x, hull, g, '#c8d0e0', 1);
+    const back = [at(56, 0, Z + 14), at(40, -9, Z + 12), at(-30, -11, Z + 12), at(-40, -6, Z + 12), at(-40, 6, Z + 8), at(-30, 11, Z + 6), at(40, 9, Z + 6)];
+    poly(x, back, 'rgba(255,255,255,.35)');
+    poly(x, hull.map((p) => [p[0], p[1] + 8]).slice(3).concat([at(44, 12, Z - 10), at(60, 0, Z - 2)]), 'rgba(0,0,0,.25)');
+    // stripe + markings
+    line(x, at(40, 10, Z + 1), at(-38, 13, Z - 3), '#ff2bd6', 2, 8);
+    x.save(); const m = at(0, 12, Z + 2); x.translate(m[0], m[1]); x.transform(1, -0.5, 0, 1, 0, 0);
+    x.font = 'bold 7px "Segoe UI",sans-serif'; x.fillStyle = '#20222c'; x.fillText('CW-06', -12, 0); x.restore();
+    // cockpit glass
+    const gl = x.createLinearGradient(...at(48, -6, Z + 12), ...at(30, 6, Z + 4)); gl.addColorStop(0, '#9af4ff'); gl.addColorStop(1, '#10304a');
+    poly(x, [at(56, 0, Z + 10), at(44, -7, Z + 12), at(32, -6, Z + 14), at(32, 6, Z + 8), at(44, 7, Z + 6)], gl, '#2be3ff', 0.8);
+    // tail fin
+    poly(x, [at(-22, 0, Z + 12), at(-42, 0, Z + 44), at(-50, 0, Z + 44), at(-44, 0, Z + 10)], '#5a6274', '#aab4cc', 0.8);
+    dot(x, ...at(-46, 0, Z + 46), 2.2, '#ff3355', 8);
+    // front wing
+    poly(x, [at(-6, 12, Z - 4), at(-36, 52, Z - 10), at(-46, 50, Z - 10), at(-40, 12, Z - 6)], '#5a6274', '#aab4cc', 0.8);
+    dot(x, ...at(-44, 50, Z - 8), 2, '#39ff88', 8);
+    // engines at the tail
+    for (const b of [-8, 8]) { const e = at(-46, b, Z + 2); x.fillStyle = '#2a2a34'; x.beginPath(); x.ellipse(e[0], e[1], 6, 7, 0.4, 0, Math.PI * 2); x.fill(); x.strokeStyle = '#8a96b0'; x.lineWidth = 1; x.stroke(); }
+    shipSp = { c, ox, oy, w, h, at };
+    return shipSp;
+  }
+  Wd.shipItem = () => (Wd.shipOn() ? [{ d: SHIP.x + SHIP.y + 3, ship: true }] : []);
+  Wd.drawShip = function (ctx, t) {
+    const sp = shipSprite(), [cx, cy] = G.tileToWorld(SHIP.x + 1.5, SHIP.y + 1.5);
+    const bob = Math.sin(t * 1.5) * 0.8;
+    ctx.drawImage(sp.c, cx - sp.ox, cy - sp.oy + bob, sp.w, sp.h);
+    // idle engine glow + running lights
+    ctx.save(); ctx.globalCompositeOperation = 'lighter';
+    for (const b of [-8, 8]) { const e = sp.at(-46, b, 32); Wd.light(ctx, '#ff8a3a', cx - sp.ox + e[0] - 6, cy - sp.oy + e[1] + bob, 12 + Math.sin(t * 9 + b) * 2, 9, 0.55); }
+    const bl = Math.sin(t * 3) > 0.6 ? 0.9 : 0.15;
+    Wd.light(ctx, '#ff3355', cx - sp.ox + sp.at(-46, 0, 76)[0], cy - sp.oy + sp.at(-46, 0, 76)[1], 10, 10, bl);
+    ctx.restore();
+    // label with a bouncing arrow
+    const ly = cy - 92 + Math.sin(t * 3) * 3;
+    G.R.text(ctx, G.t(Wd.city === 2 ? 'shipBack' : 'shipGo'), cx, ly, Wd.city === 2 ? '#19f0ff' : '#ffe14d', 13);
+    ctx.fillStyle = Wd.city === 2 ? '#19f0ff' : '#ffe14d';
+    ctx.beginPath(); ctx.moveTo(cx - 6, ly + 10); ctx.lineTo(cx + 6, ly + 10); ctx.lineTo(cx, ly + 17); ctx.closePath(); ctx.fill();
+  };
+  // did this world point hit the shuttle?
+  Wd.shipHit = function (wx, wy) {
+    if (!Wd.shipOn()) return false;
+    const [cx, cy] = G.tileToWorld(SHIP.x + 1.5, SHIP.y + 1.5);
+    return Math.abs(wx - cx) < 80 && wy > cy - 100 && wy < cy + 40;
+  };
 
   // ---------- street props on the outer road ring ----------
   const onRing = (x, y, s) => x < 2 || y < 2 || x + s > M - 2 || y + s > M - 2;
@@ -171,6 +279,7 @@
   (function placeProps() {
     const occ = new Uint8Array(M * M);
     const put = (kind, x, y, s, extra) => {
+      if (nearShip(x, y, s)) return false;
       for (let j = y; j < y + s; j++) for (let i = x; i < x + s; i++) { if (i < 0 || j < 0 || i >= M || j >= M || occ[j * M + i]) return false; }
       for (let j = y; j < y + s; j++) for (let i = x; i < x + s; i++) occ[j * M + i] = 1;
       Wd.props.push(Object.assign({ kind, x, y, s, seed: Math.floor(rnd() * 1e6) }, extra || {}));
@@ -200,6 +309,7 @@
     }
     // junkyard border: a fence on the map edge, then heaps of scrap, car stacks, tyres and a few cranes
     const B = BORDER, bocc = new Set(), bput = (kind, x, y, s, extra) => {
+      if (nearShip(x, y, s)) return false;
       for (let j = y; j < y + s; j++) for (let i = x; i < x + s; i++) if (bocc.has(i + ',' + j) || (i >= 0 && j >= 0 && i < M && j < M)) return false;
       for (let j = y; j < y + s; j++) for (let i = x; i < x + s; i++) bocc.add(i + ',' + j);
       Wd.props.push(Object.assign({ kind, x, y, s, seed: Math.floor(rnd() * 1e6), border: true }, extra || {}));
@@ -214,6 +324,28 @@
       const front = (x + s > M && x < M + 3) || (y + s > M && y < M + 3);
       if (front && (kind === 'crane' || s > 2)) continue;
       if (bput(front && kind === 'heap' ? 'heapLow' : kind, x, y, s)) n++;
+    }
+  })();
+  // the colony: beacons on the dust road, an energy fence, then dunes, rocks and crystal outcrops
+  Wd.props2 = [];
+  (function placeProps2() {
+    const r2 = G.rng(9191), B = BORDER, occ = new Set();
+    const put = (kind, x, y, s, extra) => {
+      if (nearShip(x, y, s)) return false;
+      for (let j = y; j < y + s; j++) for (let i = x; i < x + s; i++) if (occ.has(i + ',' + j) || (!extra?.inner && i >= 0 && j >= 0 && i < M && j < M)) return false;
+      for (let j = y; j < y + s; j++) for (let i = x; i < x + s; i++) occ.add(i + ',' + j);
+      Wd.props2.push(Object.assign({ kind, x, y, s, seed: Math.floor(r2() * 1e6) }, extra || {}));
+      return true;
+    };
+    for (let k = 3; k < M - 3; k += 6) { put('beacon', k, 0, 1, { inner: true }); put('beacon', 0, k + 3, 1, { inner: true }); put('beacon', k + 2, M - 1, 1, { inner: true }); put('beacon', M - 1, k, 1, { inner: true }); }
+    for (let k = 0; k <= M; k += 4) { put('pylon', k, -1, 1); put('pylon', -1, k, 1); put('pylon', k, M, 1); put('pylon', M, k, 1); }
+    const kinds = ['dune', 'rock', 'dune', 'crystal', 'rock', 'dune', 'rock', 'crystal'];
+    for (let n = 0, tr = 0; n < 300 && tr < 12000; tr++) {
+      const kind = kinds[n % kinds.length], s = kind === 'crystal' ? 1 + (r2() < 0.5 ? 1 : 0) : 2 + (r2() < 0.5 ? 1 : 0);
+      const x = Math.floor(-B + r2() * (M + 2 * B - s + 1)), y = Math.floor(-B + r2() * (M + 2 * B - s + 1));
+      const front = (x + s > M && x < M + 3) || (y + s > M && y < M + 3);
+      if (front && kind !== 'dune') continue;
+      if (put(front ? 'duneLow' : kind, x, y, s)) n++;
     }
   })();
 
@@ -321,6 +453,43 @@
       }
       return 14;
     },
+    // ---- colony props ----
+    dune(x, ox, oy, p, r) { return sandDune(x, ox, oy, p, r, 1); },
+    duneLow(x, ox, oy, p, r) { return sandDune(x, ox, oy, p, r, 0.4); },
+    rock(x, ox, oy, p, r) { // layered red mesa rock
+      const s = p.s, c0 = P(ox, oy, s / 2, s / 2); let z = 0, top = 0;
+      const layers = 2 + Math.floor(r() * 3);
+      for (let i = 0; i < layers; i++) {
+        const k = 1 - i * 0.22, a = 0.2 + (1 - k) * s * 0.4 + r() * 0.1, hh = 6 + r() * 8;
+        box(x, ox, oy, a, a, s - a, s - a, z, z + hh, pal(['#8a4a2a', '#9a5a34', '#7a3e24', '#a8643a'][i % 4]), true);
+        z += hh; top = z;
+      }
+      void c0; return top + 12;
+    },
+    crystal(x, ox, oy, p, r) { // glowing crystal outcrop
+      const c0 = P(ox, oy, p.s / 2, p.s / 2), col = r() < 0.6 ? ['#2be3c8', '#0a6a5a'] : ['#c27bff', '#4a1a80'];
+      const n = 2 + Math.floor(r() * 3) + p.s;
+      for (let i = 0; i < n; i++) {
+        const bx = c0[0] + (r() - 0.5) * 18 * p.s, by = c0[1] + (r() - 0.5) * 8 * p.s, hh = 10 + r() * 18 * p.s, ww = 3 + r() * 3;
+        const g = x.createLinearGradient(bx - ww, 0, bx + ww, 0); g.addColorStop(0, col[1]); g.addColorStop(0.5, col[0]); g.addColorStop(1, col[1]);
+        x.shadowColor = col[0]; x.shadowBlur = 10;
+        poly(x, [[bx - ww, by], [bx - ww * 0.4, by - hh * 0.8], [bx + (r() - 0.5) * 4, by - hh], [bx + ww * 0.5, by - hh * 0.7], [bx + ww, by]], g);
+        x.shadowBlur = 0;
+      }
+      return 22 + p.s * 18;
+    },
+    pylon(x, ox, oy) { // energy fence post (the beams between posts are drawn live in drawLights)
+      const a = P(ox, oy, 0.5, 0.5);
+      cyl(x, a[0], a[1], 3, 0, 22, '#b8b0a0', '#d8d0c0');
+      dot(x, a[0], a[1] - 23, 1.6, '#2be3c8', 6);
+      return 30;
+    },
+    beacon(x, ox, oy) { // short landing beacon on the dust road
+      const b = P(ox, oy, 0.5, 0.5);
+      cyl(x, b[0], b[1], 4, 0, 10, '#8a7a68', '#b0a088');
+      dot(x, b[0], b[1] - 12, 2.4, '#2be3c8', 12);
+      return 18;
+    },
     crates(x, ox, oy, p, r) {
       const n = 2 + Math.floor(r() * 3);
       const items = [];
@@ -362,6 +531,19 @@
     if (r() < 0.25) dot(x, c0[0] + (r() - 0.5) * 20, c0[1] - H * 0.7, 1.2, '#ff7a30', 6); // ember
     return H + 22;
   }
+  // sand dune with ripples and a few half-buried bits of old colony hardware
+  function sandDune(x, ox, oy, p, r, hk) {
+    const s = p.s, c0 = P(ox, oy, s / 2, s / 2), H = (10 + r() * 14) * s / 2 * hk;
+    const g = x.createRadialGradient(c0[0] - 10, c0[1] - H * 0.7, 2, c0[0], c0[1], s * TW * 0.5);
+    g.addColorStop(0, '#d89a60'); g.addColorStop(0.6, '#9a5a34'); g.addColorStop(1, '#4a2a18');
+    x.fillStyle = g; x.beginPath(); x.ellipse(c0[0], c0[1], s * TW * 0.44, s * TH * 0.46, 0, Math.PI, 0);
+    x.quadraticCurveTo(c0[0] + s * TW * 0.15, c0[1] - H * 1.3, c0[0] - s * TW * 0.05, c0[1] - H); x.quadraticCurveTo(c0[0] - s * TW * 0.25, c0[1] - H * 1.1, c0[0] - s * TW * 0.44, c0[1]); x.fill();
+    x.beginPath(); x.ellipse(c0[0], c0[1], s * TW * 0.44, s * TH * 0.46, 0, 0, Math.PI); x.fill();
+    x.strokeStyle = 'rgba(255,210,150,.25)'; x.lineWidth = 0.8;
+    for (let k = 0.3; k < 0.9; k += 0.2) { x.beginPath(); x.ellipse(c0[0] - 4, c0[1] - H * k, s * TW * 0.3 * (1 - k * 0.6), 3, 0, Math.PI * 1.1, Math.PI * 1.9); x.stroke(); }
+    if (r() < 0.3) box(x, ox, oy, s / 2 - 0.2, s / 2 - 0.1, s / 2 + 0.2, s / 2 + 0.3, H * 0.4, H * 0.4 + 5, pal('#8a96a8'));
+    return H + 16;
+  }
   function propSprite(p) {
     const key = p.kind + p.s + (p.dir || '') + p.seed % 7 + (p.color || '');
     let sp = propCache.get(key);
@@ -375,8 +557,9 @@
     return sp;
   }
   // depth-sorted draw items for the props (merged with buildings/units by the scenes)
+  Wd.curProps = () => (Wd.city === 2 ? Wd.props2 : Wd.props);
   Wd.propItems = function () {
-    return Wd.props.map((p) => ({ d: p.x + p.y + p.s, prop: p }));
+    return Wd.curProps().map((p) => ({ d: p.x + p.y + p.s, prop: p }));
   };
   Wd.drawProp = function (ctx, p) {
     const sp = propSprite(p);
@@ -392,7 +575,7 @@
     steamAcc += dt;
     if (steamAcc > 0.12) {
       steamAcc = 0;
-      for (const p of Wd.props) if (p.kind === 'vent' && Math.random() < 0.6) {
+      for (const p of Wd.curProps()) if (p.kind === 'vent' && Math.random() < 0.6) {
         const [wx, wy] = G.tileToWorld(p.x + 0.8, p.y + 0.5);
         Wd.emit({ k: 'smoke', x: wx + 4, y: wy - 6, vx: (Math.random() - 0.3) * 6, vy: -14 - Math.random() * 8, r: 3, gr: 9, life: 2.2, max: 2.2, c: '200,210,230', a: 0.22 });
       }
@@ -429,8 +612,19 @@
 
   // light pools on the ground under lamps (drawn after the ground, before objects)
   Wd.drawLights = function (ctx, t) {
+    if (G.scene === G.Village && Wd.shipOn()) drawShipPad(ctx);
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
+    if (Wd.city === 2) {
+      // colony: beacon light pools and the humming energy fence around the map
+      for (const p of Wd.props2) if (p.kind === 'beacon') { const [wx, wy] = G.tileToWorld(p.x + 0.5, p.y + 0.5); Wd.light(ctx, '#2be3c8', wx, wy, 46, 23, 0.18 + Math.sin(t * 2 + p.seed) * 0.04); }
+      const e = (a, b) => [G.tileToWorld(a, b)[0], G.tileToWorld(a, b)[1]];
+      const cs = [e(-0.5, -0.5), e(M + 0.5, -0.5), e(M + 0.5, M + 0.5), e(-0.5, M + 0.5)];
+      ctx.strokeStyle = 'rgba(43,227,200,' + (0.35 + Math.sin(t * 4) * 0.1) + ')'; ctx.lineWidth = 1.4;
+      for (const z of [8, 16]) { ctx.beginPath(); cs.forEach((q, i) => (i ? ctx.lineTo(q[0], q[1] - z) : ctx.moveTo(q[0], q[1] - z))); ctx.closePath(); ctx.stroke(); }
+      ctx.restore();
+      return;
+    }
     for (const p of Wd.props) {
       if (p.kind !== 'lamp') continue;
       const [wx, wy] = G.tileToWorld(p.x + 0.5, p.y + 0.5);
@@ -477,8 +671,9 @@
     // low drifting fog
     ctx.globalCompositeOperation = 'lighter';
     const fx = (t * 12) % (w + 400) - 200;
-    Wd.light(ctx, 'rgba(120,60,180,1)', fx, h * 0.92, 320, 90, 0.10);
-    Wd.light(ctx, 'rgba(40,120,180,1)', w - fx * 0.7, h * 0.85, 280, 80, 0.08);
+    const c2 = Wd.city === 2;
+    Wd.light(ctx, c2 ? 'rgba(200,100,50,1)' : 'rgba(120,60,180,1)', fx, h * 0.92, 320, 90, 0.10);
+    Wd.light(ctx, c2 ? 'rgba(220,150,80,1)' : 'rgba(40,120,180,1)', w - fx * 0.7, h * 0.85, 280, 80, 0.08);
     ctx.globalCompositeOperation = 'source-over';
     const vg = ctx.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.4, w / 2, h / 2, Math.max(w, h) * 0.75);
     vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,.45)');
@@ -486,8 +681,9 @@
   };
 
   // ---------- ground: wet asphalt, plaza plates, manholes, cables, puddles ----------
-  let groundCache = null;
+  let groundCache = null, groundCache2 = null;
   Wd.ground = function () {
+    if (Wd.city === 2) return groundCache2 || (groundCache2 = colonyGround());
     if (groundCache) return groundCache;
     const w = M * TW, h = M * TH;
     const [c, x] = mk(w, h, 1);
@@ -556,16 +752,6 @@
       const c0 = P(ox, oy, 3 + r() * (M - 6), 3 + r() * (M - 6));
       x.fillStyle = 'rgba(70,58,50,.35)'; x.beginPath(); x.ellipse(c0[0], c0[1], 40 + r() * 30, 16 + r() * 10, 0, 0, Math.PI * 2); x.fill();
       for (let k = 0; k < 60; k++) { x.fillStyle = r() < 0.5 ? 'rgba(150,130,110,.35)' : 'rgba(20,16,14,.5)'; x.fillRect(c0[0] + (r() - 0.5) * 80, c0[1] + (r() - 0.5) * 30, 1.6, 1.2); }
-    }
-    // landing pad stencil
-    {
-      const c0 = P(ox, oy, 7, 31);
-      x.strokeStyle = 'rgba(255,225,77,.35)'; x.lineWidth = 2;
-      x.beginPath(); x.ellipse(c0[0], c0[1], 46, 23, 0, 0, Math.PI * 2); x.stroke();
-      x.beginPath(); x.ellipse(c0[0], c0[1], 38, 19, 0, 0, Math.PI * 2); x.stroke();
-      x.save(); x.translate(c0[0], c0[1]); x.transform(1, 0, 0, 0.5, 0, 0); x.rotate(Math.PI / 4);
-      x.fillStyle = 'rgba(255,225,77,.3)'; x.fillRect(-14, -16, 6, 32); x.fillRect(8, -16, 6, 32); x.fillRect(-8, -3, 16, 6);
-      x.restore();
     }
     // asphalt grain on the road
     for (let i = 0; i < 4000; i++) {
@@ -653,4 +839,61 @@
     groundCache = { c, ox, oy, w, h };
     return groundCache;
   };
+
+  // ---------- colony ground: red desert sand, stone slabs, craters, glowing mineral veins ----------
+  function colonyGround() {
+    const w = M * TW, h = M * TH;
+    const [c, x] = mk(w, h, 1);
+    const ox = w / 2, oy = 0, r = G.rng(5150);
+    const isRoad = (tx, ty) => tx < 2 || ty < 2 || tx >= M - 2 || ty >= M - 2;
+    const seeds = []; for (let i = 0; i < 16; i++) seeds.push([2 + r() * (M - 4), 2 + r() * (M - 4), i < 4 ? 0 : 1 + (i % 2)]);
+    seeds.push([M / 2, M / 2, 0]);
+    const zoneOf = (tx, ty) => { let best = 0, bd = 1e9; for (const s of seeds) { const d = Math.hypot(tx - s[0], ty - s[1]) * (s[2] === 0 ? 0.7 : 1); if (d < bd) { bd = d; best = s[2]; } } return best; };
+    for (let ty = 0; ty < M; ty++) for (let tx = 0; tx < M; tx++) {
+      const a = P(ox, oy, tx, ty), b = P(ox, oy, tx + 1, ty), cc = P(ox, oy, tx + 1, ty + 1), d = P(ox, oy, tx, ty + 1);
+      const v = 0.9 + r() * 0.2;
+      if (isRoad(tx, ty)) { poly(x, [a, b, cc, d], shade('#3a2418', v), null); continue; }
+      const zone = zoneOf(tx, ty);
+      if (zone === 0) poly(x, [a, b, cc, d], shade(((tx >> 1) + (ty >> 1)) & 1 ? '#6a4a34' : '#624430', v), 'rgba(150,110,70,.35)', 0.6); // laid stone slabs
+      else if (zone === 1) poly(x, [a, b, cc, d], shade('#7a4428', v), null); // red sand
+      else poly(x, [a, b, cc, d], shade('#6a3a24', v), 'rgba(40,20,12,.25)', 0.5); // packed dust
+    }
+    // wind ripples across the sand
+    x.strokeStyle = 'rgba(220,150,90,.18)'; x.lineWidth = 1;
+    for (let i = 0; i < 160; i++) { const p = P(ox, oy, 2 + r() * (M - 4), 2 + r() * (M - 4)); x.beginPath(); x.moveTo(p[0] - 14, p[1]); x.quadraticCurveTo(p[0], p[1] - 4, p[0] + 14, p[1]); x.stroke(); }
+    // glowing mineral veins
+    x.save(); x.globalCompositeOperation = 'lighter'; x.lineCap = 'round';
+    for (let i = 0; i < 18; i++) {
+      let p = P(ox, oy, 3 + r() * (M - 6), 3 + r() * (M - 6)); const col = r() < 0.6 ? '#2be3c8' : '#c27bff';
+      x.strokeStyle = col; x.globalAlpha = 0.25; x.lineWidth = 1.3; x.shadowColor = col; x.shadowBlur = 6;
+      x.beginPath(); x.moveTo(p[0], p[1]);
+      for (let k = 0; k < 6; k++) { p = [p[0] + (r() - 0.5) * 60, p[1] + (r() - 0.5) * 30]; x.lineTo(p[0], p[1]); }
+      x.stroke(); x.shadowBlur = 0;
+    }
+    x.restore(); x.globalAlpha = 1;
+    // craters
+    for (let i = 0; i < 14; i++) {
+      const p = P(ox, oy, 3 + r() * (M - 6), 3 + r() * (M - 6)), rr = 10 + r() * 22;
+      x.fillStyle = 'rgba(30,14,8,.45)'; x.beginPath(); x.ellipse(p[0], p[1], rr, rr * 0.5, 0, 0, Math.PI * 2); x.fill();
+      x.strokeStyle = 'rgba(220,150,100,.3)'; x.lineWidth = 1.5; x.beginPath(); x.ellipse(p[0], p[1] + 1, rr, rr * 0.5, 0, 0, Math.PI); x.stroke();
+    }
+    // pebbles
+    for (let i = 0; i < 1500; i++) { const p = P(ox, oy, r() * M, r() * M); x.fillStyle = r() < 0.5 ? 'rgba(230,170,110,.25)' : 'rgba(20,10,6,.35)'; x.fillRect(p[0], p[1], 1.6, 1.1); }
+    // tyre tracks on the dust road
+    x.setLineDash([3, 5]); x.strokeStyle = 'rgba(15,8,5,.5)'; x.lineWidth = 1.2;
+    for (const off of [0.7, 1.3]) poly(x, [P(ox, oy, off, off), P(ox, oy, M - off, off), P(ox, oy, M - off, M - off), P(ox, oy, off, M - off)], null, 'rgba(15,8,5,.5)', 1.2);
+    x.setLineDash([]);
+    // build-area marker: teal dashes
+    x.setLineDash([6, 6]);
+    poly(x, [P(ox, oy, 2, 2), P(ox, oy, M - 2, 2), P(ox, oy, M - 2, M - 2), P(ox, oy, 2, M - 2)], null, 'rgba(43,227,200,.55)', 2.2);
+    x.setLineDash([]);
+    // warm light washes
+    x.globalCompositeOperation = 'lighter';
+    for (let i = 0; i < 12; i++) { const p = P(ox, oy, r() * M, r() * M); x.globalAlpha = 0.05; x.drawImage(Wd.glow(r() < 0.5 ? '#ff8a3a' : '#2be3c8'), p[0] - 160, p[1] - 80, 320, 160); }
+    x.globalAlpha = 1; x.globalCompositeOperation = 'source-over';
+    x.shadowColor = '#ff8a3a'; x.shadowBlur = 14;
+    poly(x, [P(ox, oy, 0, 0), P(ox, oy, M, 0), P(ox, oy, M, M), P(ox, oy, 0, M)], null, '#ff9a4a', 2);
+    x.shadowBlur = 0;
+    return { c, ox, oy, w, h };
+  }
 })();

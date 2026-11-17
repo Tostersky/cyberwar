@@ -30,6 +30,7 @@
     const M = G.MAP;
     if (x < 2 || y < 2 || x + sz > M - 2 || y + sz > M - 2) return false;
     for (const b of s.buildings) {
+      if (BD()[b.type].city === 2) continue; // the colony is another map
       const bs = BD()[b.type].size;
       if (x < b.x + bs + 1 && x + sz > b.x - 1 && y < b.y + bs + 1 && y + sz > b.y - 1) return false;
     }
@@ -103,12 +104,20 @@
   E.coreLevel = (s) => { const c = s.buildings.find((b) => b.type === 'core'); return c ? Math.max(1, c.level) : 1; };
   E.countType = (s, type) => s.buildings.filter((b) => b.type === type).length;
   E.maxLevelOf = (s, type) => s.buildings.filter((b) => b.type === type).reduce((m, b) => Math.max(m, b.level), 0);
-  E.limitOf = (s, type) => G.LIMITS[type][E.coreLevel(s) - 1];
+  // second city (the colony): its own HQ ('xcore') sets its limits and levels
+  E.cityOf = (type) => (BD()[type] && BD()[type].city) || 1;
+  E.xcoreLevel = (s) => { const c = s.buildings.find((b) => b.type === 'xcore'); return c ? Math.max(1, c.level) : 0; };
+  E.city2Open = (s) => E.coreLevel(s) >= G.CITY2_CORE || E.xcoreLevel(s) > 0;
+  E.cityCore = (s, city) => (city === 2 ? Math.max(1, E.xcoreLevel(s)) : E.coreLevel(s));
+  E.limitOf = (s, type) => G.LIMITS[type][E.cityCore(s, E.cityOf(type)) - 1];
   E.capOf = function (s, res) {
     if (res === 'chips') return Infinity;
     let c = 0;
-    // plasma has its own tanks; scrap/copper live in the Core and vaults
-    for (const b of s.buildings) { const d = BD()[b.type]; if (d.store && b.level > 0 && (d.storeRes || 'basic') === (res === 'plasma' ? 'plasma' : 'basic')) c += d.store[b.level - 1]; }
+    // plasma has its own tanks; the Core keeps scrap and copper, vaults keep copper, silos keep scrap
+    for (const b of s.buildings) {
+      const d = BD()[b.type], sr = d.storeRes || 'basic';
+      if (d.store && b.level > 0 && (sr === res || (sr === 'basic' && res !== 'plasma'))) c += d.store[b.level - 1];
+    }
     return c;
   };
   E.addRes = function (s, res, n) {
@@ -139,26 +148,27 @@
   };
   E.findB = (s, id) => s.buildings.find((b) => b.id === id);
   E.canPlace = function (s, type, x, y, ignoreId) {
-    const sz = BD()[type].size, M = G.MAP;
+    const sz = BD()[type].size, M = G.MAP, city = E.cityOf(type);
     if (!Number.isInteger(x) || !Number.isInteger(y)) return false;
     if (x < 2 || y < 2 || x + sz > M - 2 || y + sz > M - 2) return false;
     for (const b of s.buildings) {
-      if (b.id === ignoreId) continue;
+      if (b.id === ignoreId || E.cityOf(b.type) !== city) continue;
       const bs = BD()[b.type].size;
       if (x < b.x + bs && x + sz > b.x && y < b.y + bs && y + sz > b.y) return false;
     }
-    // obstacles must be removed first
-    for (const o of s.obstacles || []) {
+    // obstacles must be removed first (only the home city has them)
+    if (city === 1) for (const o of s.obstacles || []) {
       const os = G.OBSTACLES[o.type].size;
       if (x < o.x + os && x + sz > o.x && y < o.y + os && y + sz > o.y) return false;
     }
     return true;
   };
   // before the Core can go up, every other building (walls excepted) must reach the highest level this Core allows
-  E.coreNeeds = function (s) {
-    const L = Math.min(G.MAXLV, E.coreLevel(s)), need = {};
+  E.coreNeeds = function (s, city) {
+    city = city || 1;
+    const L = Math.min(G.MAXLV, E.cityCore(s, city)), need = {};
     for (const b of s.buildings) {
-      if (b.type === 'core' || BD()[b.type].wall) continue;
+      if (b.type === 'core' || b.type === 'xcore' || BD()[b.type].wall || E.cityOf(b.type) !== city) continue;
       if (b.level < L) need[b.type] = (need[b.type] || 0) + 1;
     }
     return Object.keys(need).map((type) => ({ type, n: need[type], lv: L }));
@@ -166,9 +176,10 @@
   E.upgradeInfo = function (s, b) {
     const d = BD()[b.type], next = b.level + 1;
     if (b.level >= G.MAXLV) return { max: true };
-    const needCore = b.type === 'core' ? 0 : next;
-    const coreNeeds = b.type === 'core' ? E.coreNeeds(s) : [];
-    return { next, res: d.res, cost: d.cost[next - 1], time: d.time[next - 1], needCore, coreNeeds, blocked: needCore > E.coreLevel(s) || coreNeeds.length > 0 };
+    const city = E.cityOf(b.type), isCore = b.type === 'core' || b.type === 'xcore';
+    const needCore = isCore ? 0 : next;
+    const coreNeeds = isCore ? E.coreNeeds(s, city) : [];
+    return { next, res: d.res, cost: d.cost[next - 1], time: d.time[next - 1], needCore, city, coreNeeds, blocked: needCore > E.cityCore(s, city) || coreNeeds.length > 0 };
   };
   // chips to finish now: cheaper per minute for long timers (16 h ~ 170 chips)
   E.speedCost = (ms) => Math.max(1, Math.ceil(Math.pow(Math.max(0, ms) / 60000, 0.75)));
@@ -360,7 +371,8 @@
     const c = cmd && cmd.c;
     if (c === 'build') {
       const d = BD()[cmd.type];
-      if (!d || cmd.type === 'core') return ERR('badPlace');
+      if (!d || cmd.type === 'core' || cmd.type === 'xcore') return ERR('badPlace');
+      if (d.city === 2 && !E.xcoreLevel(s)) return ERR('city2Locked');
       if (E.countType(s, cmd.type) >= E.limitOf(s, cmd.type)) return ERR('limit');
       if (!E.canPlace(s, cmd.type, cmd.x, cmd.y)) return ERR('badPlace');
       const dur = d.time[0];
@@ -377,13 +389,20 @@
       const u = E.upgradeInfo(s, b);
       if (u.max) return ERR('maxLevel');
       if (u.coreNeeds && u.coreNeeds.length) return ERR('coreNeeds');
-      if (u.blocked) return ERR('needCore', { n: u.needCore });
+      if (u.blocked) return ERR(u.city === 2 ? 'needXcore' : 'needCore', { n: u.needCore });
       if (u.time > 0 && E.buildersBusy(s, now) >= E.builders(s)) return ERR('noBuilder');
       const e = pay(s, u.res, u.cost); if (e) return e;
       E.updateCollector(b, now, s);
       if (u.time > 0) { b.busyUntil = now + u.time * 1000; b.busyStart = now; b.upTo = u.next; }
       else b.level = u.next;
       E.progress(s, now, 'build', 1); E.stat(s, 'builds', 1);
+      return { ok: true };
+    }
+    if (c === 'city2init') { // first flight to the colony: its HQ and two collectors are set up for free
+      if (E.xcoreLevel(s)) return { ok: true };
+      if (E.coreLevel(s) < G.CITY2_CORE) return ERR('city2Locked');
+      const add = (type, x, y) => s.buildings.push({ id: s.nextId++, type, level: 1, x, y, acc: 0, last: now, busyUntil: 0, busyStart: 0, upTo: 0 });
+      add('xcore', 18, 18); add('xdrill', 13, 18); add('xpump', 23, 18);
       return { ok: true };
     }
     if (c === 'finish') {
@@ -732,7 +751,7 @@
   };
   // what other players see and can steal
   E.baseSnapshot = (s) => ({
-    layout: s.buildings.filter((b) => b.level > 0).map((b) => [b.type, b.level, b.x, b.y]),
+    layout: s.buildings.filter((b) => b.level > 0 && E.cityOf(b.type) === 1).map((b) => [b.type, b.level, b.x, b.y]),
     core: E.coreLevel(s), scrap: Math.floor(s.res.scrap * 0.2), copper: Math.floor(s.res.copper * 0.2),
   });
 })();

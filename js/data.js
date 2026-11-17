@@ -1,5 +1,5 @@
 // Game data: buildings, units, heroes, campaign. All numbers are CyberWar's own.
-G.TW = 64; G.TH = 32; G.MAP = 40; G.VERSION = '0.14.1';
+G.TW = 64; G.TH = 32; G.MAP = 40; G.VERSION = '0.15.0';
 G.BUILDERS = 2; // builder drones at the start; more can be bought with chips (up to 5)
 G.BUILDER_PRICE = [0, 0, 250, 500, 1000]; // price of the 3rd, 4th and 5th drone
 G.BUILDERS_MAX = 5;
@@ -14,7 +14,10 @@ G.BUILDINGS = {
   coppermine: { size: 3, res: 'scrap',  cost: [150, 300, 700, 1400, 3000, 6000, 12000, 24000], time: [10, 30, 120, 600, 1800, 3600, 7200, 14400],
                 hp: [400, 450, 500, 550, 600, 650, 700, 750], prod: 'copper', rate: [300, 500, 800, 1100, 1500, 1900, 2400, 3000], cap: [500, 1000, 2000, 3500, 5000, 7000, 9500, 12000] },
   vault:      { size: 3, res: 'copper', cost: [300, 800, 2000, 5000, 12000, 25000, 50000, 90000], time: [15, 60, 300, 1200, 2700, 5400, 10800, 21600],
-                hp: [600, 700, 800, 900, 1000, 1100, 1200, 1300], store: [2000, 5000, 17000, 42000, 85000, 152000, 272000, 300000] },
+                hp: [600, 700, 800, 900, 1000, 1100, 1200, 1300], store: [2000, 5000, 17000, 42000, 85000, 152000, 272000, 300000], storeRes: 'copper' },
+  // scrap silo: the vault's twin for scrap (vault keeps copper, the Core keeps both)
+  silo:       { size: 3, res: 'copper', cost: [300, 800, 2000, 5000, 12000, 25000, 50000, 90000], time: [15, 60, 300, 1200, 2700, 5400, 10800, 21600],
+                hp: [600, 700, 800, 900, 1000, 1100, 1200, 1300], store: [2000, 5000, 17000, 42000, 85000, 152000, 272000, 300000], storeRes: 'scrap' },
   factory:    { size: 3, res: 'scrap',  cost: [200, 1000, 2500, 6000, 15000, 30000, 60000, 100000], time: [15, 120, 600, 1800, 3600, 10800, 21600, 36000],
                 hp: [500, 600, 700, 800, 900, 1000, 1100, 1200] },
   squadhq:    { size: 4, res: 'copper', cost: [250, 2000, 5000, 12000, 25000, 45000, 80000, 140000], time: [15, 180, 900, 2400, 5400, 14400, 25200, 39600],
@@ -51,7 +54,28 @@ G.BUILDINGS = {
                 hp: [1, 1, 1, 1, 1, 1, 1, 1], dmg: [60, 80, 105, 135, 170, 210, 255, 305], trap: true, splash: 1.5 },
   firewall:   { size: 1, res: 'scrap',  cost: [50, 200, 600, 1500, 4000, 8000, 15000, 25000], time: [0, 0, 0, 0, 0, 0, 0, 0],
                 hp: [300, 600, 1000, 1600, 2500, 3500, 4800, 6500], wall: true },
+
+  // ---- the colony (second city, reached by the shuttle from Core 6). city: 2 = built only there.
+  // Same shared resources; the colony only builds the economy (no battles there yet).
+  xcore:      { size: 4, res: 'scrap',  city: 2, cost: [0, 60000, 110000, 170000, 240000, 320000, 410000, 520000], time: [0, 7200, 14400, 28800, 43200, 57600, 72000, 86400],
+                hp: [3000, 3500, 4000, 4500, 5000, 5600, 6200, 7000], store: [10000, 16000, 24000, 34000, 46000, 60000, 76000, 95000] },
+  // deep drill: scrap from the dunes, much faster than a city scrapyard
+  xdrill:     { size: 3, res: 'copper', city: 2, cost: [8000, 16000, 28000, 45000, 70000, 100000, 140000, 190000], time: [300, 1800, 3600, 7200, 14400, 21600, 28800, 36000],
+                hp: [700, 760, 820, 880, 940, 1000, 1080, 1160], prod: 'scrap', rate: [1800, 2300, 2800, 3400, 4000, 4700, 5400, 6200], cap: [8000, 10000, 12500, 15000, 18000, 21000, 24500, 28000] },
+  // geyser pump: copper brine from under the crust
+  xpump:      { size: 3, res: 'scrap',  city: 2, cost: [8000, 16000, 28000, 45000, 70000, 100000, 140000, 190000], time: [300, 1800, 3600, 7200, 14400, 21600, 28800, 36000],
+                hp: [700, 760, 820, 880, 940, 1000, 1080, 1160], prod: 'copper', rate: [1800, 2300, 2800, 3400, 4000, 4700, 5400, 6200], cap: [8000, 10000, 12500, 15000, 18000, 21000, 24500, 28000] },
+  // crystal resonator: grows plasma crystals
+  xcrystal:   { size: 3, res: 'copper', city: 2, cost: [30000, 45000, 65000, 90000, 120000, 160000, 210000, 270000], time: [1800, 3600, 7200, 14400, 21600, 28800, 36000, 43200],
+                hp: [600, 660, 720, 780, 840, 900, 970, 1040], prod: 'plasma', rate: [250, 320, 400, 480, 570, 670, 780, 900], cap: [1500, 2000, 2500, 3000, 3600, 4200, 4900, 5600] },
+  // cargo dome: stores scrap and copper (like the Core)
+  xdome:      { size: 3, res: 'scrap',  city: 2, cost: [12000, 25000, 45000, 70000, 100000, 140000, 190000, 250000], time: [600, 2400, 5400, 10800, 18000, 25200, 32400, 39600],
+                hp: [900, 1000, 1100, 1200, 1300, 1400, 1500, 1600], store: [20000, 40000, 70000, 100000, 140000, 180000, 230000, 290000] },
+  // cryo tank: stores plasma
+  xcryo:      { size: 2, res: 'copper', city: 2, cost: [20000, 32000, 48000, 68000, 92000, 120000, 155000, 200000], time: [900, 3600, 7200, 14400, 21600, 28800, 36000, 43200],
+                hp: [600, 660, 720, 780, 840, 900, 970, 1040], store: [5000, 7000, 9500, 12500, 16000, 20000, 25000, 31000], storeRes: 'plasma' },
 };
+G.CITY2_CORE = 6; // Core level that brings the shuttle
 // obstacles on the home map: they block building until removed (cost grows with the Core level). Never give chips.
 G.OBSTACLES = {
   wreck:  { size: 2, res: 'scrap',  cost: 600 },  // burnt-out hover car
@@ -69,11 +93,15 @@ G.refCap = (L) => G.BUILDINGS.core.store[L - 1] + G.BUILDINGS.vault.store[L - 1]
 // How many of each building per Core level (index = core level - 1)
 G.LIMITS = {
   core: [1, 1, 1, 1, 1, 1, 1, 1], scrapyard: [2, 3, 4, 5, 6, 6, 7, 7], coppermine: [2, 3, 4, 5, 6, 6, 7, 7],
-  vault: [1, 1, 2, 2, 3, 3, 4, 4], factory: [1, 1, 1, 1, 1, 1, 1, 1], squadhq: [1, 1, 1, 1, 1, 1, 1, 1],
+  vault: [1, 1, 2, 2, 3, 3, 4, 4], silo: [1, 1, 2, 2, 3, 3, 4, 4], factory: [1, 1, 1, 1, 1, 1, 1, 1], squadhq: [1, 1, 1, 1, 1, 1, 1, 1],
   lab: [0, 1, 1, 1, 1, 1, 1, 1], forge: [0, 0, 0, 1, 1, 1, 1, 1], extractor: [0, 0, 0, 0, 1, 2, 2, 3], tank: [0, 0, 0, 0, 1, 1, 2, 2], clanhub: [0, 0, 1, 1, 1, 1, 1, 1], laser: [1, 2, 3, 4, 5, 5, 6, 6], mortar: [0, 0, 1, 1, 2, 2, 3, 3],
   aa: [0, 0, 0, 1, 1, 2, 2, 3], emp: [0, 0, 0, 0, 1, 1, 2, 2], mine: [0, 0, 2, 3, 4, 5, 6, 8], skymine: [0, 0, 0, 1, 2, 2, 3, 4], firewall: [25, 50, 75, 100, 150, 175, 200, 225],
+  // colony limits follow the colony HQ level
+  xcore: [1, 1, 1, 1, 1, 1, 1, 1], xdrill: [1, 2, 2, 3, 3, 4, 4, 5], xpump: [1, 2, 2, 3, 3, 4, 4, 5], xcrystal: [0, 1, 1, 2, 2, 2, 3, 3],
+  xdome: [1, 1, 2, 2, 2, 3, 3, 3], xcryo: [0, 1, 1, 1, 2, 2, 2, 2],
 };
-G.SHOP = ['laser', 'mortar', 'aa', 'emp', 'mine', 'skymine', 'firewall', 'scrapyard', 'coppermine', 'vault', 'factory', 'squadhq', 'lab', 'forge', 'extractor', 'tank', 'clanhub'];
+G.SHOP2 = ['xdrill', 'xpump', 'xcrystal', 'xdome', 'xcryo'];
+G.SHOP = ['laser', 'mortar', 'aa', 'emp', 'mine', 'skymine', 'firewall', 'scrapyard', 'coppermine', 'vault', 'silo', 'factory', 'squadhq', 'lab', 'forge', 'extractor', 'tank', 'clanhub'];
 
 // laboratory research: unit level 2..5 (cost in copper, time in seconds); each level = +15% hitpoints and damage
 G.RESEARCH = { cost: [0, 1500, 5000, 14000, 32000], time: [0, 600, 3600, 3 * 3600, 8 * 3600], maxLv: 5, bonus: 0.15 };
@@ -184,6 +212,7 @@ G.genBase = function (p, seed) {
   for (let i = 0; i < (p.scrap || 0); i++) rest.push('scrapyard');
   for (let i = 0; i < (p.copper || 0); i++) rest.push('coppermine');
   for (let i = 0; i < (p.vault || 0); i++) rest.push('vault');
+  for (let i = 0; i < (p.silo || 0); i++) rest.push('silo');
   if (p.factory) rest.push('factory');
   if (p.hq) rest.push('squadhq');
   for (let i = 0; i < (p.mortar || 0); i++) rest.push('mortar');
@@ -290,7 +319,7 @@ G.genBot = function (coreLv, seed) {
   const p = {
     core: c, lasers: Math.max(1, G.LIMITS.laser[c - 1] - (r() < 0.5 ? 1 : 0)), laserLv: c,
     rings: c >= 4 ? 2 : (c >= 2 ? 1 : (r() < 0.5 ? 1 : 0)), wallLv: Math.max(1, c - 1), wallLv2: Math.max(1, c - 2),
-    scrap: Math.min(6, 1 + c), copper: Math.min(6, 1 + c), vault: G.LIMITS.vault[c - 1], factory: 1, hq: 1, blv: c,
+    scrap: Math.min(6, 1 + c), copper: Math.min(6, 1 + c), vault: G.LIMITS.vault[c - 1], silo: G.LIMITS.silo[c - 1], factory: 1, hq: 1, blv: c,
     mortar: G.LIMITS.mortar[c - 1], aa: G.LIMITS.aa[c - 1], emp: G.LIMITS.emp[c - 1], mines: G.LIMITS.mine[c - 1], lab: G.LIMITS.lab[c - 1], skymines: G.LIMITS.skymine[c - 1],
   };
   const loot = { scrap: Math.floor((300 + r() * 500) * c * c), copper: Math.floor((300 + r() * 500) * c * c) };

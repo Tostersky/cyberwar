@@ -1,16 +1,43 @@
 // Home base scene: render, select, collect, place and move buildings.
 (function () {
   const B = G.BUILDINGS;
-  const V = G.Village = { cam: new G.Camera(), sel: null, ghost: null, floats: [], t: 0, camInit: false };
+  const V = G.Village = { cam: new G.Camera(), sel: null, ghost: null, floats: [], t: 0, camInit: false, city: 1 };
+  // buildings of the city on screen (1 = home, 2 = colony)
+  const mine = () => G.state.buildings.filter((b) => (B[b.type].city || 1) === V.city);
 
   V.enter = function () {
     G.scene = V;
+    if (V.city === 2 && !G.Econ.xcoreLevel(G.state)) V.city = 1;
+    G.World.city = V.city;
     if (!V.camInit) { V.cam.center(); V.camInit = true; }
     V.sel = null; V.ghost = null; V.editMode = false; V.drag = null;
     G.UI.showVillage();
   };
+  // ---- shuttle flight between the home city and the colony ----
+  V.travel = function () {
+    if (V.ghost || V.editMode || V.fly) return;
+    const to = V.city === 1 ? 2 : 1;
+    if (to === 2 && !G.Econ.xcoreLevel(G.state)) {
+      const r = G.act({ c: 'city2init' });
+      if (r.err) { G.UI.toast(G.t(r.err)); return; }
+      G.save();
+    }
+    V.select(null); G.Sfx.play('deploy');
+    V.fly = { t: 0, to, swapped: false };
+  };
+  function updateFly(dt) {
+    const f = V.fly; if (!f) return;
+    f.t += dt;
+    if (!f.swapped && f.t >= 0.7) {
+      f.swapped = true; V.city = f.to; G.World.city = f.to;
+      V.cam.center(); V.sel = null; V.selObs = null;
+      G.UI.showVillage();
+    }
+    if (f.t >= 1.5) V.fly = null;
+  }
   V.update = function (dt) {
     V.t += dt; V.lastDt = dt;
+    updateFly(dt);
     G.World.update(dt, V.t);
     // every 5 s show how much each mine has delivered to storage
     V.flowT = (V.flowT || 0) + dt;
@@ -19,6 +46,7 @@
       for (const b of G.state.buildings) {
         const d = B[b.type];
         if (!d.prod || b.level <= 0) continue;
+        if ((d.city || 1) !== V.city) { b.flow = 0; continue; }
         const n = Math.floor(b.flow || 0);
         if (n <= 0) continue;
         b.flow -= n;
@@ -48,7 +76,7 @@
   function hitBuilding(sx, sy) {
     const [wx, wy] = V.cam.toWorld(sx, sy);
     const [tx, ty] = G.worldToTile(wx, wy);
-    const all = G.state.buildings;
+    const all = mine();
     const front = (a, b) => (b.x + b.y + B[b.type].size) - (a.x + a.y + B[a.type].size);
     // 1) the standing body of small objects (firewall pillars, turrets) — they can stick out in front of big buildings
     for (const b of all.filter((q) => B[q.type].size <= 2).sort(front)) {
@@ -88,6 +116,7 @@
     // tapping a resource bubble only collects (no building panel)
     const bub = hitBubble(sx, sy);
     if (bub) { collectFrom(bub); return; }
+    { const [wx, wy] = V.cam.toWorld(sx, sy); if (G.World.shipHit(wx, wy)) { V.travel(); return; } }
     const b = hitBuilding(sx, sy);
     if (!b) { const o = hitObstacle(sx, sy); if (o) { V.selectObs(o); return; } V.select(null); return; }
     V.select(b);
@@ -96,6 +125,7 @@
   function hitObstacle(sx, sy) {
     const [wx, wy] = V.cam.toWorld(sx, sy);
     const [tx, ty] = G.worldToTile(wx, wy);
+    if (V.city !== 1) return null;
     const list = (G.state.obstacles || []).slice().sort((a, b) => (b.x + b.y) - (a.x + a.y));
     for (const o of list) {
       const s = G.OBSTACLES[o.type].size;
@@ -135,7 +165,7 @@
   };
   function hitBubble(sx, sy) {
     let best = null, bd = 30;
-    for (const b of G.state.buildings) {
+    for (const b of mine()) {
       const p = V.bubbleAt(b);
       if (!p) continue;
       const [px, py] = V.cam.toScreen(p[0], p[1]);
@@ -310,10 +340,10 @@
     const cam = V.cam, t = Date.now();
     G.R.begin(ctx, cam);
     const walls = new Map();
-    for (const b of G.state.buildings) if (b.type === 'firewall') walls.set(b.x * 100 + b.y, b);
+    for (const b of mine()) if (b.type === 'firewall') walls.set(b.x * 100 + b.y, b);
     if (V.ghost && V.ghost.moveId) walls.delete(G.state.buildings.find((b) => b.id === V.ghost.moveId).x * 100 + G.state.buildings.find((b) => b.id === V.ghost.moveId).y);
     const dragId = V.drag && V.drag.b.id;
-    const list = G.state.buildings.filter((b) => !(V.ghost && V.ghost.moveId === b.id) && b.id !== dragId);
+    const list = mine().filter((b) => !(V.ghost && V.ghost.moveId === b.id) && b.id !== dragId);
     if (V.editMode) {
       // building grid so it's easy to line things up
       ctx.save(); ctx.strokeStyle = 'rgba(25,240,255,.12)'; ctx.lineWidth = 1;
@@ -333,11 +363,12 @@
       const s = G.OBSTACLES[V.selObs.type].size, pulse = 0.5 + Math.sin(V.t * 5) * 0.3;
       ctx.save(); ctx.globalAlpha = pulse + 0.2; G.R.diamond(ctx, V.selObs.x, V.selObs.y, s, 'rgba(255,225,77,.12)', '#ffe14d', 2); ctx.restore();
     }
-    const obs = (G.state.obstacles || []).map((o) => ({ d: o.x + o.y + G.OBSTACLES[o.type].size, o }));
-    const items = list.map((b) => ({ d: b.x + b.y + B[b.type].size, b })).concat(obs, G.World.propItems());
+    const obs = (V.city === 1 ? G.state.obstacles || [] : []).map((o) => ({ d: o.x + o.y + G.OBSTACLES[o.type].size, o }));
+    const items = list.map((b) => ({ d: b.x + b.y + B[b.type].size, b })).concat(obs, G.World.propItems(), G.World.shipItem());
     items.sort((a, b) => a.d - b.d);
     for (const it of items) {
       if (it.b) drawBuilding(ctx, it.b, t, walls);
+      else if (it.ship) G.World.drawShip(ctx, V.t);
       else if (it.o) { const [wx, wy] = G.tileToWorld(it.o.x, it.o.y); G.Art.drawSprite(ctx, G.Art.obsSprite(it.o.type, it.o.id % 3), wx, wy); }
       else G.World.drawProp(ctx, it.prop);
     }
@@ -361,5 +392,16 @@
     }
     G.R.end(ctx, cam, V.lastDt || 0.016);
     for (const f of V.floats) { ctx.globalAlpha = Math.min(1, f.life * 2); G.R.text(ctx, f.text, f.wx, f.wy, f.color, 16); ctx.globalAlpha = 1; }
+    if (V.fly) {
+      // fade through black with warp streaks while the shuttle flies
+      const f = V.fly, a = f.t < 0.7 ? f.t / 0.7 : Math.max(0, (1.5 - f.t) / 0.8), d = G.dpr;
+      ctx.save(); ctx.setTransform(d, 0, 0, d, 0, 0);
+      ctx.fillStyle = 'rgba(4,3,10,' + a + ')'; ctx.fillRect(0, 0, G.W, G.H);
+      ctx.globalAlpha = a; ctx.strokeStyle = f.to === 2 ? '#ffb070' : '#19f0ff'; ctx.lineWidth = 1.5;
+      const r = G.rng(Math.floor(f.t * 30));
+      for (let i = 0; i < 40; i++) { const y = r() * G.H, x0 = r() * G.W, L = 40 + r() * 160; ctx.beginPath(); ctx.moveTo(x0, y); ctx.lineTo(x0 + L, y); ctx.stroke(); }
+      G.R.text(ctx, G.t(f.to === 2 ? 'flyColony' : 'flyHome'), G.W / 2, G.H / 2, '#ffffff', 20);
+      ctx.restore();
+    }
   };
 })();

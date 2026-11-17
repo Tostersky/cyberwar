@@ -52,7 +52,7 @@
     }
     else { G.state.flags.battled = true; G.act({ c: 'bstart', mode: opts.mode }); }
     G.Sfx.play('open');
-    G.scene = b;
+    G.scene = b; G.World.city = 1; // battles always happen in a city map
     G.UI.showBattle();
   };
 

@@ -131,6 +131,30 @@
     // level lights: one per level along the front-right kerb
     for (let i = 0; i < L; i++) { const k = 0.3 + i * (0.55 / 7), q = [c[0] + (b[0] - c[0]) * k, c[1] + (b[1] - c[1]) * k]; dot(x, q[0], q[1] - 1.1, 0.8, tr, 4); }
   }
+  // ---- colony helpers: sandstone slab, white domes, teal light ----
+  const CTEAL = '#2be3c8';
+  const CPAL = { stone: { top: '#c9a77a', left: '#7a5a3a', right: '#9a744c', edge: '#e8cfa0' }, stoneHi: { top: '#d8bc90', left: '#8a6a48', right: '#a8845a', edge: '#f0dcb4' } };
+  function colPad(x, ox, oy, s, L) {
+    box(x, ox, oy, 0.04, 0.04, s - 0.04, s - 0.04, 0, 2.4, { top: '#5a4230', left: '#2e2218', right: '#3e2e20', edge: '#8a6a48' }, true);
+    box(x, ox, oy, 0.16, 0.16, s - 0.16, s - 0.16, 2.4, 3.4, { top: '#8a6a4a', left: '#4a3828', right: '#5a4430', edge: '#b8946a' }, true);
+    // teal guide lights on the front kerbs, one per level
+    const a = P(ox, oy, 0.04, s - 0.04), c = P(ox, oy, s - 0.04, s - 0.04), b = P(ox, oy, s - 0.04, 0.04);
+    for (const p of [a, c, b]) dot(x, p[0], p[1] - 2.6, 1.1, CTEAL, 6);
+    for (let i = 0; i < L; i++) { const k = 0.3 + i * (0.55 / 7), q = [c[0] + (b[0] - c[0]) * k, c[1] + (b[1] - c[1]) * k]; dot(x, q[0], q[1] - 1.6, 0.8, L >= 8 ? '#ffd24a' : TRIM[L - 1], 4); }
+    if (L >= 5) { glow(x, CTEAL, 6); x.strokeStyle = CTEAL; x.lineWidth = 0.8; x.beginPath(); x.moveTo(a[0], a[1] - 2.4); x.lineTo(c[0], c[1] - 2.4); x.lineTo(b[0], b[1] - 2.4); x.stroke(); noglow(x); }
+  }
+  // white habitat dome: cx,cy = centre of its base, R = radius, h = height
+  function dome(x, cx, cy, R, h, L, cargo) {
+    const g = x.createRadialGradient(cx - R * 0.35, cy - h * 0.8, 3, cx, cy - h * 0.3, R * 1.1);
+    g.addColorStop(0, '#ffffff'); g.addColorStop(0.45, cargo ? '#d8cbb0' : '#dfe6ea'); g.addColorStop(1, cargo ? '#7a6a52' : '#7a8a94');
+    x.fillStyle = g; x.beginPath(); x.moveTo(cx - R, cy);
+    x.bezierCurveTo(cx - R, cy - h * 1.1, cx + R, cy - h * 1.1, cx + R, cy); x.ellipse(cx, cy, R, R / 2, 0, 0, Math.PI); x.fill();
+    // panel ribs
+    x.strokeStyle = 'rgba(60,70,80,.35)'; x.lineWidth = 0.7;
+    for (let k = -0.66; k <= 0.67; k += 0.33) { x.beginPath(); x.moveTo(cx + k * R, cy + Math.sqrt(1 - k * k) * R / 2); x.quadraticCurveTo(cx + k * R * 0.9, cy - h * 0.9, cx, cy - h * 0.83); x.stroke(); }
+    for (const f of [0.3, 0.6]) { x.beginPath(); x.ellipse(cx, cy - h * f, R * (1 - f * 0.45), R * (1 - f * 0.45) / 2, 0, 0, Math.PI); x.stroke(); }
+    x.fillStyle = 'rgba(255,255,255,.35)'; x.beginPath(); x.ellipse(cx - R * 0.35, cy - h * 0.6, R * 0.18, h * 0.12, -0.5, 0, Math.PI * 2); x.fill();
+  }
   // soft shadow cast toward the bottom-left
   function shadow(x, ox, oy, s, h) {
     return; // shadows switched off (player feedback: they got in the way)
@@ -244,7 +268,8 @@
 
   // heights shared by sprites and per-frame animation
   const HGT = {
-    core: (L) => 52 + L * 12, scrapyard: (L) => 46 + L * 4, coppermine: (L) => 58 + L * 5, vault: (L) => 34 + L * 6,
+    core: (L) => 52 + L * 12, scrapyard: (L) => 46 + L * 4, coppermine: (L) => 58 + L * 5, vault: (L) => 34 + L * 6, silo: (L) => 36 + L * 6,
+    xcore: (L) => 54 + L * 6, xdrill: (L) => 56 + L * 6, xpump: (L) => 34 + L * 5, xcrystal: (L) => 30 + L * 4, xdome: (L) => 34 + L * 4, xcryo: (L) => 24 + L * 3,
     factory: (L) => 26 + L * 3, squadhq: (L) => 22 + L * 3, laser: (L) => 12 + L * 2, firewall: (L) => 15 + L * 2,
     mortar: (L) => 14 + L * 2, aa: (L) => 14 + L * 2, emp: (L) => 16 + L * 2, mine: () => 3, skymine: () => 24,
     forge: (L) => 26 + L * 3, extractor: (L) => 20 + L * 3, tank: (L) => 14 + L * 2, lab: (L) => 24 + L * 3, clanhub: (L) => 30 + L * 4,
@@ -419,6 +444,152 @@
       if (L >= 3) { const a = P(ox, oy, s - 0.6, s - 0.6); line(x, [a[0], a[1] - h], [a[0], a[1] - h - 20], '#9aa0c0', 1.2); dot(x, a[0], a[1] - h - 20, 2, t, 8); }
       void tf;
       return h + 30;
+    },
+    // scrap silo: riveted grain-style silos full of pressed scrap, hazard bands, a feed chute between them
+    silo(x, ox, oy, s, L, r) {
+      const h = HGT.silo(L), t = TRIM[L - 1];
+      pad(x, ox, oy, s, L);
+      // pressed scrap bales stacked on the slab
+      const bale = (tx, ty, z, col) => box(x, ox, oy, tx, ty, tx + 0.42, ty + 0.42, z, z + 7, pal(col));
+      const pos = L >= 7 ? [[0.85, 0.85], [2.15, 0.85], [0.85, 2.15], [2.15, 2.15]] : L >= 4 ? [[0.9, 0.9], [2.1, 0.9], [1.5, 2.1]] : [[0.95, 1.05], [2.05, 1.95]];
+      const R = L >= 7 ? 15 : L >= 4 ? 16 : 18;
+      if (L < 7) { bale(2.2, 0.35, 3, '#6a5a3a'); bale(0.35, 2.25, 3, '#5a4f40'); if (L >= 2) bale(2.2, 0.35, 10, '#7a6a48'); }
+      // feed bridge between the tops
+      const tops = pos.map((p) => P(ox, oy, p[0], p[1]));
+      x.strokeStyle = '#3a3550'; x.lineWidth = 3;
+      for (let i = 1; i < tops.length; i++) { x.beginPath(); x.moveTo(tops[0][0], tops[0][1] - h + 4); x.lineTo(tops[i][0], tops[i][1] - h + 4); x.stroke(); }
+      pos.map((p, i) => [p, i]).sort((a, b) => a[0][0] + a[0][1] - (b[0][0] + b[0][1])).forEach(([p, i]) => {
+        const c = P(ox, oy, p[0], p[1]), hh = h - (i % 2) * 6;
+        cyl(x, c[0], c[1], R, 3, hh, '#5a6070', '#7a8090');
+        // hazard band and level rings
+        x.save(); x.beginPath(); x.rect(c[0] - R, c[1] - hh * 0.32 - 4, R * 2, 8); x.clip();
+        for (let k = -R - 8; k < R; k += 6) { x.fillStyle = (Math.floor((k + 40) / 6) % 2) ? '#ffc23a' : '#16131f'; x.beginPath(); x.moveTo(c[0] + k, c[1] - hh * 0.32 + 6); x.lineTo(c[0] + k + 3, c[1] - hh * 0.32 + 6); x.lineTo(c[0] + k + 9, c[1] - hh * 0.32 - 6); x.lineTo(c[0] + k + 6, c[1] - hh * 0.32 - 6); x.fill(); }
+        x.restore();
+        for (const z of [hh * 0.62, hh - 3]) { x.strokeStyle = 'rgba(20,18,30,.75)'; x.lineWidth = 1.2; x.beginPath(); x.ellipse(c[0], c[1] - z, R, R / 2, 0, 0, Math.PI); x.stroke(); }
+        // rivets
+        x.fillStyle = 'rgba(220,225,240,.35)';
+        for (let a = 0.3; a < Math.PI; a += 0.45) for (const z of [hh * 0.5, hh * 0.78]) x.fillRect(c[0] + Math.cos(a) * R - 0.6, c[1] - z + Math.sin(a) * R / 2 - 0.6, 1.2, 1.2);
+        // amber gauge window
+        glow(x, '#ffc23a', 6); x.fillStyle = 'rgba(255,194,58,.85)'; x.fillRect(c[0] - 2, c[1] - hh * 0.75, 4, hh * 0.3); noglow(x);
+        x.fillStyle = 'rgba(0,0,0,.45)'; x.fillRect(c[0] - 2, c[1] - hh * 0.75, 4, hh * 0.12);
+        // conical cap with a hatch
+        x.fillStyle = '#4a4f60'; x.beginPath(); x.moveTo(c[0] - R, c[1] - hh); x.lineTo(c[0], c[1] - hh - R * 0.55); x.lineTo(c[0] + R, c[1] - hh); x.ellipse(c[0], c[1] - hh, R, R / 2, 0, 0, Math.PI); x.fill();
+        x.strokeStyle = t; x.lineWidth = 1; x.beginPath(); x.ellipse(c[0], c[1] - hh, R, R / 2, 0, 0, Math.PI); x.stroke();
+        dot(x, c[0], c[1] - hh - R * 0.55, 1.6, L >= 8 ? '#ffd76a' : t, 6);
+      });
+      if (L >= 5) { const a = P(ox, oy, s - 0.45, s - 0.45); line(x, [a[0], a[1] - 4], [a[0], a[1] - h - 26], '#9aa0c0', 1.2); dot(x, a[0], a[1] - h - 26, 2, '#ffc23a', 8); }
+      return h + 34;
+    },
+
+    // ================= the colony (second city): sand-stone, white domes, teal light =================
+    xcore(x, ox, oy, s, L, r) {
+      const t = TRIM[L - 1], h = HGT.xcore(L);
+      colPad(x, ox, oy, s, L);
+      // stepped sandstone ring base
+      box(x, ox, oy, 0.35, 0.35, s - 0.35, s - 0.35, 3, 12, CPAL.stone);
+      box(x, ox, oy, 0.7, 0.7, s - 0.7, s - 0.7, 12, 18, CPAL.stoneHi);
+      const c = P(ox, oy, s / 2, s / 2);
+      // airlock tunnels on the front faces
+      for (const [tx, ty] of [[s / 2, s - 0.45], [s - 0.45, s / 2]]) { const q = P(ox, oy, tx, ty); cyl(x, q[0], q[1] - 3, 7, 0, 9, '#c8c0b0', '#e8e2d6'); dot(x, q[0], q[1] - 10, 1.4, CTEAL, 6); }
+      // main dome (bigger and with more rings every level)
+      dome(x, c[0], c[1] - 18, 40 + L * 2, h - 18, L);
+      // observation band
+      glow(x, CTEAL, 8); x.strokeStyle = CTEAL; x.lineWidth = 1.6;
+      x.beginPath(); x.ellipse(c[0], c[1] - 18 - (h - 18) * 0.35, (40 + L * 2) * 0.93, (40 + L * 2) * 0.93 / 2, 0, 0.1, Math.PI - 0.1); x.stroke(); noglow(x);
+      for (let k = 0; k < 9; k++) { const a = 0.25 + k * 0.33; const R = (40 + L * 2) * 0.93; x.fillStyle = 'rgba(160,255,240,.85)'; x.fillRect(c[0] + Math.cos(a) * R - 1.6, c[1] - 18 - (h - 18) * 0.35 + Math.sin(a) * R / 2 - 3, 3.2, 2.4); }
+      // antenna mast and dish on top
+      const topY = c[1] - h;
+      line(x, [c[0], topY + 4], [c[0], topY - 22 - L * 2], '#d8d2c4', 1.6);
+      dot(x, c[0], topY - 22 - L * 2, 2.2, L >= 8 ? '#ffd24a' : t, 10);
+      if (L >= 3) { x.fillStyle = '#e8e2d6'; x.beginPath(); x.ellipse(c[0] + 10, topY - 6, 7, 3.5, -0.5, 0, Math.PI * 2); x.fill(); line(x, [c[0] + 10, topY - 6], [c[0] + 14, topY - 12], '#9a9488', 0.8); }
+      if (L >= 5) for (const dx of [-28, 28]) { const q = [c[0] + dx, c[1] - 6]; line(x, q, [q[0], q[1] - 34], '#b8b0a0', 1.2); dot(x, q[0], q[1] - 34, 1.6, CTEAL, 8); }
+      if (L >= 7) { glow(x, t, 10); x.strokeStyle = t; x.lineWidth = 1.2; x.beginPath(); x.ellipse(c[0], topY + 8, 16, 7, 0, 0, Math.PI * 2); x.stroke(); noglow(x); }
+      return h + 34 + L * 2;
+    },
+    xdrill(x, ox, oy, s, L, r) {
+      const t = TRIM[L - 1], H = HGT.xdrill(L);
+      colPad(x, ox, oy, s, L);
+      // engine housing
+      const f = box(x, ox, oy, 0.4, 1.2, 1.9, s - 0.3, 3, 20, CPAL.stone);
+      vent(x, f, 'L', 0.5, 12, 6);
+      sign(x, f, 'L', 0.5, 5, 'DRILL', '#ffb050', 5);
+      // derrick tower (lattice)
+      const b = P(ox, oy, s - 0.95, 0.95), w = 13;
+      const legs = [[b[0] - w, b[1]], [b[0] + w, b[1]], [b[0], b[1] + w / 2], [b[0], b[1] - w / 2]];
+      for (const l of legs) line(x, l, [b[0], b[1] - H], '#c08a50', 1.6);
+      for (let z = 8; z < H - 6; z += 9) { const k = 1 - z / H; line(x, [b[0] - w * k, b[1] - z], [b[0] + w * k, b[1] - z - 9], 'rgba(192,138,80,.8)', 0.8); line(x, [b[0] + w * k, b[1] - z], [b[0] - w * k, b[1] - z - 9], 'rgba(192,138,80,.8)', 0.8); }
+      dot(x, b[0], b[1] - H - 2, 2, L >= 8 ? '#ffd24a' : t, 8);
+      // drill bit in the ground with a sand ring
+      x.fillStyle = 'rgba(120,80,40,.55)'; x.beginPath(); x.ellipse(b[0], b[1], 18, 9, 0, 0, Math.PI * 2); x.fill();
+      cyl(x, b[0], b[1], 3.5, 0, 26, '#8a8a96', '#b0b0bc');
+      // scrap hopper full of glinting metal
+      const hp = P(ox, oy, 1.2, 0.8); cyl(x, hp[0], hp[1], 10, 3, 14, '#6a5a48', '#2a2018');
+      for (let i = 0; i < 9; i++) { x.fillStyle = ['#a0a0b0', '#c08a50', '#707080'][i % 3]; x.fillRect(hp[0] - 7 + r() * 14, hp[1] - 15 + r() * 3, 2.4, 1.6); }
+      return H + 14;
+    },
+    xpump(x, ox, oy, s, L, r) {
+      const t = TRIM[L - 1], H = HGT.xpump(L);
+      colPad(x, ox, oy, s, L);
+      const c = P(ox, oy, s / 2, s / 2);
+      // geyser pool
+      const g = x.createRadialGradient(c[0], c[1] - 3, 2, c[0], c[1] - 3, 26);
+      g.addColorStop(0, '#ffb080'); g.addColorStop(0.5, '#c0603a'); g.addColorStop(1, 'rgba(90,40,20,0)');
+      x.fillStyle = g; x.beginPath(); x.ellipse(c[0], c[1] - 3, 26, 13, 0, 0, Math.PI * 2); x.fill();
+      // pump heads around the pool
+      for (const [tx, ty] of [[0.7, 0.7], [s - 0.7, 0.7], [0.7, s - 0.7], [s - 0.7, s - 0.7]]) {
+        const q = P(ox, oy, tx, ty); cyl(x, q[0], q[1], 6, 3, 14 + L, '#b8b0a0', '#d8d0c0');
+        glow(x, '#ff9a4a', 6); x.fillStyle = '#ff9a4a'; x.fillRect(q[0] - 1.5, q[1] - 12 - L, 3, 4); noglow(x);
+      }
+      // tall condenser column with copper coils
+      cyl(x, c[0], c[1] - 3, 9, 3, H, '#c8c0b0', '#e8e2d6');
+      for (let z = 14; z < H - 4; z += 6) { x.strokeStyle = '#d0703a'; x.lineWidth = 1.6; x.beginPath(); x.ellipse(c[0], c[1] - 3 - z, 9.5, 4.7, 0, 0, Math.PI); x.stroke(); }
+      dot(x, c[0], c[1] - 3 - H - 3, 2, L >= 8 ? '#ffd24a' : t, 8);
+      return H + 14;
+    },
+    xcrystal(x, ox, oy, s, L, r) {
+      const t = TRIM[L - 1], H = HGT.xcrystal(L);
+      colPad(x, ox, oy, s, L);
+      const c = P(ox, oy, s / 2, s / 2);
+      // resonator ring frame
+      for (const a of [0, Math.PI / 2, Math.PI, Math.PI * 1.5]) { const q = [c[0] + Math.cos(a) * 28, c[1] + Math.sin(a) * 14]; line(x, q, [q[0], q[1] - H * 0.7], '#b8b0a0', 2); dot(x, q[0], q[1] - H * 0.7, 1.6, CTEAL, 6); }
+      // plasma crystal cluster
+      const shards = [[0, 0, 1], [-10, 4, 0.65], [9, 5, 0.7], [-4, 8, 0.5], [6, -3, 0.55]].slice(0, 3 + Math.min(2, Math.floor(L / 3)));
+      for (const [dx, dy, k] of shards) {
+        const bx = c[0] + dx, by = c[1] - 4 + dy, hh = H * k, ww = 7 * k + 3;
+        const gg = x.createLinearGradient(bx - ww, 0, bx + ww, 0); gg.addColorStop(0, '#6a2ab0'); gg.addColorStop(0.5, '#e0a8ff'); gg.addColorStop(1, '#4a1a80');
+        glow(x, '#b26bff', 12); poly(x, [[bx - ww, by], [bx - ww * 0.6, by - hh * 0.75], [bx, by - hh], [bx + ww * 0.6, by - hh * 0.75], [bx + ww, by]], gg); noglow(x);
+        line(x, [bx, by], [bx, by - hh], 'rgba(255,255,255,.45)', 0.7);
+      }
+      // upper ring
+      glow(x, CTEAL, 8); x.strokeStyle = CTEAL; x.lineWidth = 1.4; x.beginPath(); x.ellipse(c[0], c[1] - H * 0.7, 28, 14, 0, 0, Math.PI * 2); x.stroke(); noglow(x);
+      dot(x, c[0], c[1] - H - 8, 1.8, L >= 8 ? '#ffd24a' : t, 8);
+      return H + 18;
+    },
+    xdome(x, ox, oy, s, L, r) {
+      const t = TRIM[L - 1], h = HGT.xdome(L);
+      colPad(x, ox, oy, s, L);
+      const c = P(ox, oy, s / 2, s / 2);
+      box(x, ox, oy, 0.3, 0.3, s - 0.3, s - 0.3, 3, 9, CPAL.stone);
+      dome(x, c[0], c[1] - 9, 36, h - 9, L, true);
+      // cargo door and crates
+      const d = P(ox, oy, s / 2, s - 0.3); x.fillStyle = '#4a4238'; x.fillRect(d[0] - 7, d[1] - 20, 14, 13); x.strokeStyle = '#ffc23a'; x.lineWidth = 0.8; x.strokeRect(d[0] - 7, d[1] - 20, 14, 13);
+      for (let z = -18; z < -8; z += 3) line(x, [d[0] - 6, d[1] + z], [d[0] + 6, d[1] + z], 'rgba(255,194,58,.35)', 0.6);
+      box(x, ox, oy, s - 0.75, 0.3, s - 0.3, 0.75, 3, 9, pal('#7a6040'));
+      if (L >= 3) box(x, ox, oy, 0.3, s - 0.75, 0.75, s - 0.3, 3, 9, pal('#5a4f40'));
+      dot(x, c[0], c[1] - h - 4, 1.8, L >= 8 ? '#ffd24a' : t, 8);
+      return h + 16;
+    },
+    xcryo(x, ox, oy, s, L, r) {
+      const t = TRIM[L - 1], h = HGT.xcryo(L);
+      colPad(x, ox, oy, s, L);
+      const c = P(ox, oy, s / 2, s / 2);
+      cyl(x, c[0], c[1] - 2, 17, 3, h, '#d8d2c4', '#eeeae0');
+      // plasma window and frost rings
+      glow(x, '#b26bff', 12); x.fillStyle = 'rgba(178,107,255,.9)'; x.fillRect(c[0] - 3, c[1] - h * 0.8, 6, h * 0.55); noglow(x);
+      for (const z of [h * 0.3, h * 0.92]) { x.strokeStyle = 'rgba(120,220,255,.8)'; x.lineWidth = 1.4; x.beginPath(); x.ellipse(c[0], c[1] - 2 - z, 17, 8.5, 0, 0, Math.PI); x.stroke(); }
+      x.fillStyle = '#c8c0b0'; x.beginPath(); x.ellipse(c[0], c[1] - 2 - h, 10, 5, 0, 0, Math.PI * 2); x.fill();
+      dot(x, c[0], c[1] - h - 6, 1.6, L >= 8 ? '#ffd24a' : t, 8);
+      return h + 12;
     },
     factory(x, ox, oy, s, L, r) {
       const h = HGT.factory(L);
@@ -845,7 +1016,7 @@
   const GCOL = { scrap: '#ffc23a', copper: '#d0603a', plasma: '#c27bff' };
   A.storeGauge = function (ctx, b, t) {
     const d = G.BUILDINGS[b.type], s = d.size, st = G.state;
-    const res = d.storeRes === 'plasma' ? ['plasma'] : ['scrap', 'copper'];
+    const res = d.storeRes ? [d.storeRes] : ['scrap', 'copper'];
     const [fx, fy] = G.tileToWorld(b.x + s, b.y + s);
     const w = 46, bh = 7, x0 = fx - w / 2 + 5, y0 = fy - 16 - res.length * (bh + 3);
     ctx.save();
