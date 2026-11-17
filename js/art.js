@@ -34,16 +34,43 @@
     const a = P(ox, oy, tx0, ty0), b = P(ox, oy, tx1, ty0), cc = P(ox, oy, tx1, ty1), d = P(ox, oy, tx0, ty1);
     const L = [up(d, z0), up(cc, z0), up(cc, z1), up(d, z1)], R = [up(cc, z0), up(b, z0), up(b, z1), up(cc, z1)];
     poly(x, L, c.left); poly(x, R, c.right);
-    if (!flat && z1 - z0 > 4) {
+    const hz = z1 - z0;
+    if (!flat && hz > 4) {
+      // light from the top-left: soft sky bounce at the top, ambient occlusion near the ground
       const g = x.createLinearGradient(0, cc[1] - z1, 0, cc[1] - z0);
-      g.addColorStop(0, 'rgba(255,255,255,.06)'); g.addColorStop(0.6, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,.35)');
+      g.addColorStop(0, 'rgba(255,255,255,.10)'); g.addColorStop(0.35, 'rgba(255,255,255,0)'); g.addColorStop(0.8, 'rgba(0,0,0,.12)'); g.addColorStop(1, 'rgba(0,0,0,.42)');
       poly(x, L, g); poly(x, R, g);
+      // cool reflected light on the left face, warmer street glow on the right face
+      const gl = x.createLinearGradient(d[0], 0, cc[0], 0); gl.addColorStop(0, 'rgba(120,90,255,.10)'); gl.addColorStop(1, 'rgba(0,0,0,0)'); poly(x, L, gl);
+      const gr = x.createLinearGradient(cc[0], 0, b[0], 0); gr.addColorStop(0, 'rgba(0,0,0,.10)'); gr.addColorStop(1, 'rgba(255,60,200,.06)'); poly(x, R, gr);
+      // panel seams on taller walls
+      if (hz > 14 && !c.smooth) {
+        const step = hz > 40 ? 10 : 7;
+        for (let z = z0 + step; z < z1 - 3; z += step) {
+          x.strokeStyle = 'rgba(0,0,0,.22)'; x.lineWidth = 0.5;
+          x.beginPath(); x.moveTo(...up(d, z)); x.lineTo(...up(cc, z)); x.lineTo(...up(b, z)); x.stroke();
+          x.strokeStyle = 'rgba(255,255,255,.05)';
+          x.beginPath(); x.moveTo(d[0], d[1] - z - 0.6); x.lineTo(cc[0], cc[1] - z - 0.6); x.lineTo(b[0], b[1] - z - 0.6); x.stroke();
+        }
+      }
+      // contact shadow line where the wall meets the ground
+      x.strokeStyle = 'rgba(0,0,0,.45)'; x.lineWidth = 1;
+      x.beginPath(); x.moveTo(...up(d, z0 + 0.4)); x.lineTo(...up(cc, z0 + 0.4)); x.lineTo(...up(b, z0 + 0.4)); x.stroke();
     }
     if (c.edge) { poly(x, L, null, c.edge, 0.6); poly(x, R, null, c.edge, 0.6); }
-    poly(x, [up(a, z1), up(b, z1), up(cc, z1), up(d, z1)], c.top, c.edge, 0.6);
-    // bright rim on the front-top edges
-    x.strokeStyle = 'rgba(255,255,255,.12)'; x.lineWidth = 0.8;
+    const T = [up(a, z1), up(b, z1), up(cc, z1), up(d, z1)];
+    poly(x, T, c.top, c.edge, 0.6);
+    if (!flat) { // roof sheen: brighter at the back corner, darker toward the front
+      const gt = x.createLinearGradient(0, a[1] - z1, 0, cc[1] - z1);
+      gt.addColorStop(0, 'rgba(255,255,255,.14)'); gt.addColorStop(1, 'rgba(0,0,0,.10)'); poly(x, T, gt);
+    }
+    // bright rim on the front-top edges + highlight on the front vertical corner
+    x.strokeStyle = 'rgba(255,255,255,.22)'; x.lineWidth = 0.8;
     x.beginPath(); x.moveTo(...up(d, z1)); x.lineTo(...up(cc, z1)); x.lineTo(...up(b, z1)); x.stroke();
+    if (hz > 6) {
+      const gv = x.createLinearGradient(0, cc[1] - z1, 0, cc[1] - z0); gv.addColorStop(0, 'rgba(255,255,255,.35)'); gv.addColorStop(1, 'rgba(255,255,255,0)');
+      x.strokeStyle = gv; x.lineWidth = 0.9; x.beginPath(); x.moveTo(...up(cc, z1)); x.lineTo(...up(cc, z0)); x.stroke();
+    }
     return { a, b, c: cc, d, z0, z1 };
   }
   function glow(x, c, b) { x.shadowColor = c; x.shadowBlur = b; }
@@ -68,23 +95,54 @@
     x.fillStyle = top; x.beginPath(); x.ellipse(cx, cy - z1, r, r / 2, 0, 0, Math.PI * 2); x.fill();
   }
   function dot(x, cx, cy, r, color, g) { glow(x, color, g || 8); x.fillStyle = color; x.beginPath(); x.arc(cx, cy, r, 0, Math.PI * 2); x.fill(); noglow(x); }
-  function pad(x, ox, oy, s) {
-    box(x, ox, oy, 0.06, 0.06, s - 0.06, s - 0.06, 0, 3, { top: '#1d1936', left: '#0d0b19', right: '#151229', edge: '#342c60' }, true);
-    // edge lights on the pad
-    const a = P(ox, oy, 0.06, s - 0.06), c = P(ox, oy, s - 0.06, s - 0.06), b = P(ox, oy, s - 0.06, 0.06);
-    x.fillStyle = 'rgba(255,225,77,.7)';
-    for (let k = 0.1; k < 1; k += 0.2) {
-      x.fillRect(a[0] + (c[0] - a[0]) * k - 0.8, a[1] + (c[1] - a[1]) * k - 2, 1.6, 1.2);
-      x.fillRect(c[0] + (b[0] - c[0]) * k - 0.8, c[1] + (b[1] - c[1]) * k - 2, 1.6, 1.2);
+  function pad(x, ox, oy, s, L) {
+    // two-step concrete foundation: dark kerb, lighter slab with a recessed inner plate
+    box(x, ox, oy, 0.04, 0.04, s - 0.04, s - 0.04, 0, 2, { top: '#16132b', left: '#0a0915', right: '#100e20', edge: '#2a2450' }, true);
+    box(x, ox, oy, 0.14, 0.14, s - 0.14, s - 0.14, 2, 3.4, { top: '#211d3e', left: '#0d0b19', right: '#151229', edge: '#3c3370' }, true);
+    const g = x.createLinearGradient(0, P(ox, oy, 0, 0)[1], 0, P(ox, oy, s, s)[1]);
+    g.addColorStop(0, 'rgba(140,120,255,.10)'); g.addColorStop(1, 'rgba(0,0,0,.18)');
+    poly(x, [up(P(ox, oy, 0.14, 0.14), 3.4), up(P(ox, oy, s - 0.14, 0.14), 3.4), up(P(ox, oy, s - 0.14, s - 0.14), 3.4), up(P(ox, oy, 0.14, s - 0.14), 3.4)], g);
+    // hazard stripes on the front kerbs
+    const a = P(ox, oy, 0.04, s - 0.04), c = P(ox, oy, s - 0.04, s - 0.04), b = P(ox, oy, s - 0.04, 0.04);
+    x.save(); x.globalAlpha = 0.55;
+    for (const [p1, p2] of [[a, c], [c, b]]) for (let k = 0.04; k < 0.98; k += 0.08) {
+      const q1 = [p1[0] + (p2[0] - p1[0]) * k, p1[1] + (p2[1] - p1[1]) * k], q2 = [p1[0] + (p2[0] - p1[0]) * (k + 0.035), p1[1] + (p2[1] - p1[1]) * (k + 0.035)];
+      poly(x, [up(q1, 0.3), up(q2, 0.3), up(q2, 1.8), up(q1, 1.8)], '#e8b820');
     }
+    x.restore();
+    // glowing corner markers + bolts
+    for (const p of [P(ox, oy, 0.22, s - 0.22), P(ox, oy, s - 0.22, s - 0.22), P(ox, oy, s - 0.22, 0.22)]) dot(x, p[0], p[1] - 3.6, 1.1, 'rgba(255,225,77,.95)', 6);
+    x.fillStyle = 'rgba(200,190,255,.25)';
+    for (let k = 0.15; k < 0.9; k += 0.18) { const q = P(ox, oy, 0.3 + k * (s - 0.6), s - 0.3), q2 = P(ox, oy, s - 0.3, 0.3 + k * (s - 0.6)); x.fillRect(q[0] - 0.5, q[1] - 4, 1, 1); x.fillRect(q2[0] - 0.5, q2[1] - 4, 1, 1); }
+    if (!L) return;
+    const tr = TRIM[L - 1];
+    // level 5+: a glowing strip along the front kerbs in the level colour; level 8 gets gold
+    if (L >= 5) {
+      const col = L >= 8 ? '#ffd24a' : tr;
+      glow(x, col, L >= 8 ? 10 : 6); x.strokeStyle = col; x.lineWidth = L >= 8 ? 1.3 : 0.9;
+      x.beginPath(); x.moveTo(...up(a, 2.2)); x.lineTo(...up(c, 2.2)); x.lineTo(...up(b, 2.2)); x.stroke(); noglow(x);
+    }
+    // level 7+: small light pylons on the two front corners
+    if (L >= 7) for (const p of [P(ox, oy, 0.14, s - 0.14), P(ox, oy, s - 0.14, 0.14)]) {
+      x.fillStyle = '#2a2448'; x.fillRect(p[0] - 1.3, p[1] - 11, 2.6, 9);
+      x.fillStyle = 'rgba(255,255,255,.2)'; x.fillRect(p[0] - 1.3, p[1] - 11, 1, 9);
+      dot(x, p[0], p[1] - 11.5, 1.6, L >= 8 ? '#ffd24a' : tr, 9);
+    }
+    // level lights: one per level along the front-right kerb
+    for (let i = 0; i < L; i++) { const k = 0.3 + i * (0.55 / 7), q = [c[0] + (b[0] - c[0]) * k, c[1] + (b[1] - c[1]) * k]; dot(x, q[0], q[1] - 1.1, 0.8, tr, 4); }
   }
   // soft shadow cast toward the bottom-left
   function shadow(x, ox, oy, s, h) {
     const k = Math.min(1.2, h / 60);
     const off = [-10 * k, 6 * k];
     x.save();
-    x.fillStyle = 'rgba(0,0,0,.45)'; glow(x, 'rgba(0,0,0,.8)', 10);
-    poly(x, [P(ox, oy, 0.2, 0.2), P(ox, oy, s - 0.2, 0.2), P(ox, oy, s - 0.2, s - 0.2), P(ox, oy, 0.2, s - 0.2)].map((p, i) => (i === 3 || i === 2 ? [p[0] + off[0], p[1] + off[1]] : p)), 'rgba(0,0,0,.4)');
+    glow(x, 'rgba(0,0,0,.85)', 14);
+    poly(x, [P(ox, oy, 0.2, 0.2), P(ox, oy, s - 0.2, 0.2), P(ox, oy, s - 0.2, s - 0.2), P(ox, oy, 0.2, s - 0.2)].map((p, i) => (i === 3 || i === 2 ? [p[0] + off[0], p[1] + off[1]] : p)), 'rgba(0,0,0,.45)');
+    noglow(x);
+    // ambient occlusion: darker ground right around the footprint
+    const c = P(ox, oy, s / 2, s / 2), rg = x.createRadialGradient(c[0], c[1], 4, c[0], c[1], s * TW * 0.62);
+    rg.addColorStop(0, 'rgba(0,0,0,.35)'); rg.addColorStop(1, 'rgba(0,0,0,0)');
+    x.fillStyle = rg; x.beginPath(); x.ellipse(c[0], c[1], s * TW * 0.62, s * TH * 0.62, 0, 0, Math.PI * 2); x.fill();
     x.restore();
   }
   // point on a face: face 'L' runs d→c, 'R' runs c→b; k = 0..1 along, z = height
@@ -96,12 +154,18 @@
     for (let i = 0; i < rows; i++) for (let j = 0; j < cols; j++) {
       const k = (j + 0.5) / cols, z = z0 + (z1 - z0) * (i + 0.5) / rows;
       const p = fp(f, face, k, z);
-      const on = r() < 0.7;
-      x.fillStyle = on ? (warm || (r() < 0.75 ? 'rgba(255,205,120,.9)' : 'rgba(120,230,255,.85)')) : 'rgba(20,18,40,.9)';
+      const on = r() < 0.7, col = warm || (r() < 0.75 ? 'rgba(255,205,120,.92)' : 'rgba(120,230,255,.88)');
       const sk = face === 'L' ? 0.5 : -0.5;
       x.save(); x.translate(p[0], p[1]); x.transform(1, sk, 0, 1, 0, 0);
-      x.fillRect(-2.2, -2.5, 4.4, 4);
-      if (on) { x.fillStyle = 'rgba(255,255,255,.35)'; x.fillRect(-2.2, -2.5, 4.4, 1); }
+      x.fillStyle = 'rgba(0,0,0,.55)'; x.fillRect(-2.9, -3.2, 5.8, 5.4); // frame
+      if (on) {
+        glow(x, col, 5); x.fillStyle = col; x.fillRect(-2.2, -2.5, 4.4, 4); noglow(x);
+        const gw = x.createLinearGradient(0, -2.5, 0, 1.5); gw.addColorStop(0, 'rgba(255,255,255,.45)'); gw.addColorStop(0.4, 'rgba(255,255,255,0)'); gw.addColorStop(1, 'rgba(0,0,0,.25)');
+        x.fillStyle = gw; x.fillRect(-2.2, -2.5, 4.4, 4);
+        if (r() < 0.3) { x.fillStyle = 'rgba(0,0,0,.35)'; for (let yy = -2.2; yy < 1.4; yy += 1.1) x.fillRect(-2.2, yy, 4.4, 0.45); } // blinds
+        if (r() < 0.25) { x.fillStyle = 'rgba(20,10,30,.55)'; x.fillRect(-1.6, -1.2, 1.2, 2.7); } // silhouette inside
+      } else { x.fillStyle = 'rgba(20,18,40,.95)'; x.fillRect(-2.2, -2.5, 4.4, 4); x.fillStyle = 'rgba(140,160,255,.12)'; x.fillRect(-2.2, -2.5, 1.6, 4); }
+      x.fillStyle = 'rgba(255,255,255,.18)'; x.fillRect(-2.9, 1.6, 5.8, 0.6); // sill
       x.restore();
     }
   }
@@ -124,7 +188,58 @@
     for (let i = -sz + 1.5; i < sz; i += 2) { x.beginPath(); x.moveTo(-sz + 1, -sz * 0.7 + 1 + (i + sz) * 0.6); x.lineTo(sz - 1, -sz * 0.7 + 1 + (i + sz) * 0.6); x.stroke(); }
     x.restore();
   }
-  A.prim = { mk, hash, shade, pal, P, up, poly, box, glow, noglow, line, faceLines, cyl, dot, pad };
+  // rooftop clutter on a flat roof (tile rect at height z): AC units, vents, solar panels, antennas.
+  // More and fancier pieces as the level grows; 'avoid' keeps the middle free for a centre piece.
+  function roofKit(x, ox, oy, tx0, ty0, tx1, ty1, z, r, L, avoid) {
+    const W = tx1 - tx0, D = ty1 - ty0; if (W < 0.5 || D < 0.5) return;
+    const n = Math.min(6, 1 + Math.floor(L / 2) + Math.floor(W * D));
+    const spots = [];
+    for (let i = 0; i < n * 3 && spots.length < n; i++) {
+      const u = tx0 + 0.12 + r() * (W - 0.5), v = ty0 + 0.12 + r() * (D - 0.5);
+      if (avoid && Math.abs(u + 0.15 - (tx0 + tx1) / 2) < avoid && Math.abs(v + 0.15 - (ty0 + ty1) / 2) < avoid) continue;
+      if (spots.some((p) => Math.abs(p[0] - u) < 0.42 && Math.abs(p[1] - v) < 0.42)) continue;
+      spots.push([u, v]);
+    }
+    spots.sort((p, q) => (p[0] + p[1]) - (q[0] + q[1]));
+    for (const [u, v] of spots) {
+      const k = r();
+      if (k < 0.4) { // AC unit with a fan grille
+        const fb = box(x, ox, oy, u, v, u + 0.32, v + 0.3, z, z + 4.5, { top: '#5a6078', left: '#262a3a', right: '#363c52', edge: '#7a82a0', smooth: true });
+        const c = P(ox, oy, u + 0.16, v + 0.15);
+        x.fillStyle = '#1a1c28'; x.beginPath(); x.ellipse(c[0], c[1] - z - 4.5, 3.6, 1.8, 0, 0, Math.PI * 2); x.fill();
+        x.strokeStyle = 'rgba(160,170,210,.6)'; x.lineWidth = 0.4; x.beginPath(); x.moveTo(c[0] - 3, c[1] - z - 4.5); x.lineTo(c[0] + 3, c[1] - z - 4.5); x.moveTo(c[0], c[1] - z - 6.2); x.lineTo(c[0], c[1] - z - 2.8); x.stroke();
+        void fb;
+      } else if (k < 0.65 && L >= 2) { // tilted solar panel
+        const a = up(P(ox, oy, u, v), z + 1), b = up(P(ox, oy, u + 0.42, v), z + 1), c2 = up(P(ox, oy, u + 0.42, v + 0.3), z + 4), d = up(P(ox, oy, u, v + 0.3), z + 4);
+        poly(x, [a, b, c2, d], '#1b2a5a', '#5a7ad0', 0.5);
+        x.strokeStyle = 'rgba(120,170,255,.35)'; x.lineWidth = 0.4; x.beginPath();
+        for (const t2 of [0.33, 0.66]) { x.moveTo(a[0] + (b[0] - a[0]) * t2, a[1] + (b[1] - a[1]) * t2); x.lineTo(d[0] + (c2[0] - d[0]) * t2, d[1] + (c2[1] - d[1]) * t2); }
+        x.stroke();
+        poly(x, [a, b, [b[0] + (c2[0] - b[0]) * 0.4, b[1] + (c2[1] - b[1]) * 0.4], [a[0] + (d[0] - a[0]) * 0.4, a[1] + (d[1] - a[1]) * 0.4]], 'rgba(255,255,255,.12)');
+      } else if (k < 0.85) { // round vent pipe
+        const c = P(ox, oy, u + 0.12, v + 0.12);
+        cyl(x, c[0], c[1], 2.4, z, z + 6, '#4a4f62', '#1a1c26');
+        x.strokeStyle = '#7a8098'; x.lineWidth = 0.5; x.beginPath(); x.ellipse(c[0], c[1] - z - 6, 2.4, 1.2, 0, 0, Math.PI * 2); x.stroke();
+      } else { // antenna with a blinking tip
+        const c = P(ox, oy, u + 0.1, v + 0.1), hh = 10 + L * 1.5 + r() * 6;
+        line(x, [c[0], c[1] - z], [c[0], c[1] - z - hh], '#9a9ab8', 0.8);
+        line(x, [c[0] - 2.5, c[1] - z - hh * 0.6], [c[0] + 2.5, c[1] - z - hh * 0.6], '#7a7a98', 0.6);
+        dot(x, c[0], c[1] - z - hh, 1.1, '#ff3355', 5);
+      }
+    }
+  }
+  // dark silhouette outline around a finished sprite so it reads clearly on any ground
+  function outlineSprite(c) {
+    const w = c.width, h = c.height;
+    const s = document.createElement('canvas'); s.width = w; s.height = h;
+    const sx = s.getContext('2d'); sx.drawImage(c, 0, 0); sx.globalCompositeOperation = 'source-in'; sx.fillStyle = 'rgba(4,3,12,.9)'; sx.fillRect(0, 0, w, h);
+    const o = document.createElement('canvas'); o.width = w; o.height = h;
+    const ox2 = o.getContext('2d');
+    for (const [dx, dy] of [[-2, 0], [2, 0], [0, -2], [0, 2], [-1.4, -1.4], [1.4, -1.4], [-1.4, 1.4], [1.4, 1.4]]) ox2.drawImage(s, dx, dy);
+    ox2.drawImage(c, 0, 0);
+    return o;
+  }
+  A.prim = { mk, hash, shade, pal, P, up, poly, box, glow, noglow, line, faceLines, cyl, dot, pad, roofKit };
 
   // heights shared by sprites and per-frame animation
   const HGT = {
@@ -138,7 +253,7 @@
   const DRAW = {
     core(x, ox, oy, s, L, r) {
       const t = TRIM[L - 1], h = HGT.core(L);
-      shadow(x, ox, oy, s, h); pad(x, ox, oy, s);
+      shadow(x, ox, oy, s, h); pad(x, ox, oy, s, L);
       box(x, ox, oy, 0.4, 0.4, s - 0.4, s - 0.4, 3, 11, pal('#2a2340'));
       const c = P(ox, oy, s / 2, s / 2);
       // back half of the holo ring (front half is animated)
@@ -150,10 +265,36 @@
         dot(x, q[0], q[1] - 32 - L * 6, 2, t, 10);
       }
       const f = box(x, ox, oy, 0.95, 0.95, s - 0.95, s - 0.95, 11, h, { top: '#4a3a7a', left: '#1c1435', right: '#2b1f50', edge: '#6b52b8' });
-      windows(x, f, 'L', 16, h - 8, Math.floor((h - 20) / 12), 4, r);
-      windows(x, f, 'R', 16, h - 8, Math.floor((h - 20) / 12), 4, r);
-      for (let z = 22; z < h - 4; z += 24) faceLines(x, f, z, t, 1);
+      windows(x, f, 'L', 22, h - 8, Math.floor((h - 26) / 12), 4, r);
+      windows(x, f, 'R', 22, h - 8, Math.floor((h - 26) / 12), 4, r);
+      // glass lobby at street level with a lit entrance
+      for (const face of ['L', 'R']) {
+        const G1 = [fp(f, face, 0.12, 12), fp(f, face, 0.88, 12), fp(f, face, 0.88, 19), fp(f, face, 0.12, 19)];
+        const gg = x.createLinearGradient(0, G1[2][1], 0, G1[0][1]); gg.addColorStop(0, 'rgba(160,240,255,.55)'); gg.addColorStop(1, 'rgba(40,90,140,.6)');
+        poly(x, G1, gg, 'rgba(180,240,255,.5)', 0.5);
+        for (let k = 0.24; k < 0.88; k += 0.12) line(x, fp(f, face, k, 12), fp(f, face, k, 19), 'rgba(10,20,40,.55)', 0.5);
+      }
+      { const d1 = fp(f, 'L', 0.42, 12), d2 = fp(f, 'L', 0.58, 12), d3 = fp(f, 'L', 0.58, 18), d4 = fp(f, 'L', 0.42, 18); glow(x, '#9ff4ff', 8); poly(x, [d1, d2, d3, d4], 'rgba(220,255,255,.9)'); noglow(x); }
+      // floor ledges: thin slabs that stick out a little, with neon on their edge
+      for (let z = 22; z < h - 4; z += 24) {
+        // only the two visible front faces of a thin slab, so the windows above stay visible
+        const d0 = P(ox, oy, 0.88, s - 0.88), c0 = P(ox, oy, s - 0.88, s - 0.88), b0 = P(ox, oy, s - 0.88, 0.88);
+        poly(x, [up(d0, z - 1.6), up(c0, z - 1.6), up(c0, z), up(d0, z)], '#221a40'); poly(x, [up(c0, z - 1.6), up(b0, z - 1.6), up(b0, z), up(c0, z)], '#30245a');
+        faceLines(x, { d: d0, c: c0, b: b0 }, z - 0.8, t, 1);
+      }
+      // LED strip down the front corner
+      { const c0 = f.c; const gv = x.createLinearGradient(0, c0[1] - h, 0, c0[1] - 12); gv.addColorStop(0, t); gv.addColorStop(1, 'rgba(0,0,0,0)'); glow(x, t, 8); x.strokeStyle = gv; x.lineWidth = 1.6; x.beginPath(); x.moveTo(c0[0], c0[1] - h + 2); x.lineTo(c0[0], c0[1] - 20); x.stroke(); noglow(x); }
       sign(x, f, 'R', 0.5, h - 10, 'CORE', t, 7);
+      // holographic billboard on the left face from level 6
+      if (L >= 6) {
+        const B = [fp(f, 'L', 0.18, h * 0.55), fp(f, 'L', 0.62, h * 0.55), fp(f, 'L', 0.62, h * 0.55 + 18), fp(f, 'L', 0.18, h * 0.55 + 18)];
+        poly(x, B, 'rgba(10,6,30,.85)', '#ff2bd6', 0.8);
+        x.save(); x.beginPath(); B.forEach((p, i) => (i ? x.lineTo(...p) : x.moveTo(...p))); x.closePath(); x.clip();
+        const gb = x.createLinearGradient(B[0][0], 0, B[1][0], 0); gb.addColorStop(0, 'rgba(255,43,214,.55)'); gb.addColorStop(1, 'rgba(25,240,255,.45)');
+        x.fillStyle = gb; x.fillRect(B[0][0], B[2][1] - 4, B[1][0] - B[0][0], 30);
+        x.fillStyle = 'rgba(255,255,255,.25)'; for (let yy = B[2][1] - 4; yy < B[0][1] + 6; yy += 2) x.fillRect(B[0][0], yy, B[1][0] - B[0][0], 0.6);
+        x.restore();
+      }
       const f2 = box(x, ox, oy, 1.35, 1.35, s - 1.35, s - 1.35, h, h + 12, { top: '#5a46a0', left: '#251a48', right: '#352766', edge: t });
       faceLines(x, f2, h + 6, t, 1);
       const ty = c[1] - h - 12;
@@ -163,14 +304,23 @@
         x.fillStyle = '#9aa0c0'; x.beginPath(); x.ellipse(dp[0], dp[1] - h - 18, 7, 4, -0.4, 0, Math.PI * 2); x.fill();
         line(x, [dp[0], dp[1] - h - 12], [dp[0], dp[1] - h - 18], '#666', 1.2);
       }
-      const mast = 26 + L * 3 + (L >= 5 ? 14 : 0);
+      // crown spire from level 4: a stepped neon pyramid
+      if (L >= 4) {
+        const ap = P(ox, oy, s / 2, s / 2), r0 = (s - 2.7) / 2;
+        const q = [P(ox, oy, 1.35, 1.35), P(ox, oy, s - 1.35, 1.35), P(ox, oy, s - 1.35, s - 1.35), P(ox, oy, 1.35, s - 1.35)].map((p) => up(p, h + 12));
+        const tip = up(ap, h + 12 + 18 + L * 2);
+        poly(x, [q[3], q[2], tip], '#2a1f50'); poly(x, [q[2], q[1], tip], '#3a2b6a');
+        glow(x, t, 8); x.strokeStyle = t; x.lineWidth = 1; x.beginPath(); x.moveTo(...q[3]); x.lineTo(...tip); x.lineTo(...q[1]); x.moveTo(...q[2]); x.lineTo(...tip); x.stroke(); noglow(x);
+        void r0;
+      }
+      const mast = 26 + L * 3 + (L >= 5 ? 14 : 0) + (L >= 4 ? 10 : 0);
       line(x, [c[0], ty], [c[0], ty - mast], L >= 5 ? '#ffe9a0' : '#b9b4d8', 1.6);
       for (let k = 6; k < mast; k += 8) line(x, [c[0] - 3, ty - k], [c[0] + 3, ty - k], '#8a86a8', 0.8);
       return h + 12 + mast + 10;
     },
     scrapyard(x, ox, oy, s, L, r) {
       const H = HGT.scrapyard(L);
-      shadow(x, ox, oy, s, 20); pad(x, ox, oy, s);
+      shadow(x, ox, oy, s, 20); pad(x, ox, oy, s, L);
       // fence posts along the back edges
       for (let k = 0.2; k < s; k += 0.45) {
         for (const p of [P(ox, oy, k, 0.12), P(ox, oy, 0.12, k)]) line(x, [p[0], p[1] - 3], [p[0], p[1] - 12], '#4a4f5c', 1.2);
@@ -215,7 +365,7 @@
     },
     coppermine(x, ox, oy, s, L, r) {
       const t = TRIM[L - 1], H = HGT.coppermine(L);
-      shadow(x, ox, oy, s, 30); pad(x, ox, oy, s);
+      shadow(x, ox, oy, s, 30); pad(x, ox, oy, s, L);
       const nT = 1 + Math.floor((L + 1) / 2);
       const tanks = [[0.85, 0.85], [0.85, s - 0.85], [s - 0.85, 0.85]].slice(0, nT);
       const tank = (p) => {
@@ -250,7 +400,7 @@
     },
     vault(x, ox, oy, s, L, r) {
       const h = HGT.vault(L), t = TRIM[L - 1];
-      shadow(x, ox, oy, s, h); pad(x, ox, oy, s);
+      shadow(x, ox, oy, s, h); pad(x, ox, oy, s, L);
       const f = box(x, ox, oy, 0.32, 0.32, s - 0.32, s - 0.32, 3, h, { top: '#56607e', left: '#272c3f', right: '#363d57', edge: '#8a96c0' });
       // armour plates with rivets
       x.fillStyle = 'rgba(200,210,240,.35)';
@@ -263,6 +413,7 @@
       x.fillStyle = '#1c2030'; x.beginPath(); x.arc(0, 0, 11, 0, Math.PI * 2); x.fill();
       x.strokeStyle = '#8a96c0'; x.lineWidth = 2; x.stroke();
       x.restore();
+      roofKit(x, ox, oy, 0.32, 0.32, s - 0.32, s - 0.32, h, r, L, 0.75);
       const tf = box(x, ox, oy, s / 2 - 0.4, s / 2 - 0.4, s / 2 + 0.4, s / 2 + 0.4, h, h + 7, pal('#4a5470'));
       if (L >= 3) { const a = P(ox, oy, s - 0.6, s - 0.6); line(x, [a[0], a[1] - h], [a[0], a[1] - h - 20], '#9aa0c0', 1.2); dot(x, a[0], a[1] - h - 20, 2, t, 8); }
       void tf;
@@ -270,7 +421,7 @@
     },
     factory(x, ox, oy, s, L, r) {
       const h = HGT.factory(L);
-      shadow(x, ox, oy, s, h + 20); pad(x, ox, oy, s);
+      shadow(x, ox, oy, s, h + 20); pad(x, ox, oy, s, L);
       const f = box(x, ox, oy, 0.25, 0.25, s - 0.25, s - 0.25, 3, h, { top: '#4a4232', left: '#221e16', right: '#322c1f', edge: '#8a7a4a' });
       // hazard-striped garage door (left face)
       const D = [fp(f, 'L', 0.2, 3), fp(f, 'L', 0.62, 3), fp(f, 'L', 0.62, h * 0.7), fp(f, 'L', 0.2, h * 0.7)];
@@ -306,7 +457,7 @@
     },
     squadhq(x, ox, oy, s, L, r) {
       const h = HGT.squadhq(L), t = '#39ff88';
-      shadow(x, ox, oy, s, h + 10); pad(x, ox, oy, s);
+      shadow(x, ox, oy, s, h + 10); pad(x, ox, oy, s, L);
       if (L >= 3) {
         const tw = box(x, ox, oy, 0.5, 0.5, 1.4, 1.4, 3, h + 26, { top: '#2f5a3e', left: '#112017', right: '#183022', edge: t });
         faceLines(x, tw, h + 18, TRIM[L - 1], 1.2);
@@ -337,7 +488,7 @@
     },
     laser(x, ox, oy, s, L) {
       const h = HGT.laser(L);
-      shadow(x, ox, oy, s, h + 10); pad(x, ox, oy, s);
+      shadow(x, ox, oy, s, h + 10); pad(x, ox, oy, s, L);
       const f = box(x, ox, oy, 0.3, 0.3, s - 0.3, s - 0.3, 3, h, pal('#2a2f45'));
       faceLines(x, f, h - 4, TRIM[L - 1], 1.2);
       // hazard chevrons + level pips
@@ -348,17 +499,29 @@
       return h + 34;
     },
     firewall(x, ox, oy, s, L) {
-      const h = HGT.firewall(L);
-      const cols = ['#3a2a3a', '#3a3046', '#2f3550', '#4a3a20', '#502828'];
-      const f = box(x, ox, oy, 0.3, 0.3, 0.7, 0.7, 0, h, pal(cols[L - 1]));
-      line(x, fp(f, 'L', 0.5, 2), fp(f, 'L', 0.5, h - 2), 'rgba(255,51,85,.6)', 1);
+      // every level looks different: concrete -> steel -> armour -> neon -> gold
+      const h = HGT.firewall(L), tr = TRIM[L - 1];
+      const cols = ['#4a4048', '#3a3046', '#2f3550', '#2a3a48', '#4a3a20', '#3a2450', '#2a2a36', '#5a4618'];
+      const w0 = L >= 5 ? 0.24 : 0.3, w1 = 1 - w0;
+      const f = box(x, ox, oy, w0, w0, w1, w1, 0, h, pal(cols[L - 1]));
+      if (L >= 2) { // reinforcement bands
+        for (const z of L >= 4 ? [h * 0.3, h * 0.7] : [h * 0.5]) { x.strokeStyle = L >= 8 ? '#ffd24a' : 'rgba(200,210,240,.45)'; x.lineWidth = 0.8; x.beginPath(); x.moveTo(...fp(f, 'L', 0, z)); x.lineTo(...fp(f, 'L', 1, z)); x.lineTo(...fp(f, 'R', 1, z)); x.stroke(); }
+      }
+      // laser seam: one at first, two from level 5, in the level colour from level 3
+      const seam = L >= 3 ? tr : '#ff3355';
+      for (const k of L >= 5 ? [0.3, 0.7] : [0.5]) { line(x, fp(f, 'L', k, 2), fp(f, 'L', k, h - 2), seam, 1, L >= 3 ? 5 : 0); line(x, fp(f, 'R', k, 2), fp(f, 'R', k, h - 2), seam, 0.8, L >= 3 ? 4 : 0); }
       const c = P(ox, oy, 0.5, 0.5);
-      dot(x, c[0], c[1] - h - 1, 2.2, '#ff3355', 10);
-      return h + 6;
+      if (L >= 4) { // metal cap with an emitter
+        box(x, ox, oy, w0 - 0.04, w0 - 0.04, w1 + 0.04, w1 + 0.04, h, h + 2.2, { top: L >= 8 ? '#e0b030' : '#5a6078', left: L >= 8 ? '#7a5a10' : '#262a3a', right: L >= 8 ? '#a07818' : '#363c52', edge: L >= 8 ? '#ffe68a' : '#7a82a0' }, true);
+      }
+      const top = h + (L >= 4 ? 2.2 : 0);
+      if (L >= 6) { line(x, [c[0] - 3, c[1] - top], [c[0] - 3, c[1] - top - 4], '#9aa0c0', 0.8); line(x, [c[0] + 3, c[1] - top], [c[0] + 3, c[1] - top - 4], '#9aa0c0', 0.8); }
+      dot(x, c[0], c[1] - top - 1, L >= 7 ? 2.6 : 2.2, L >= 8 ? '#ffd24a' : L >= 3 ? tr : '#ff3355', L >= 7 ? 12 : 9);
+      return top + 8;
     },
     mortar(x, ox, oy, s, L) {
       const h = HGT.mortar(L), t = TRIM[L - 1];
-      shadow(x, ox, oy, s, h + 10); pad(x, ox, oy, s);
+      shadow(x, ox, oy, s, h + 10); pad(x, ox, oy, s, L);
       // sandbagged emplacement ring
       const c = P(ox, oy, s / 2, s / 2);
       for (let a = 0; a < Math.PI * 2; a += 0.35) {
@@ -380,7 +543,7 @@
     },
     aa(x, ox, oy, s, L) {
       const h = HGT.aa(L), t = TRIM[L - 1];
-      shadow(x, ox, oy, s, h + 20); pad(x, ox, oy, s);
+      shadow(x, ox, oy, s, h + 20); pad(x, ox, oy, s, L);
       const f = box(x, ox, oy, 0.28, 0.28, s - 0.28, s - 0.28, 3, h, pal('#33283c'));
       faceLines(x, f, h - 4, t, 1.2);
       // tilted missile pod with 2x3 tubes
@@ -402,7 +565,7 @@
     // Program Forge: a server block with glowing code screens and an antenna array
     forge(x, ox, oy, s, L) {
       const h = HGT.forge(L), t = TRIM[L - 1];
-      shadow(x, ox, oy, s, h); pad(x, ox, oy, s);
+      shadow(x, ox, oy, s, h); pad(x, ox, oy, s, L);
       const f = box(x, ox, oy, 0.35, 0.35, s - 0.35, s - 0.35, 3, h, pal('#232a3e'));
       // rows of server lights and two "code" screens
       for (let z = 10; z < h - 6; z += 7) faceLines(x, f, z, 'rgba(25,240,255,.18)', 0.6);
@@ -414,6 +577,7 @@
         noglow(x); x.restore();
       }
       faceLines(x, f, h - 3, t, 1.3);
+      roofKit(x, ox, oy, 0.35, 0.35, s - 0.35, s - 0.35, h, G.rng(hash('forge' + L)), L, 0.7);
       const c = P(ox, oy, s / 2, s / 2);
       for (let i = -1; i <= 1; i++) { line(x, [c[0] + i * 10, c[1] - h], [c[0] + i * 10, c[1] - h - 14 - (i === 0 ? 8 : 0)], '#8a90a8', 1.2); dot(x, c[0] + i * 10, c[1] - h - 15 - (i === 0 ? 8 : 0), 1.8, t, 8); }
       return h + 26;
@@ -421,7 +585,7 @@
     // plasma extractor: a drill rig pumping glowing purple plasma into a glass column
     extractor(x, ox, oy, s, L) {
       const h = HGT.extractor(L);
-      shadow(x, ox, oy, s, h + 20); pad(x, ox, oy, s);
+      shadow(x, ox, oy, s, h + 20); pad(x, ox, oy, s, L);
       const f = box(x, ox, oy, 0.25, 0.25, s - 1.3, s - 0.25, 3, h * 0.6, pal('#2d2438'));
       faceLines(x, f, h * 0.6 - 4, '#b26bff', 1);
       const c = P(ox, oy, s - 0.75, s / 2);
@@ -438,7 +602,7 @@
     // plasma tank: armoured sphere with a glowing window
     tank(x, ox, oy, s, L) {
       const h = HGT.tank(L), t = TRIM[L - 1];
-      shadow(x, ox, oy, s, h + 24); pad(x, ox, oy, s);
+      shadow(x, ox, oy, s, h + 24); pad(x, ox, oy, s, L);
       const c = P(ox, oy, s / 2, s / 2), cy = c[1] - h;
       x.strokeStyle = '#4a4a5e'; x.lineWidth = 2.4;
       for (const dx of [-14, 14]) { x.beginPath(); x.moveTo(c[0] + dx, c[1] - 2); x.lineTo(c[0] + dx * 0.6, cy + 6); x.stroke(); }
@@ -453,7 +617,7 @@
     // EMP pylon: armoured base, a tall coil with copper rings and an energy orb on top
     emp(x, ox, oy, s, L) {
       const h = HGT.emp(L), t = TRIM[L - 1];
-      shadow(x, ox, oy, s, h + 40); pad(x, ox, oy, s);
+      shadow(x, ox, oy, s, h + 40); pad(x, ox, oy, s, L);
       const f = box(x, ox, oy, 0.3, 0.3, s - 0.3, s - 0.3, 3, h, pal('#2a3040'));
       faceLines(x, f, h - 4, t, 1.2);
       const c = P(ox, oy, s / 2, s / 2), top = c[1] - h;
@@ -495,12 +659,13 @@
     },
     lab(x, ox, oy, s, L, r) {
       const h = HGT.lab(L), t = TRIM[L - 1];
-      shadow(x, ox, oy, s, h + 20); pad(x, ox, oy, s);
+      shadow(x, ox, oy, s, h + 20); pad(x, ox, oy, s, L);
       const f = box(x, ox, oy, 0.3, 0.3, s - 0.3, s - 0.3, 3, h, { top: '#2a3a52', left: '#121a28', right: '#1a2638', edge: '#4a7aa8' });
       windows(x, f, 'L', h * 0.35, h * 0.85, 2, 5, r, 'rgba(120,240,255,.85)');
       windows(x, f, 'R', h * 0.35, h * 0.85, 2, 5, r, 'rgba(120,240,255,.85)');
       faceLines(x, f, h * 0.2, '#19f0ff', 1.2);
       sign(x, f, 'R', 0.5, h * 0.18, 'LAB', '#19f0ff', 6);
+      roofKit(x, ox, oy, 0.3, 0.3, s - 0.3, s - 0.3, h, r, L, 0.85);
       // glass dome on the roof
       const c = P(ox, oy, s / 2, s / 2), cy = c[1] - h;
       const g = x.createRadialGradient(c[0] - 6, cy - 14, 2, c[0], cy - 6, 24);
@@ -514,11 +679,12 @@
     },
     clanhub(x, ox, oy, s, L, r) {
       const h = HGT.clanhub(L), t = TRIM[L - 1], col = '#ff2bd6';
-      shadow(x, ox, oy, s, h + 30); pad(x, ox, oy, s);
+      shadow(x, ox, oy, s, h + 30); pad(x, ox, oy, s, L);
       // low barracks ring + central uplink tower
       const f = box(x, ox, oy, 0.3, 0.3, s - 0.3, s - 0.3, 3, 16, { top: '#3a2440', left: '#1a1020', right: '#28182f', edge: '#a04a9a' });
       faceLines(x, f, 10, col, 1.2);
       sign(x, f, 'R', 0.5, 8, 'CLAN', col, 6);
+      roofKit(x, ox, oy, 0.3, 0.3, s - 0.3, s - 0.3, 16, r, L, 0.95);
       const tw = box(x, ox, oy, s / 2 - 0.55, s / 2 - 0.55, s / 2 + 0.55, s / 2 + 0.55, 16, h, { top: '#4a2c52', left: '#22142a', right: '#321c3c', edge: '#c060b8' });
       windows(x, tw, 'L', 22, h - 6, Math.max(1, Math.floor((h - 26) / 10)), 2, r, 'rgba(255,120,230,.85)');
       windows(x, tw, 'R', 22, h - 6, Math.max(1, Math.floor((h - 26) / 10)), 2, r, 'rgba(255,120,230,.85)');
@@ -564,7 +730,7 @@
     const [c, x] = mk(w, h, SS);
     const ox = s * TW / 2 + PADX, oy = HEAD;
     const top = DRAW[type](x, ox, oy, s, level, G.rng(hash(key)));
-    sp = { c, ax: ox, ay: oy, w, h, top, s };
+    sp = { c: outlineSprite(c), ax: ox, ay: oy, w, h, top, s };
     cache.set(key, sp);
     return sp;
   };
@@ -699,7 +865,7 @@
       ctx.globalAlpha = 0.55 + pulse * 0.3;
       ctx.beginPath(); ctx.moveTo(c[0], ty - 10); ctx.lineTo(c[0] + 9 * sp, ty); ctx.lineTo(c[0], ty + 10); ctx.lineTo(c[0] - 9 * sp, ty); ctx.closePath(); ctx.stroke();
       light(ctx, tr, c[0], ty, 22, 0.35 * pulse);
-      const mast = 26 + L * 3 + (L >= 5 ? 14 : 0);
+      const mast = 26 + L * 3 + (L >= 5 ? 14 : 0) + (L >= 4 ? 10 : 0); // same as the sprite's mast
       light(ctx, '#ff2bd6', c[0], c[1] - h - 12 - mast, 10, Math.sin(t * 4) > 0 ? 0.9 : 0.25);
       light(ctx, tr, c[0], c[1] - h * 0.55, rx * 0.9, 0.08 * pulse);
     } else if (type === 'scrapyard') {
@@ -801,12 +967,14 @@
     st = st || { moving: true, atk: 0, dead: 0 };
     const c = UCOL[type];
     const hero = type === 'ronin' || type === 'nyx';
-    const big = type === 'mech' ? 1.75 : hero ? 1.6 : 1.35;
+    const big = type === 'mech' ? 1.9 : hero ? 1.75 : 1.5;
     const dead = st.dead || 0;
     ctx.save(); ctx.translate(wx, wy);
     if (dead) ctx.globalAlpha = 1 - dead;
     // shadow + hero ring
-    ctx.fillStyle = 'rgba(0,0,0,.5)'; ctx.beginPath(); ctx.ellipse(0, 0, 6 * big, 3 * big, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = 'rgba(0,0,0,.55)'; ctx.beginPath(); ctx.ellipse(0, 0, 6 * big, 3 * big, 0, 0, Math.PI * 2); ctx.fill();
+    // faint glow of the unit's colour on the ground: easier to spot in a crowd
+    if (!dead && type !== 'drone') { ctx.save(); ctx.globalCompositeOperation = 'lighter'; G.World.light(ctx, c, 0, 0, 7 * big, 3.5 * big, 0.22); ctx.restore(); }
     if (hero && !dead) {
       ctx.strokeStyle = '#ffe14d'; ctx.lineWidth = 1.4; ctx.setLineDash([5, 4]); ctx.lineDashOffset = -t * 20;
       ctx.beginPath(); ctx.ellipse(0, 0, 11, 5.5, 0, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
@@ -828,7 +996,19 @@
       ctx.strokeStyle = col; ctx.lineWidth = w;
       ctx.beginPath(); ctx.moveTo(-1.5, hipY); ctx.lineTo(-1.5 + swing, hipY + len * 0.55); ctx.lineTo(-1.5 + swing * 0.6, 0);
       ctx.moveTo(1.5, hipY); ctx.lineTo(1.5 - swing, hipY + len * 0.55); ctx.lineTo(1.5 - swing * 0.6, 0); ctx.stroke();
-      ctx.fillStyle = '#0c0a12'; ctx.fillRect(-3 + swing * 0.6, -1, 3, 1.5); ctx.fillRect(0 - swing * 0.6, -1, 3, 1.5);
+      ctx.fillStyle = '#0c0a12'; ctx.fillRect(-3.2 + swing * 0.6, -1.4, 3.4, 1.9); ctx.fillRect(-0.2 - swing * 0.6, -1.4, 3.4, 1.9);
+      ctx.fillStyle = 'rgba(255,255,255,.18)'; ctx.fillRect(-3.2 + swing * 0.6, -1.4, 3.4, 0.5); ctx.fillRect(-0.2 - swing * 0.6, -1.4, 3.4, 0.5);
+      // knee pads
+      ctx.fillStyle = shade2(col, 2.4);
+      ctx.fillRect(-2.3 + swing, hipY + len * 0.55 - 0.7, 1.6, 1.2); ctx.fillRect(0.7 - swing, hipY + len * 0.55 - 0.7, 1.6, 1.2);
+    };
+    // simple colour helpers for unit parts (hex in, css out)
+    function shade2(hex, f) { return hex && hex[0] === '#' ? shade(hex.length === 4 ? '#' + hex[1] + hex[1] + hex[2] + hex[2] + hex[3] + hex[3] : hex, f) : hex; }
+    // arm from the shoulder to a hand position, with a glove
+    const arm = (sx, sy, hx2, hy2, col) => {
+      ctx.strokeStyle = 'rgba(0,0,0,.55)'; ctx.lineWidth = 2.4; ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(hx2, hy2); ctx.stroke();
+      ctx.strokeStyle = col; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(hx2, hy2); ctx.stroke();
+      ctx.fillStyle = '#16121e'; ctx.beginPath(); ctx.arc(hx2, hy2, 1.1, 0, Math.PI * 2); ctx.fill();
     };
     const cape = (x0, y0, len, col) => {
       const wave = Math.sin(t * 9) * 1.5 + (mv ? 2 : 0);
@@ -864,17 +1044,28 @@
       ctx.moveTo(3.5, -9 + by); ctx.lineTo(5 - swing, -4.5); ctx.lineTo(4 - swing * 0.5, 0); ctx.stroke();
       ctx.fillStyle = '#16161c'; ctx.fillRect(-6.5 + swing * 0.5, -1.2, 5, 1.8); ctx.fillRect(1.5 - swing * 0.5, -1.2, 5, 1.8);
       // torso
-      ctx.fillStyle = skin || '#4a4230'; ctx.fillRect(-7.5, -21 + by, 15, 12);
+      { const mg = ctx.createLinearGradient(-7.5, -21 + by, 7.5, -9 + by); mg.addColorStop(0, skin || '#7a6c4a'); mg.addColorStop(0.5, skin || '#4a4230'); mg.addColorStop(1, skin || '#2a2418');
+        ctx.fillStyle = mg; ctx.fillRect(-7.5, -21 + by, 15, 12);
+        ctx.fillStyle = 'rgba(0,0,0,.25)'; ctx.fillRect(-7.5, -12 + by, 15, 3);
+        ctx.strokeStyle = 'rgba(0,0,0,.35)'; ctx.lineWidth = 0.4; ctx.beginPath(); ctx.moveTo(-2.5, -21 + by); ctx.lineTo(-2.5, -9 + by); ctx.moveTo(2.5, -21 + by); ctx.lineTo(2.5, -9 + by); ctx.stroke();
+        ctx.fillStyle = 'rgba(255,225,77,.6)'; for (const rx of [-6.4, 6.4]) for (const ry of [-19.8, -10.4]) ctx.fillRect(rx - 0.4, ry + by, 0.8, 0.8); }
       ctx.fillStyle = 'rgba(255,255,255,.1)'; ctx.fillRect(-7.5, -21 + by, 15, 3);
       ctx.strokeStyle = c; ctx.lineWidth = 0.8; ctx.strokeRect(-7.5, -21 + by, 15, 12);
       ctx.fillStyle = '#1c1a14'; ctx.fillRect(-5, -13 + by, 10, 3);
       // shoulder pods
-      ctx.fillStyle = '#2a2a33'; ctx.fillRect(-10, -24 + by, 5, 7); ctx.fillRect(5, -24 + by, 5, 7);
+      for (const px of [-10, 5]) {
+        const pg = ctx.createLinearGradient(px, -24 + by, px + 5, -17 + by); pg.addColorStop(0, '#4a4a58'); pg.addColorStop(1, '#16161e');
+        ctx.fillStyle = pg; ctx.fillRect(px, -24 + by, 5, 7); ctx.strokeStyle = 'rgba(0,0,0,.7)'; ctx.lineWidth = 0.5; ctx.strokeRect(px, -24 + by, 5, 7);
+        ctx.fillStyle = 'rgba(255,255,255,.18)'; ctx.fillRect(px, -24 + by, 5, 0.8);
+      }
       ctx.fillStyle = '#ff5a3c'; for (let i = 0; i < 3; i++) { ctx.fillRect(-9.2 + i * 1.4, -23.4 + by, 0.8, 0.8); ctx.fillRect(5.8 + i * 1.4, -23.4 + by, 0.8, 0.8); }
       // arm cannon (recoils on attack)
       const rc = atk * 2.5;
-      ctx.fillStyle = '#2a2a33'; ctx.fillRect(7 - rc, -19 + by, 9, 3);
-      ctx.fillStyle = c; ctx.fillRect(15 - rc, -19 + by, 1.5, 3);
+      { const cg = ctx.createLinearGradient(0, -19.5 + by, 0, -15.5 + by); cg.addColorStop(0, '#5a5a6a'); cg.addColorStop(0.5, '#2a2a33'); cg.addColorStop(1, '#121218');
+        ctx.fillStyle = cg; ctx.fillRect(7 - rc, -19.5 + by, 9, 3.6); ctx.strokeStyle = 'rgba(0,0,0,.7)'; ctx.lineWidth = 0.5; ctx.strokeRect(7 - rc, -19.5 + by, 9, 3.6);
+        ctx.fillStyle = '#0c0c10'; ctx.fillRect(9 - rc, -18.6 + by, 5, 0.6); ctx.fillRect(9 - rc, -17.2 + by, 5, 0.6); }
+      ctx.fillStyle = c; ctx.fillRect(15.6 - rc, -19.3 + by, 1.6, 3.2);
+      ctx.save(); ctx.globalCompositeOperation = 'lighter'; G.World.light(ctx, c, 16.4 - rc, -17.7 + by, 3, 3, 0.5 + atk * 0.5); ctx.restore();
       visor(-3, -18 + by, 7, 2.2);
       ctx.strokeStyle = '#8a8aa0'; ctx.lineWidth = 0.7; ctx.beginPath(); ctx.moveTo(-6, -21 + by); ctx.lineTo(-7, -28 + by); ctx.stroke();
     } else {
@@ -898,12 +1089,28 @@
       if (type === 'runner') cape(-1, -14 + by, 9, 'rgba(255,43,214,.75)');
       if (type === 'ronin') cape(-1, -15 + by, 13, '#b8162a');
       if (type === 'nyx') { ctx.fillStyle = '#4a1f72'; ctx.beginPath(); ctx.moveTo(-2, -19 + by); ctx.quadraticCurveTo(-7 - Math.sin(t * 5), -12 + by, -5, -6 + by); ctx.lineTo(-1, -12 + by); ctx.fill(); }
-      legs(-7 + by, 7, type === 'ronin' ? '#3a3640' : '#15121c', type === 'gunner' ? 2.6 : 2.2);
-      // torso
-      ctx.fillStyle = skin || coat; ctx.beginPath(); ctx.moveTo(-3.8, -15 + by); ctx.lineTo(3.8, -15 + by); ctx.lineTo(3.2, -6.5 + by); ctx.lineTo(-3.2, -6.5 + by); ctx.closePath(); ctx.fill();
-      ctx.fillStyle = trim; ctx.fillRect(-3.4, -9.5 + by, 6.8, 1.2);
+      // rear arm (swings opposite to the legs)
+      if (type !== 'gunner') arm(-2.6, -13.8 + by, -3.4 - swing * 0.7, -8.6 + by, shade2(coat, 0.7));
+      legs(-7 + by, 7, type === 'ronin' ? '#3a3640' : '#15121c', type === 'gunner' ? 2.8 : 2.4);
+      // torso: armoured chest with light from the top-left, dark outline, belt with a glowing buckle
+      const tg = ctx.createLinearGradient(-4, -15 + by, 4, -6 + by);
+      tg.addColorStop(0, skin || shade2(coat, 1.55)); tg.addColorStop(0.55, skin || coat); tg.addColorStop(1, skin || shade2(coat, 0.6));
+      ctx.fillStyle = tg; ctx.beginPath(); ctx.moveTo(-4, -15.2 + by); ctx.quadraticCurveTo(0, -16.2 + by, 4, -15.2 + by); ctx.lineTo(3.3, -6.4 + by); ctx.lineTo(-3.3, -6.4 + by); ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = 'rgba(5,3,12,.85)'; ctx.lineWidth = 0.55; ctx.stroke();
+      ctx.strokeStyle = 'rgba(255,255,255,.14)'; ctx.lineWidth = 0.4; ctx.beginPath(); ctx.moveTo(0, -15.4 + by); ctx.lineTo(0, -9.8 + by); ctx.stroke(); // chest seam
+      ctx.fillStyle = '#0e0b16'; ctx.fillRect(-3.4, -8.2 + by, 6.8, 1.3); // belt
+      ctx.fillStyle = trim; ctx.fillRect(-3.4, -9.6 + by, 6.8, 1.1);
+      ctx.save(); ctx.globalCompositeOperation = 'lighter'; G.World.light(ctx, trim, 0, -9 + by, 4.5, 1.6, 0.35); ctx.restore();
+      ctx.fillStyle = '#d8d0a0'; ctx.fillRect(-0.7, -8 + by, 1.4, 0.9); // buckle
+      // shoulder pads
+      for (const sx of [-3.6, 3.6]) {
+        const sg = ctx.createRadialGradient(sx - 0.6, -15.4 + by, 0.2, sx, -14.6 + by, 2.4);
+        sg.addColorStop(0, skin || shade2(coat, 2)); sg.addColorStop(1, skin || shade2(coat, 0.75));
+        ctx.fillStyle = sg; ctx.beginPath(); ctx.ellipse(sx, -14.6 + by, 1.9, 1.4, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = 'rgba(5,3,12,.8)'; ctx.lineWidth = 0.4; ctx.stroke();
+      }
       if (type === 'gunner') { ctx.fillStyle = '#2a4a56'; ctx.fillRect(-3.8, -14.5 + by, 7.6, 4); }
-      if (type === 'ronin') { ctx.fillStyle = '#c21a30'; ctx.fillRect(-3.8, -14.5 + by, 2, 8); ctx.fillStyle = '#9a9aa8'; ctx.fillRect(-4.5, -15.5 + by, 3, 2.5); ctx.fillRect(1.5, -15.5 + by, 3, 2.5); }
+      if (type === 'ronin') { ctx.fillStyle = '#c21a30'; ctx.fillRect(-3.8, -14.5 + by, 2, 8); }
       if (type === 'nyx') { ctx.fillStyle = '#7a3ac0'; ctx.fillRect(-3.8, -11 + by, 7.6, 1); }
       if (type === 'medic') { ctx.fillStyle = c; ctx.fillRect(-1.8, -13.6 + by, 3.6, 1.2); ctx.fillRect(-0.6, -14.8 + by, 1.2, 3.6); }
       if (type === 'breacher') { ctx.fillStyle = '#ffe14d'; for (let k = 0; k < 3; k++) ctx.fillRect(-3.4 + k * 2.4, -14.2 + by, 1.2, 3.6); }
@@ -911,21 +1118,34 @@
       const hx = 0, hy = -17.6 + by;
       if (type === 'nyx') { ctx.fillStyle = '#6a2fa8'; ctx.beginPath(); ctx.arc(hx - 0.5, hy - 0.5, 3.4, Math.PI * 0.8, Math.PI * 2.1); ctx.lineTo(hx - 5, hy + 6); ctx.closePath(); ctx.fill(); }
       ctx.fillStyle = skin || (type === 'gunner' ? '#2f3e48' : type === 'ronin' ? '#d8d4e0' : type === 'runner' ? '#1f1428' : type === 'medic' ? '#e8efe9' : type === 'breacher' ? '#5a4a30' : '#c9a98a');
-      ctx.beginPath(); ctx.arc(hx, hy, 3, 0, Math.PI * 2); ctx.fill();
+      { const hc = ctx.fillStyle; const hg = ctx.createRadialGradient(hx - 1.1, hy - 1.2, 0.3, hx, hy, 3.3);
+        hg.addColorStop(0, skin || shade2(hc, 1.7)); hg.addColorStop(0.6, hc); hg.addColorStop(1, skin || shade2(hc, 0.55));
+        ctx.fillStyle = hg; ctx.beginPath(); ctx.arc(hx, hy, 3.1, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = 'rgba(5,3,12,.85)'; ctx.lineWidth = 0.5; ctx.stroke(); }
       if (type === 'runner') { ctx.fillStyle = '#2a1838'; ctx.beginPath(); ctx.arc(hx - 0.6, hy - 0.6, 3.3, Math.PI, Math.PI * 2.2); ctx.fill(); }
       if (type === 'ronin') { ctx.fillStyle = '#b8162a'; ctx.fillRect(hx - 3.2, hy - 1.6, 6.4, 1); }
       visor(hx - 0.2, hy - 0.8, 3.4, 1.4);
+      ctx.fillStyle = 'rgba(255,255,255,.75)'; ctx.beginPath(); ctx.arc(hx - 1.2, hy - 1.5, 0.55, 0, Math.PI * 2); ctx.fill(); // glint
       // weapons + attack animation
       const sw = atk;
+      // front arm reaching to the weapon / forward
+      if (type !== 'gunner' && type !== 'nyx') arm(2.6, -13.8 + by, 3.2 + swing * 0.5 + sw * 1.2, -10.2 + by, shade2(coat, 0.95));
+      else arm(2.6, -13.8 + by, 3.4, -10.6 + by, shade2(coat, 0.95));
       if (type === 'runner') {
         ctx.save(); ctx.translate(2.5, -10.5 + by); ctx.rotate(-0.9 + sw * 1.6);
         ctx.strokeStyle = c; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(7, 0); ctx.stroke();
         ctx.globalCompositeOperation = 'lighter'; G.World.light(ctx, c, 4, 0, 6, 3, 0.6); ctx.restore();
       } else if (type === 'gunner') {
         const rc = sw * 2;
-        ctx.fillStyle = '#4a5560'; ctx.fillRect(0 - rc, -12 + by, 11, 2.6);
-        ctx.fillStyle = '#20262c'; ctx.fillRect(2 - rc, -10 + by, 2, 2.5);
-        ctx.fillStyle = c; ctx.fillRect(10 - rc, -12 + by, 2, 2.6);
+        // rifle: stock, body with a highlight, magazine, scope, barrel and a glowing emitter
+        ctx.fillStyle = '#20262c'; ctx.fillRect(-2.2 - rc, -11.6 + by, 3, 2); // stock
+        const rg = ctx.createLinearGradient(0, -12.2 + by, 0, -9.4 + by); rg.addColorStop(0, '#7a8894'); rg.addColorStop(0.45, '#4a5560'); rg.addColorStop(1, '#262c34');
+        ctx.fillStyle = rg; ctx.fillRect(0.6 - rc, -12.2 + by, 8, 2.8);
+        ctx.strokeStyle = 'rgba(5,3,12,.85)'; ctx.lineWidth = 0.45; ctx.strokeRect(0.6 - rc, -12.2 + by, 8, 2.8);
+        ctx.fillStyle = '#1a1e24'; ctx.fillRect(3 - rc, -9.6 + by, 1.8, 2.6); // magazine
+        ctx.fillStyle = '#14181e'; ctx.fillRect(2.4 - rc, -13.6 + by, 3.6, 1.2); ctx.fillStyle = c; ctx.fillRect(5.6 - rc, -13.5 + by, 0.6, 1); // scope
+        ctx.fillStyle = '#5a6670'; ctx.fillRect(8.6 - rc, -11.4 + by, 3, 1.2); // barrel
+        ctx.fillStyle = c; ctx.fillRect(11.2 - rc, -11.8 + by, 1.4, 2);
         if (sw > 0.5) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; G.World.light(ctx, '#ffffff', 13, -10.7 + by, 6, 4, sw); G.World.light(ctx, c, 14, -10.7 + by, 10, 6, sw); ctx.restore(); }
       } else if (type === 'ronin') {
         const a0 = -1.1 + sw * 2.2;
