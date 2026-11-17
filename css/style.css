@@ -365,7 +365,7 @@ table.stats td.nx { color: var(--grn); font-weight: 800; width: 90px; }
 #rotate b { font-family: Orbitron, sans-serif; font-size: 20px; letter-spacing: 1px; color: #19f0ff; text-shadow: 0 0 10px #19f0ff; }
 #rotate span { color: var(--dim); font-size: 14px; }
 @keyframes rot-ph { 0%, 25% { transform: rotate(0); } 55%, 100% { transform: rotate(-90deg); } }
-@media (orientation: portrait) and (pointer: coarse) { #rotate { display: flex; } }
+/* the game now works upright too: the rotate screen stays hidden */
 
 /* ---- partially filled stars (destruction %) ---- */
 .st.part { position: relative; }
@@ -574,3 +574,9 @@ table.stats td.nx { color: var(--grn); font-weight: 800; width: 90px; }
 .pre-b { display: flex; gap: 6px; } .pre-b .btn { flex: 1; }
 @media (max-width: 700px) { .presets { grid-template-columns: 1fr; } }
 #bh-fast { min-width: 44px; }
+/* ---------- portrait phones (0.13.3): windows start below the resource column, which stays on top ---------- */
+@media (orientation: portrait) and (max-width: 700px) {
+  #modal { padding-top: max(104px, calc(env(safe-area-inset-top) + 98px)); }
+  #modal .panel { max-height: 100%; }
+  .bh-cards { flex-wrap: wrap; justify-content: center; }
+}
