@@ -73,7 +73,7 @@
 
   // ---------- A* ----------
   function findPath(u, ti) {
-    const b = Bt, tq = b.bs[ti];
+    const b = Bt, tq = b.bs[ti], J = !!u.def.jump; // jumpers (titan) leap over firewalls: walls cost nothing and never stop them
     const sx = G.clamp(Math.floor(u.x), 0, M - 1), sy = G.clamp(Math.floor(u.y), 0, M - 1);
     const isGoal = (x, y) => x >= tq.x && x < tq.x + tq.size && y >= tq.y && y < tq.y + tq.size;
     const gx = tq.x + tq.size / 2, gy = tq.y + tq.size / 2;
@@ -97,13 +97,15 @@
         if (blocked(nx, ny)) continue;
         if (dx && dy) {
           if (blocked(x + dx, y) || blocked(x, y + dy)) continue;
+          if (!J) {
           const c1 = b.grid[y * M + x + dx], c2 = b.grid[(y + dy) * M + x];
           if ((c1 >= 0 && b.bs[c1].wall) || (c2 >= 0 && b.bs[c2].wall)) continue;
+          }
         }
         const ni = ny * M + nx;
         let cost = dx && dy ? 1.414 : 1;
         const c = b.grid[ni];
-        if (c >= 0 && b.bs[c].wall) cost += WALLCOST;
+        if (c >= 0 && b.bs[c].wall && !J) cost += WALLCOST;
         const ng = g[n] + cost;
         if (ng < g[ni]) { g[ni] = ng; came[ni] = n; push(ng + h(nx, ny), ni); }
       }
@@ -116,7 +118,7 @@
     const out = [];
     for (const n of path) {
       const c = b.grid[n];
-      if (c >= 0 && b.bs[c].wall && !b.bs[c].dead) { wall = c; break; }
+      if (c >= 0 && b.bs[c].wall && !b.bs[c].dead && !J) { wall = c; break; }
       out.push({ x: n % M + 0.5 + u.jx, y: ((n / M) | 0) + 0.5 + u.jy });
     }
     return { path: out, wall };
@@ -366,6 +368,7 @@
       }
     }
     if (goal) {
+      if (u.def.jump) stepJump(u, dt);
       const [cx, cy] = closest(u.x, u.y, goal);
       u.flip = (cx - cy) < (u.x - u.y);
       if (u.type === 'drone' || u.type === 'breacher') {
@@ -402,6 +405,16 @@
     u.moving = true;
     if (d <= stp) { u.x = tx; u.y = ty; if (u.path && u.path.length) u.path.shift(); }
     else { u.x += dx / d * stp; u.y += dy / d * stp; }
+    if (u.def.jump) stepJump(u, dt);
+  }
+  // jumpers rise when a firewall is under them or right ahead, and land with a dust cloud
+  function stepJump(u, dt) {
+    const b = Bt, wallAt = (x, y) => { const c = b.grid[Math.floor(y) * M + Math.floor(x)]; return c != null && c >= 0 && b.bs[c].wall && !b.bs[c].dead; };
+    const nx = u.path && u.path.length ? u.path[0] : null;
+    const up = wallAt(u.x, u.y) || (nx && wallAt(nx.x, nx.y) && Math.hypot(nx.x - u.x, nx.y - u.y) < 1.2);
+    const was = u.air || 0;
+    u.air = up ? Math.min(1, was + dt * 4) : Math.max(0, was - dt * 3);
+    if (was > 0.5 && u.air <= 0.5 && !up) { const w = unitW(u, 0); b.fx.push({ k: 'ring', x: w[0], y: w[1], r: 22, life: 0.35, max: 0.35, color: '#c9a77a' }); b.shake = Math.max(b.shake || 0, 0.1); }
   }
 
   function hurtUnit(u, dmg) {
@@ -664,6 +677,7 @@
         }
       } else {
         const u = it.u, p = G.tileToWorld(u.x, u.y);
+        if (u.air > 0) p[1] -= Math.sin(u.air * Math.PI / 2) * 24; // mid-jump over a wall
         G.Art.drawUnit(ctx, u.type, p[0], p[1], u.anim, u.flip, u.hitT > 0 && !u.dead,
           { moving: u.moving, atk: Math.max(0, (u.atkT || 0) / 0.25), dead: u.dead ? Math.min(1, (b.t - u.deadAt) / 0.6) : 0 });
         if (u.storm > 0) {

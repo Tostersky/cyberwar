@@ -1,5 +1,5 @@
 // Game data: buildings, units, heroes, campaign. All numbers are CyberWar's own.
-G.TW = 64; G.TH = 32; G.MAP = 40; G.VERSION = '0.15.1';
+G.TW = 64; G.TH = 32; G.MAP = 40; G.VERSION = '0.15.2';
 G.BUILDERS = 2; // builder drones at the start; more can be bought with chips (up to 5)
 G.BUILDER_PRICE = [0, 0, 250, 500, 1000]; // price of the 3rd, 4th and 5th drone
 G.BUILDERS_MAX = 5;
@@ -120,9 +120,9 @@ G.UNITS = {
   breacher: { cost: 120, space: 2, hp: 55, dmg: 25, wallMul: 30, interval: 0, speed: 2.5, range: 0.5, time: 12, unlock: 3, target: 'wall', splash: 1.5 },
   medic:  { cost: 150, space: 3, hp: 180, dmg: 0, heal: 18, healR: 2.6, interval: 1.0, speed: 1.5, range: 1.4, time: 15, unlock: 5, target: 'heal' },
   // colony units (colony: true): trained in the colony Hangar, unlock = Hangar level
-  // titan: armoured walker with a plasma hammer, every blow also hits buildings around the target (aoe)
-  titan:  { cost: 900, space: 10, hp: 1600, dmg: 85, interval: 1.6, speed: 0.85, range: 1.0, time: 45, unlock: 1, target: 'any', aoe: 1.3, colony: true },
-  // gunship: flying plasma gunship, shoots defenses from range
+  // titan: armoured walker with a plasma hammer; leaps over firewalls (jump) and every blow also hits buildings around the target (aoe)
+  titan:  { cost: 900, space: 10, hp: 1600, dmg: 85, interval: 1.6, speed: 0.85, range: 1.0, time: 45, unlock: 1, target: 'any', aoe: 1.3, jump: true, colony: true },
+  // gunship: flying plasma gunship, goes for defenses first (then anything), shoots from range
   gunship: { cost: 1200, space: 8, hp: 560, dmg: 58, interval: 1.0, speed: 1.9, range: 3.4, time: 50, unlock: 3, target: 'defense', fly: true, colony: true },
 };
 G.UNIT_ORDER = ['runner', 'gunner', 'drone', 'mech', 'medic', 'breacher', 'titan', 'gunship'];
