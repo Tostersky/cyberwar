@@ -63,10 +63,8 @@
   }
   requestAnimationFrame(loop);
 
-  // landscape only: browsers that allow it (Android app / fullscreen) get the rotation locked
-  const lockLandscape = () => { try { const o = screen.orientation; if (o && o.lock) o.lock('landscape').catch(() => {}); } catch (_) {} };
-  lockLandscape();
-  window.addEventListener('pointerdown', lockLandscape, { once: true });
+  // portrait and landscape both work: refit the canvas and UI whenever the phone turns
+  window.addEventListener('orientationchange', () => setTimeout(() => window.dispatchEvent(new Event('resize')), 250));
 
   setInterval(() => G.save(true), 5000);
   document.addEventListener('visibilitychange', () => { if (document.hidden) G.save(true); });
