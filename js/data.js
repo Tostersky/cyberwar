@@ -1,5 +1,5 @@
 // Game data: buildings, units, heroes, campaign. All numbers are CyberWar's own.
-G.TW = 64; G.TH = 32; G.MAP = 40; G.VERSION = '0.15.0';
+G.TW = 64; G.TH = 32; G.MAP = 40; G.VERSION = '0.15.1';
 G.BUILDERS = 2; // builder drones at the start; more can be bought with chips (up to 5)
 G.BUILDER_PRICE = [0, 0, 250, 500, 1000]; // price of the 3rd, 4th and 5th drone
 G.BUILDERS_MAX = 5;
@@ -74,6 +74,9 @@ G.BUILDINGS = {
   // cryo tank: stores plasma
   xcryo:      { size: 2, res: 'copper', city: 2, cost: [20000, 32000, 48000, 68000, 92000, 120000, 155000, 200000], time: [900, 3600, 7200, 14400, 21600, 28800, 36000, 43200],
                 hp: [600, 660, 720, 780, 840, 900, 970, 1040], store: [5000, 7000, 9500, 12500, 16000, 20000, 25000, 31000], storeRes: 'plasma' },
+  // hangar: builds the strong colony units (titan from level 1, gunship from level 3)
+  xhangar:    { size: 4, res: 'scrap',  city: 2, cost: [60000, 90000, 130000, 180000, 240000, 310000, 390000, 480000], time: [3600, 7200, 14400, 21600, 28800, 43200, 57600, 72000],
+                hp: [1200, 1350, 1500, 1650, 1800, 1950, 2100, 2300] },
 };
 G.CITY2_CORE = 6; // Core level that brings the shuttle
 // obstacles on the home map: they block building until removed (cost grows with the Core level). Never give chips.
@@ -98,9 +101,9 @@ G.LIMITS = {
   aa: [0, 0, 0, 1, 1, 2, 2, 3], emp: [0, 0, 0, 0, 1, 1, 2, 2], mine: [0, 0, 2, 3, 4, 5, 6, 8], skymine: [0, 0, 0, 1, 2, 2, 3, 4], firewall: [25, 50, 75, 100, 150, 175, 200, 225],
   // colony limits follow the colony HQ level
   xcore: [1, 1, 1, 1, 1, 1, 1, 1], xdrill: [1, 2, 2, 3, 3, 4, 4, 5], xpump: [1, 2, 2, 3, 3, 4, 4, 5], xcrystal: [0, 1, 1, 2, 2, 2, 3, 3],
-  xdome: [1, 1, 2, 2, 2, 3, 3, 3], xcryo: [0, 1, 1, 1, 2, 2, 2, 2],
+  xdome: [1, 1, 2, 2, 2, 3, 3, 3], xcryo: [0, 1, 1, 1, 2, 2, 2, 2], xhangar: [0, 0, 1, 1, 1, 1, 1, 1],
 };
-G.SHOP2 = ['xdrill', 'xpump', 'xcrystal', 'xdome', 'xcryo'];
+G.SHOP2 = ['xhangar', 'xdrill', 'xpump', 'xcrystal', 'xdome', 'xcryo'];
 G.SHOP = ['laser', 'mortar', 'aa', 'emp', 'mine', 'skymine', 'firewall', 'scrapyard', 'coppermine', 'vault', 'silo', 'factory', 'squadhq', 'lab', 'forge', 'extractor', 'tank', 'clanhub'];
 
 // laboratory research: unit level 2..5 (cost in copper, time in seconds); each level = +15% hitpoints and damage
@@ -116,8 +119,13 @@ G.UNITS = {
   // wall breacher: runs to the nearest firewall and blows it up (huge damage to walls only)
   breacher: { cost: 120, space: 2, hp: 55, dmg: 25, wallMul: 30, interval: 0, speed: 2.5, range: 0.5, time: 12, unlock: 3, target: 'wall', splash: 1.5 },
   medic:  { cost: 150, space: 3, hp: 180, dmg: 0, heal: 18, healR: 2.6, interval: 1.0, speed: 1.5, range: 1.4, time: 15, unlock: 5, target: 'heal' },
+  // colony units (colony: true): trained in the colony Hangar, unlock = Hangar level
+  // titan: armoured walker with a plasma hammer, every blow also hits buildings around the target (aoe)
+  titan:  { cost: 900, space: 10, hp: 1600, dmg: 85, interval: 1.6, speed: 0.85, range: 1.0, time: 45, unlock: 1, target: 'any', aoe: 1.3, colony: true },
+  // gunship: flying plasma gunship, shoots defenses from range
+  gunship: { cost: 1200, space: 8, hp: 560, dmg: 58, interval: 1.0, speed: 1.9, range: 3.4, time: 50, unlock: 3, target: 'defense', fly: true, colony: true },
 };
-G.UNIT_ORDER = ['runner', 'gunner', 'drone', 'mech', 'medic', 'breacher'];
+G.UNIT_ORDER = ['runner', 'gunner', 'drone', 'mech', 'medic', 'breacher', 'titan', 'gunship'];
 
 G.HEROES = {
   ronin: { hp: 950, dmg: 40, interval: 0.8, speed: 1.6, range: 0.7, unlock: 2, target: 'any' },

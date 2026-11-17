@@ -132,6 +132,8 @@
   E.armySpace = (s) => G.UNIT_ORDER.reduce((n, u) => n + (s.army[u] || 0) * G.UNITS[u].space, 0);
   E.queueSpace = (s) => s.queue.reduce((m, u) => m + G.UNITS[u].space, 0);
   E.factoryLevel = (s) => E.maxLevelOf(s, 'factory');
+  // the building that unlocks a unit: city units need the Factory, colony units the colony Hangar
+  E.unitGate = (s, u) => (G.UNITS[u] && G.UNITS[u].colony ? E.maxLevelOf(s, 'xhangar') : E.factoryLevel(s));
   E.hqLevel = (s) => E.maxLevelOf(s, 'squadhq');
   E.heroUnlocked = (s, h) => E.hqLevel(s) >= G.HEROES[h].unlock;
   // hero level multiplier (+8% hitpoints and damage per level)
@@ -429,8 +431,11 @@
     }
     if (c === 'train') {
       const d = G.UNITS[cmd.u]; if (!d) return ERR('needFactory');
-      if (E.factoryLevel(s) < 1) return ERR('needFactory');
-      if (E.factoryLevel(s) < d.unlock) return ERR('factoryAt', { n: d.unlock });
+      if (d.colony) { if (E.unitGate(s, cmd.u) < d.unlock) return ERR('hangarAt', { n: d.unlock }); }
+      else {
+        if (E.factoryLevel(s) < 1) return ERR('needFactory');
+        if (E.factoryLevel(s) < d.unlock) return ERR('factoryAt', { n: d.unlock });
+      }
       if (E.armySpace(s) + E.queueSpace(s) + d.space > E.housing(s)) return ERR('squadFull');
       const e = pay(s, 'copper', d.cost); if (e) return e;
       if (!s.queue.length) s.qStart = now;
@@ -449,7 +454,7 @@
       const d = G.UNITS[cmd.u]; if (!d) return ERR('server');
       if (E.labLevel(s) < 1) return ERR('needLab');
       if (s.research) return ERR('labBusy');
-      if (E.factoryLevel(s) < d.unlock) return ERR('factoryAt', { n: d.unlock });
+      if (E.unitGate(s, cmd.u) < d.unlock) return ERR(d.colony ? 'hangarAt' : 'factoryAt', { n: d.unlock });
       const ri = E.researchInfo(s, cmd.u);
       if (ri.max) return ERR('maxLevel');
       if (ri.blocked) return ERR('labAt', { n: ri.needLab });
@@ -656,7 +661,7 @@
       const u = k.startsWith('c:') ? k.slice(2) : k, hero = G.HEROES[u], d = hero || G.UNITS[u]; if (!d) continue;
       const mul = (hero ? E.heroMul(s, u) : G.unitMul(s.unitLv && s.unitLv[u])) * (1 + 0.5 * Math.min(1, (dep._spells || 0) / 3));
       if (u === 'drone' || u === 'breacher') cap += n * d.dmg * mul * 3;
-      else if (d.interval > 0 && d.dmg > 0) cap += n * (d.dmg * mul / d.interval) * dur;
+      else if (d.interval > 0 && d.dmg > 0) cap += n * (d.dmg * mul / d.interval) * dur * (d.aoe ? 3 : 1); // area blows hit several buildings
       if (u === 'ronin') cap += 70 * 3 * 4; // blade storm
     }
     return cap * 1.4 + 50;

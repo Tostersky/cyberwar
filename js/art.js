@@ -269,7 +269,7 @@
   // heights shared by sprites and per-frame animation
   const HGT = {
     core: (L) => 52 + L * 12, scrapyard: (L) => 46 + L * 4, coppermine: (L) => 58 + L * 5, vault: (L) => 34 + L * 6, silo: (L) => 36 + L * 6,
-    xcore: (L) => 54 + L * 6, xdrill: (L) => 56 + L * 6, xpump: (L) => 34 + L * 5, xcrystal: (L) => 30 + L * 4, xdome: (L) => 34 + L * 4, xcryo: (L) => 24 + L * 3,
+    xcore: (L) => 54 + L * 6, xdrill: (L) => 56 + L * 6, xpump: (L) => 34 + L * 5, xcrystal: (L) => 30 + L * 4, xdome: (L) => 34 + L * 4, xcryo: (L) => 24 + L * 3, xhangar: (L) => 30 + L * 3,
     factory: (L) => 26 + L * 3, squadhq: (L) => 22 + L * 3, laser: (L) => 12 + L * 2, firewall: (L) => 15 + L * 2,
     mortar: (L) => 14 + L * 2, aa: (L) => 14 + L * 2, emp: (L) => 16 + L * 2, mine: () => 3, skymine: () => 24,
     forge: (L) => 26 + L * 3, extractor: (L) => 20 + L * 3, tank: (L) => 14 + L * 2, lab: (L) => 24 + L * 3, clanhub: (L) => 30 + L * 4,
@@ -578,6 +578,33 @@
       if (L >= 3) box(x, ox, oy, 0.3, s - 0.75, 0.75, s - 0.3, 3, 9, pal('#5a4f40'));
       dot(x, c[0], c[1] - h - 4, 1.8, L >= 8 ? '#ffd24a' : t, 8);
       return h + 16;
+    },
+    // hangar: arched sandstone hall with a big striped door, a crane gantry and a landing pad on the roof
+    xhangar(x, ox, oy, s, L, r) {
+      const t = TRIM[L - 1], h = HGT.xhangar(L);
+      colPad(x, ox, oy, s, L);
+      const f = box(x, ox, oy, 0.3, 0.5, s - 0.3, s - 0.3, 3, h, CPAL.stone);
+      // arched roof over the hall
+      const a = up(P(ox, oy, 0.3, 0.5), h), b2 = up(P(ox, oy, s - 0.3, 0.5), h), c2 = up(P(ox, oy, s - 0.3, s - 0.3), h), d2 = up(P(ox, oy, 0.3, s - 0.3), h);
+      const rg = x.createLinearGradient(0, a[1] - 16, 0, c2[1]); rg.addColorStop(0, '#f0e6d4'); rg.addColorStop(1, '#8a7a62');
+      x.fillStyle = rg; x.beginPath(); x.moveTo(...d2); x.bezierCurveTo(d2[0], d2[1] - 22, a[0], a[1] - 22, a[0], a[1]); x.lineTo(b2[0], b2[1]); x.bezierCurveTo(b2[0], b2[1] - 22, c2[0], c2[1] - 22, c2[0], c2[1]); x.closePath(); x.fill();
+      x.strokeStyle = 'rgba(60,50,40,.35)'; x.lineWidth = 0.7;
+      for (let k = 0.15; k < 1; k += 0.14) { const p1 = [d2[0] + (c2[0] - d2[0]) * k, d2[1] + (c2[1] - d2[1]) * k], p2 = [a[0] + (b2[0] - a[0]) * k, a[1] + (b2[1] - a[1]) * k]; x.beginPath(); x.moveTo(...p1); x.bezierCurveTo(p1[0], p1[1] - 22, p2[0], p2[1] - 22, p2[0], p2[1]); x.stroke(); }
+      // big hangar door on the left face, hazard frame
+      const D = [fp(f, 'L', 0.15, 3), fp(f, 'L', 0.85, 3), fp(f, 'L', 0.85, h * 0.82), fp(f, 'L', 0.15, h * 0.82)];
+      poly(x, D, '#2a2620', '#ffc23a', 1.2);
+      for (let z = 7; z < h * 0.8; z += 4) line(x, fp(f, 'L', 0.16, z), fp(f, 'L', 0.84, z), 'rgba(255,194,58,.22)', 0.7);
+      glow(x, CTEAL, 8); line(x, fp(f, 'L', 0.15, h * 0.86), fp(f, 'L', 0.85, h * 0.86), CTEAL, 1.4); noglow(x);
+      sign(x, f, 'R', 0.5, h * 0.55, 'HANGAR', CTEAL, 6);
+      windows(x, f, 'R', h * 0.25, h * 0.4, 1, 4, r, 'rgba(43,227,200,.8)');
+      // crane gantry on the back corner
+      const g0 = P(ox, oy, s - 0.5, 0.6);
+      line(x, [g0[0], g0[1] - h], [g0[0], g0[1] - h - 26 - L * 2], '#c08a50', 2);
+      line(x, [g0[0], g0[1] - h - 24 - L * 2], [g0[0] - 34, g0[1] - h - 8 - L * 2], '#c08a50', 1.6);
+      line(x, [g0[0] - 30, g0[1] - h - 10 - L * 2], [g0[0] - 30, g0[1] - h + 6], '#888', 0.6);
+      dot(x, g0[0], g0[1] - h - 28 - L * 2, 2, L >= 8 ? '#ffd24a' : t, 8);
+      if (L >= 4) { const q = P(ox, oy, 0.9, s - 0.9); x.fillStyle = 'rgba(255,225,77,.4)'; x.beginPath(); x.ellipse(q[0], q[1] - h - 8, 10, 5, 0, 0, Math.PI * 2); x.fill(); }
+      return h + 40 + L * 2;
     },
     xcryo(x, ox, oy, s, L, r) {
       const t = TRIM[L - 1], h = HGT.xcryo(L);
@@ -1160,14 +1187,14 @@
   };
 
   // ---------- units ----------
-  const UCOL = { runner: '#ff2bd6', gunner: '#19f0ff', drone: '#ff3355', mech: '#ffe14d', ronin: '#ff4d4d', nyx: '#b26bff', medic: '#39ff88', breacher: '#ffb040' };
+  const UCOL = { runner: '#ff2bd6', gunner: '#19f0ff', drone: '#ff3355', mech: '#ffe14d', ronin: '#ff4d4d', nyx: '#b26bff', medic: '#39ff88', breacher: '#ffb040', titan: '#2be3c8', gunship: '#ff8a3a' };
   A.UCOL = UCOL;
   // st (optional): { moving, atk 0..1 (1 = just struck), dead 0..1 (death animation progress) }
   A.drawUnit = function (ctx, type, wx, wy, t, flip, flash, st) {
     st = st || { moving: true, atk: 0, dead: 0 };
     const c = UCOL[type];
     const hero = type === 'ronin' || type === 'nyx';
-    const big = type === 'mech' ? 1.9 : hero ? 1.75 : 1.5;
+    const big = type === 'titan' ? 2.5 : type === 'gunship' ? 2 : type === 'mech' ? 1.9 : hero ? 1.75 : 1.5;
     const dead = st.dead || 0;
     ctx.save(); ctx.translate(wx, wy);
     if (dead) ctx.globalAlpha = 1 - dead;
@@ -1183,7 +1210,7 @@
     ctx.scale(big, big);
     if (dead) { ctx.translate(0, -2); ctx.rotate(-dead * 1.4); ctx.translate(0, 2 + dead * 3); }
     const mv = st.moving && !dead ? 1 : 0;
-    const ph = t * (type === 'mech' ? 8 : 13);
+    const ph = t * (type === 'mech' || type === 'titan' ? 7 : 13);
     const swing = Math.sin(ph) * 3 * mv, bob = Math.abs(Math.cos(ph)) * 1.2 * mv;
     const atk = st.atk || 0;
     const skin = flash ? '#ffffff' : null;
@@ -1236,6 +1263,63 @@
       ctx.save(); ctx.globalCompositeOperation = 'lighter';
       G.World.light(ctx, blink ? '#39ff88' : '#ff3355', blink ? -7 : 7, hy - 2, 3, 3, 0.9);
       ctx.restore();
+    } else if (type === 'gunship') {
+      // plasma gunship: hovering hull with twin turbines and a chin cannon
+      const hy = -22 + Math.sin(t * 3) * 1.2 + dead * 16, rc = atk * 2;
+      ctx.save(); ctx.globalCompositeOperation = 'lighter';
+      G.World.light(ctx, '#ff8a3a', -6, hy + 5, 4, 6 + Math.sin(t * 20) * 1, 0.7); G.World.light(ctx, '#ff8a3a', 6, hy + 5, 4, 6 + Math.cos(t * 20) * 1, 0.7);
+      ctx.restore();
+      // turbines
+      for (const sx of [-7, 7]) {
+        const tg = ctx.createLinearGradient(sx - 3, 0, sx + 3, 0); tg.addColorStop(0, '#2a2e3a'); tg.addColorStop(0.5, '#6a7080'); tg.addColorStop(1, '#1a1c24');
+        ctx.fillStyle = skin || tg; ctx.beginPath(); ctx.ellipse(sx, hy + 1, 3, 4, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#ffb070'; ctx.beginPath(); ctx.ellipse(sx, hy + 4.2, 2, 0.9, 0, 0, Math.PI * 2); ctx.fill();
+      }
+      // hull
+      const hg = ctx.createLinearGradient(0, hy - 5, 0, hy + 4); hg.addColorStop(0, skin || '#d8d2c4'); hg.addColorStop(0.5, skin || '#9a9488'); hg.addColorStop(1, skin || '#4a463e');
+      ctx.fillStyle = hg; ctx.beginPath(); ctx.moveTo(-9, hy); ctx.lineTo(-5, hy - 5); ctx.lineTo(7, hy - 4); ctx.lineTo(11, hy); ctx.lineTo(7, hy + 3.5); ctx.lineTo(-6, hy + 3.5); ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = 'rgba(0,0,0,.5)'; ctx.lineWidth = 0.5; ctx.stroke();
+      ctx.fillStyle = c; ctx.fillRect(-6, hy - 0.6, 12, 1);
+      // cockpit
+      ctx.fillStyle = '#10304a'; ctx.beginPath(); ctx.moveTo(4, hy - 4); ctx.lineTo(9, hy - 1); ctx.lineTo(4, hy - 1); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = 'rgba(160,240,255,.6)'; ctx.fillRect(5, hy - 3.2, 2, 0.8);
+      // chin cannon (recoils)
+      ctx.fillStyle = '#20222c'; ctx.fillRect(4 - rc, hy + 3, 9, 1.8);
+      ctx.fillStyle = c; ctx.fillRect(12.4 - rc, hy + 2.9, 1.4, 2);
+      ctx.save(); ctx.globalCompositeOperation = 'lighter'; G.World.light(ctx, c, 13 - rc, hy + 3.9, 3, 3, 0.4 + atk * 0.6); ctx.restore();
+      // tail fin + nav light
+      ctx.fillStyle = '#6a6458'; ctx.beginPath(); ctx.moveTo(-8, hy - 1); ctx.lineTo(-11, hy - 7); ctx.lineTo(-8.5, hy - 7); ctx.lineTo(-5, hy - 2); ctx.closePath(); ctx.fill();
+      if (Math.sin(t * 5) > 0) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; G.World.light(ctx, '#ff3355', -10.5, hy - 7, 2.5, 2.5, 0.9); ctx.restore(); }
+    } else if (type === 'titan') {
+      // titan: heavy colony walker, sandstone armour, teal core, plasma hammer
+      const by = -bob * 0.8;
+      ctx.strokeStyle = '#3a3428'; ctx.lineWidth = 4;
+      ctx.beginPath(); ctx.moveTo(-3.5, -9 + by); ctx.lineTo(-5 + swing, -4.5); ctx.lineTo(-4 + swing * 0.5, 0);
+      ctx.moveTo(3.5, -9 + by); ctx.lineTo(5 - swing, -4.5); ctx.lineTo(4 - swing * 0.5, 0); ctx.stroke();
+      ctx.fillStyle = '#c9a77a'; ctx.fillRect(-6.4 + swing, -6 + by * 0.5, 3, 2.2); ctx.fillRect(3.4 - swing, -6 + by * 0.5, 3, 2.2); // knee plates
+      ctx.fillStyle = '#16140f'; ctx.fillRect(-7 + swing * 0.5, -1.4, 5.5, 2); ctx.fillRect(1.5 - swing * 0.5, -1.4, 5.5, 2);
+      // torso armour
+      const tg = ctx.createLinearGradient(-8, -24 + by, 8, -9 + by); tg.addColorStop(0, skin || '#e0c494'); tg.addColorStop(0.5, skin || '#a8845a'); tg.addColorStop(1, skin || '#5a4430');
+      ctx.fillStyle = tg; ctx.beginPath(); ctx.moveTo(-8, -9 + by); ctx.lineTo(-9, -20 + by); ctx.lineTo(-5, -25 + by); ctx.lineTo(5, -25 + by); ctx.lineTo(9, -20 + by); ctx.lineTo(8, -9 + by); ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = 'rgba(0,0,0,.45)'; ctx.lineWidth = 0.6; ctx.stroke();
+      ctx.fillStyle = 'rgba(0,0,0,.25)'; ctx.fillRect(-8, -12 + by, 16, 3);
+      // glowing reactor core
+      ctx.fillStyle = '#0a2a26'; ctx.beginPath(); ctx.arc(0, -17 + by, 3, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = c; ctx.beginPath(); ctx.arc(0, -17 + by, 1.8 + Math.sin(t * 4) * 0.3, 0, Math.PI * 2); ctx.fill();
+      ctx.save(); ctx.globalCompositeOperation = 'lighter'; G.World.light(ctx, c, 0, -17 + by, 5, 5, 0.6); ctx.restore();
+      // shoulder plates
+      for (const px of [-12, 7]) { ctx.fillStyle = '#c9a77a'; ctx.fillRect(px, -26 + by, 5, 6); ctx.fillStyle = 'rgba(255,255,255,.25)'; ctx.fillRect(px, -26 + by, 5, 1); ctx.fillStyle = c; ctx.fillRect(px + 1, -21.4 + by, 3, 0.6); }
+      // head with visor
+      ctx.fillStyle = skin || '#8a6a48'; ctx.fillRect(-3, -29 + by, 6, 4.5);
+      visor(-2.2, -27.6 + by, 4.4, 1.4);
+      // plasma hammer: raised, then slammed down on attack
+      const sw = 1 - atk, ang = -1.2 + sw * 0.2 + atk * 1.6;
+      ctx.save(); ctx.translate(9, -20 + by); ctx.rotate(ang);
+      ctx.strokeStyle = '#4a4a56'; ctx.lineWidth = 1.8; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, -13); ctx.stroke();
+      ctx.fillStyle = '#2a2a33'; ctx.fillRect(-4.5, -17, 9, 5); ctx.fillStyle = c; ctx.fillRect(-4.5, -15, 9, 1.2);
+      ctx.save(); ctx.globalCompositeOperation = 'lighter'; G.World.light(ctx, c, 0, -14.5, 5, 4, 0.5 + atk * 0.5); ctx.restore();
+      ctx.restore();
+      arm(-9, -21 + by, -10 + swing * 0.3, -13 + by, '#a8845a');
     } else if (type === 'mech') {
       const by = -bob;
       // legs with knees

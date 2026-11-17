@@ -238,7 +238,7 @@
     }
     if (b.type !== 'core' || true) btns += btn('sb-move', IC.move, t('move'));
     if (d.prod && b.level > 0 && b.acc >= 1) btns += btn('sb-col', IC[d.prod], t('collect'));
-    if ((b.type === 'factory' || b.type === 'squadhq') && b.level > 0) btns += btn('sb-army', IC.army, t('army'));
+    if ((b.type === 'factory' || b.type === 'squadhq' || b.type === 'xhangar') && b.level > 0) btns += btn('sb-army', IC.army, t('army'));
     if (b.type === 'lab' && b.level > 0) btns += btn('sb-lab', IC.up, t('research'));
     el.innerHTML = `<div class="sb-title">${t('b_' + b.type)} <small>${b.level > 0 ? t('level') + ' ' + b.level : ''}</small></div>${status}<div class="sb-btns">${btns}</div>`;
     el.classList.remove('hidden');
@@ -496,10 +496,10 @@
       const s = G.state, fl = G.factoryLevel(), cap = G.housing(), used = G.armySpace(), q = G.queueSpace();
       const now = Date.now();
       const units = G.UNIT_ORDER.map((u) => {
-        const d = G.UNITS[u], locked = fl < d.unlock;
+        const d = G.UNITS[u], locked = G.Econ.unitGate(s, u) < d.unlock;
         return `<button class="card unit ${locked ? 'locked' : ''}" data-u="${u}">
           <img src="${G.Art.unitThumb(u)}" alt=""><div class="c-name">${t('u_' + u)}</div>
-          ${locked ? `<div class="c-lock">${t('factoryAt', { n: d.unlock })}</div>` :
+          ${locked ? `<div class="c-lock">${t(d.colony ? 'hangarAt' : 'factoryAt', { n: d.unlock })}</div>` :
             `<div class="c-cost">${costHtml('copper', d.cost, s.res.copper >= d.cost)}</div><div class="c-time">${d.space} ${t('housing').toLowerCase()} · ${d.time}s</div>`}
           <div class="c-have">${s.army[u]}</div><div class="c-cnt">${t('level')} ${(s.unitLv && s.unitLv[u]) || 1}</div>
           <span class="c-info" data-info="${u}">i</span>
@@ -631,7 +631,7 @@
       row(t('st_space'), base.space);
       row(t('st_train'), G.fmtTime(base.time));
       row(t('cost'), costHtml('copper', base.cost));
-      row(t('st_unlock'), t('b_factory') + ' ' + t('level') + ' ' + base.unlock);
+      row(t('st_unlock'), t(base.colony ? 'b_xhangar' : 'b_factory') + ' ' + t('level') + ' ' + base.unlock);
     } else row(t('st_unlock'), t('b_squadhq') + ' ' + t('level') + ' ' + base.unlock);
     const head = hero ? t('h_' + u) : t('u_' + u) + ' · ' + t('level') + ' ' + lv + (lv >= maxLv ? ' (max)' : '');
     U.modal(head, `<div class="info-top"><img src="${G.Art.unitThumb(u)}" alt=""><p>${t(hero ? 'hd_' + u : 'ud_' + u)}</p></div>
@@ -652,10 +652,10 @@
           <button class="btn sm primary" id="lab-fin">${IC.bolt}${costHtml('chips', cost, s.res.chips >= cost)}</button></div>`;
       }
       const cards = G.UNIT_ORDER.map((u) => {
-        const ri = G.Econ.researchInfo(s, u), lv = ri.cur, locked = G.factoryLevel() < G.UNITS[u].unlock;
+        const ri = G.Econ.researchInfo(s, u), lv = ri.cur, locked = G.Econ.unitGate(s, u) < G.UNITS[u].unlock;
         const pct = Math.round(G.RESEARCH.bonus * 100);
         let foot;
-        if (locked) foot = `<div class="c-lock">${t('factoryAt', { n: G.UNITS[u].unlock })}</div>`;
+        if (locked) foot = `<div class="c-lock">${t(G.UNITS[u].colony ? 'hangarAt' : 'factoryAt', { n: G.UNITS[u].unlock })}</div>`;
         else if (ri.max) foot = `<div class="c-lock">${t('maxLevel')}</div>`;
         else if (ri.blocked) foot = `<div class="c-lock">${t('labAt', { n: ri.needLab })}</div>`;
         else foot = `<div class="c-cost">${costHtml('copper', ri.cost, s.res.copper >= ri.cost)}</div><div class="c-time">${G.fmtTime(ri.time)} · +${pct}%</div>`;

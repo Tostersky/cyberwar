@@ -378,7 +378,14 @@
       u.cd -= dt;
       if (u.cd <= 0) {
         u.cd = u.def.interval; u.atkT = 0.25;
-        damageB(goal, u.def.dmg * (u.rage > 0 ? G.SPELLS.rage.power : 1));
+        const hit = u.def.dmg * (u.rage > 0 ? G.SPELLS.rage.power : 1);
+        damageB(goal, hit);
+        if (u.def.aoe) {
+          // titan's hammer: a shock ring that also hurts buildings next to the target
+          for (const q of b.bs) if (q !== goal && !q.dead && !q.trap && distRect(cx, cy, q) <= u.def.aoe) damageB(q, hit * 0.5);
+          const p = G.tileToWorld(cx, cy); b.fx.push({ k: 'ring', x: p[0], y: p[1], r: u.def.aoe * G.TW * 0.6, life: 0.35, max: 0.35, color: G.Art.UCOL[u.type] });
+          b.shake = Math.max(b.shake || 0, 0.12);
+        }
         const from = unitW(u), to = centerW(goal);
         G.Sfx.play(u.def.range > 1.5 ? 'shot' : 'hit');
         if (u.def.range > 1.5) b.fx.push({ k: 'bolt', x1: from[0] + (u.flip ? -14 : 14), y1: from[1] - 6, x2: to[0], y2: to[1], color: G.Art.UCOL[u.type], life: 0.16, max: 0.16 });
@@ -671,7 +678,7 @@
       G.R.bar(ctx, c[0], c[1], q.wall ? 18 : 34, q.hp / q.maxHp, q.hp / q.maxHp > 0.5 ? '#39ff88' : '#ffe14d');
     }
     for (const u of b.units) if (!u.dead && (u.hp < u.maxHp || u.hero)) {
-      const p = unitW(u, (u.fly ? 36 : u.type === 'mech' ? 46 : u.hero ? 40 : 32));
+      const p = unitW(u, (u.type === 'gunship' ? 44 : u.fly ? 36 : u.type === 'titan' ? 62 : u.type === 'mech' ? 46 : u.hero ? 40 : 32));
       G.R.bar(ctx, p[0], p[1], u.hero ? 22 : 14, u.hp / u.maxHp, u.hero ? '#ffe14d' : '#ff2bd6');
     }
     // effects (additive 'bloom' instead of costly shadowBlur)
