@@ -133,6 +133,7 @@
   }
   // soft shadow cast toward the bottom-left
   function shadow(x, ox, oy, s, h) {
+    return; // shadows switched off (player feedback: they got in the way)
     const k = Math.min(1.2, h / 60);
     const off = [-10 * k, 6 * k];
     x.save();
@@ -839,6 +840,34 @@
     const url = c.toDataURL(); thumbs.set(key, url); return url;
   };
 
+  // storage fill gauge on the front corner of a storage building: one bar per resource it keeps,
+  // with a blinking FULL tag when that resource is at its limit (whole base: all storages share the load)
+  const GCOL = { scrap: '#ffc23a', copper: '#d0603a', plasma: '#c27bff' };
+  A.storeGauge = function (ctx, b, t) {
+    const d = G.BUILDINGS[b.type], s = d.size, st = G.state;
+    const res = d.storeRes === 'plasma' ? ['plasma'] : ['scrap', 'copper'];
+    const [fx, fy] = G.tileToWorld(b.x + s, b.y + s);
+    const w = 46, bh = 7, x0 = fx - w / 2 + 5, y0 = fy - 16 - res.length * (bh + 3);
+    ctx.save();
+    ctx.fillStyle = 'rgba(6,5,14,.82)'; ctx.strokeStyle = 'rgba(160,150,220,.45)'; ctx.lineWidth = 0.8;
+    ctx.beginPath(); ctx.rect(x0 - 12, y0 - 3, w + 15, res.length * (bh + 3) + 3); ctx.fill(); ctx.stroke();
+    res.forEach((r, i) => {
+      const cap = G.capOf(r), fr = cap > 0 ? Math.min(1, (st.res[r] || 0) / cap) : 0, y = y0 + i * (bh + 3);
+      ctx.fillStyle = GCOL[r]; ctx.beginPath(); ctx.arc(x0 - 6, y + bh / 2, 2.6, 0, Math.PI * 2); ctx.fill(); // resource colour dot
+      ctx.fillStyle = 'rgba(255,255,255,.08)'; ctx.fillRect(x0, y, w, bh);
+      const full = fr >= 0.999;
+      ctx.fillStyle = full ? (Math.sin(t * 6) > 0 ? '#ff3355' : GCOL[r]) : GCOL[r];
+      ctx.fillRect(x0, y, w * fr, bh);
+      ctx.fillStyle = 'rgba(255,255,255,.35)'; ctx.fillRect(x0, y, w * fr, 1);
+      for (let k = 1; k < 4; k++) { ctx.fillStyle = 'rgba(0,0,0,.45)'; ctx.fillRect(x0 + w * k / 4, y, 0.6, bh); }
+      if (full) {
+        ctx.font = 'bold 7px "Segoe UI",sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+        ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(0,0,0,.9)'; ctx.strokeText(G.t('gaugeFull'), x0 + w + 6, y + bh / 2);
+        ctx.fillStyle = '#ff5a6a'; ctx.fillText(G.t('gaugeFull'), x0 + w + 6, y + bh / 2);
+      }
+    });
+    ctx.restore();
+  };
   A.drawSprite = function (ctx, sp, wx, wy, alpha) {
     if (alpha != null) ctx.globalAlpha = alpha;
     ctx.drawImage(sp.c, wx - sp.ax, wy - sp.ay, sp.w, sp.h);

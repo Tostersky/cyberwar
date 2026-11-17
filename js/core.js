@@ -9,22 +9,30 @@ G.Camera = class {
   center(tx, ty) {
     const [wx, wy] = G.tileToWorld(tx == null ? G.MAP / 2 : tx, ty == null ? G.MAP / 2 : ty);
     this.x = wx; this.y = wy;
-    this.z = G.clamp(Math.min(G.W / 900, G.H / 560) * 1.1, 0.45, 1.25);
+    this.z = G.clamp(Math.min(G.W / 900, G.H / 560) * 1.1, Math.max(0.45, this.minZ()), 1.25);
+    this.clampPos();
   }
+  // the view must never reach past the junkyard border: smallest zoom that still fits inside it
+  minZ() { const B = (G.World && G.World.BORDER) || 0, M = G.MAP; return (G.W / G.TW + G.H / G.TH) / (M + 2 * B - 1); }
   toWorld(sx, sy) { return [(sx - G.W / 2) / this.z + this.x, (sy - G.H / 2) / this.z + this.y]; }
   toScreen(wx, wy) { return [(wx - this.x) * this.z + G.W / 2, (wy - this.y) * this.z + G.H / 2]; }
   toTile(sx, sy) { const w = this.toWorld(sx, sy); return G.worldToTile(w[0], w[1]); }
   pan(dx, dy) { this.x -= dx / this.z; this.y -= dy / this.z; this.clampPos(); }
   zoomAt(f, sx, sy) {
     const a = this.toWorld(sx, sy);
-    this.z = G.clamp(this.z * f, 0.35, 2.2);
+    this.z = G.clamp(this.z * f, Math.max(0.35, this.minZ()), 2.2);
     const b = this.toWorld(sx, sy);
     this.x += a[0] - b[0]; this.y += a[1] - b[1]; this.clampPos();
   }
   clampPos() {
-    const M = G.MAP;
-    this.x = G.clamp(this.x, -M * G.TW / 2, M * G.TW / 2);
-    this.y = G.clamp(this.y, 0, M * G.TH);
+    const M = G.MAP, B = (G.World && G.World.BORDER) || 0, hw = G.TW / 2, hh = G.TH / 2;
+    if (this.z < this.minZ()) this.z = this.minZ();
+    // keep all four screen corners inside the outer edge of the border (checked in tile space)
+    const e = (G.W / (this.z * G.TW) + G.H / (this.z * G.TH)) / 2;
+    let tx = (this.x / hw + this.y / hh) / 2, ty = (this.y / hh - this.x / hw) / 2;
+    const lo = -B + e, hi = M + B - e;
+    tx = lo <= hi ? G.clamp(tx, lo, hi) : M / 2; ty = lo <= hi ? G.clamp(ty, lo, hi) : M / 2;
+    this.x = (tx - ty) * hw; this.y = (tx + ty) * hh;
   }
   apply(ctx) {
     const d = G.dpr, z = this.z;
@@ -100,6 +108,7 @@ G.R = {
     const t = performance.now() / 1000;
     G.World.drawSky(ctx, cam, t);
     cam.apply(ctx);
+    G.World.drawBorderGround(ctx);
     const gr = G.World.ground();
     ctx.drawImage(gr.c, -gr.ox, -gr.oy, gr.w, gr.h);
     G.World.drawLights(ctx, t);

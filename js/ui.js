@@ -163,7 +163,7 @@
     if (sh) { sh.classList.toggle('hidden', !(left > 0)); if (left > 0) $('#shield-v').textContent = G.fmtTime(left); }
     $('#pl-tro').textContent = s.trophies;
     // plasma shows up once it matters (Core 5+ or you already have some)
-    $('.res[data-r="plasma"]').classList.toggle('hidden', !(G.coreLevel() >= 5 || s.res.plasma > 0));
+    $('.res[data-r="plasma"]').classList.remove('hidden'); // plasma is always shown (0 / 0 until the first tank)
     for (const r of ['scrap', 'copper', 'plasma', 'chips']) {
       const el = $('.res[data-r="' + r + '"]');
       const cap = G.capOf(r), v = s.res[r] || 0;
@@ -222,6 +222,7 @@
       const u = G.upgradeInfo(b);
       // upgrade only when the Core allows it; otherwise say right away what's needed
       if (u.max) btns += `<div class="sb-btn sb-info-only"><span class="sb-l">${t('maxLevel')}</span></div>`;
+      else if (u.coreNeeds && u.coreNeeds.length) btns += btn('sb-up', IC.up, t('coreNeedsBtn'), `<span class="sb-c warn">${u.coreNeeds.reduce((m, x) => m + x.n, 0)}</span>`);
       else if (u.blocked) btns += `<div class="sb-btn sb-info-only"><span class="sb-ic">${IC.up}</span><span class="sb-l">${t('needCore', { n: u.needCore })}</span></div>`;
       else {
         btns += btn('sb-up', IC.up, t('upgrade'), `<span class="sb-c">${resIc(u.res)}${G.fmt(u.cost)}</span>`);
@@ -321,9 +322,23 @@
     U.modal(t('upgrade') + ': ' + t('b_' + b.type),
       `<div class="info-top"><img src="${G.Art.buildThumb(b.type, u.next)}" alt=""><div><p>${t('level')} ${b.level} → <b>${u.next}</b></p>
        <p>${t('cost')}: ${costHtml(u.res, u.cost, ok)} · ${t('time')}: <b>${u.time ? G.fmtTime(u.time) : t('instant')}</b></p>
-       ${u.blocked ? `<p class="warn">${t('needCore', { n: u.needCore })}</p>` : ''}</div></div>
+       ${u.blocked && !(u.coreNeeds && u.coreNeeds.length) ? `<p class="warn">${t('needCore', { n: u.needCore })}</p>` : ''}</div></div>
+       ${u.coreNeeds && u.coreNeeds.length ? `<div class="core-needs"><p class="warn">${t('coreNeedsTitle', { n: u.next })}</p>
+         <div class="cn-list">${u.coreNeeds.map((x) => `<button class="cn" data-cn="${x.type}"><img src="${G.Art.buildThumb(x.type, x.lv)}" alt=""><span>${t('b_' + x.type)}</span><b>${x.n > 1 ? x.n + '× ' : ''}→ ${t('level')} ${x.lv}</b><i class="cn-go">${IC.up}</i></button>`).join('')}</div>
+         <p class="hint">${t('coreNeedsHint')}</p></div>` : ''}
        ${statRows(b.type, b.level, u.next)}
        <div class="row-btns"><button class="btn primary" id="u-go" ${u.blocked ? 'disabled' : ''}>${IC.up}${t('upgrade')}</button></div>`);
+    // core: tap a missing building to start upgrading the lowest one of that type right away
+    document.querySelectorAll('#modal [data-cn]').forEach((el) => {
+      el.onclick = () => {
+        const type = el.dataset.cn, L = G.coreLevel();
+        const list = G.state.buildings.filter((q) => q.type === type && q.level < L && !(q.busyUntil > Date.now())).sort((p, q) => p.level - q.level);
+        if (!list.length) { U.toast(t('cnBusy')); return; }
+        const e = G.startUpgrade(list[0]);
+        if (e) { U.toast(e); return; }
+        G.Sfx.play('build'); U.toast(t('cnStarted', { n: t('b_' + type) })); U.refreshHud(); U.openUpgrade(b);
+      };
+    });
     $('#u-go').onclick = () => {
       const e = G.startUpgrade(b);
       if (e) { U.toast(e); return; }

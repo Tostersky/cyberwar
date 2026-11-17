@@ -273,6 +273,7 @@
     const constructing = b.level === 0;
     G.Art.drawSprite(ctx, sp, wx, wy, alpha != null ? alpha : (constructing ? 0.35 : 1));
     if (!constructing && alpha == null) G.Art.anim(ctx, b.type, lv, wx, wy, V.t, V.lastDt || 0.016, b.id);
+    if (!constructing && alpha == null && B[b.type].store) G.Art.storeGauge(ctx, b, V.t);
     if (b.type === 'laser' && !constructing) {
       const [cx, cy] = G.tileToWorld(b.x + 1, b.y + 1);
       G.Art.drawLaserHead(ctx, cx, cy, lv, V.t * 0.5 + b.id, false, false);

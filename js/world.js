@@ -98,6 +98,12 @@
   }
   Wd.drawSky = function (ctx, cam, t) {
     const w = G.W, h = G.H, d = G.dpr;
+    // the city skyline was removed: the map now ends in a junkyard border over a plain dark backdrop
+    ctx.setTransform(d, 0, 0, d, 0, 0);
+    const bg = ctx.createRadialGradient(w / 2, h / 2, 10, w / 2, h / 2, Math.max(w, h) * 0.75);
+    bg.addColorStop(0, '#120e1c'); bg.addColorStop(1, '#06050a');
+    ctx.fillStyle = bg; ctx.fillRect(0, 0, w, h);
+    if (Wd.SKYLINE !== true) return;
     if (!sky || sky.w !== w || sky.h !== h || sky.d !== d) sky = buildSky(w, h);
     ctx.setTransform(d, 0, 0, d, 0, 0);
     ctx.drawImage(sky.bg, 0, 0, w, h);
@@ -127,6 +133,36 @@
         ctx.restore();
       }
     });
+  };
+
+  // ---------- junkyard border: rusty ground ring around the map (cannot be used) ----------
+  const BORDER = 12; Wd.BORDER = BORDER;
+  let dirtPat = null;
+  Wd.drawBorderGround = function (ctx) {
+    if (!dirtPat) {
+      const [pc, px] = mk(160, 80, 1), r = G.rng(777);
+      px.fillStyle = '#1a1410'; px.fillRect(0, 0, 160, 80);
+      for (let i = 0; i < 900; i++) {
+        const c = ['rgba(90,52,30,.35)', 'rgba(40,30,24,.6)', 'rgba(120,80,50,.25)', 'rgba(10,8,8,.55)', 'rgba(70,70,80,.25)'][Math.floor(r() * 5)];
+        px.fillStyle = c; px.fillRect(r() * 160, r() * 80, 1 + r() * 3, 1 + r() * 2);
+      }
+      for (let i = 0; i < 14; i++) { px.fillStyle = 'rgba(0,0,0,.25)'; px.beginPath(); px.ellipse(r() * 160, r() * 80, 6 + r() * 14, 3 + r() * 6, 0, 0, Math.PI * 2); px.fill(); }
+      dirtPat = ctx.createPattern(pc, 'repeat');
+    }
+    const W0 = (tx, ty) => G.tileToWorld(tx, ty);
+    const o = [W0(-BORDER, -BORDER), W0(M + BORDER, -BORDER), W0(M + BORDER, M + BORDER), W0(-BORDER, M + BORDER)];
+    const i = [W0(0, 0), W0(M, 0), W0(M, M), W0(0, M)];
+    ctx.save();
+    ctx.beginPath(); ctx.moveTo(...o[0]); ctx.lineTo(...o[1]); ctx.lineTo(...o[2]); ctx.lineTo(...o[3]); ctx.closePath();
+    ctx.moveTo(...i[0]); ctx.lineTo(...i[3]); ctx.lineTo(...i[2]); ctx.lineTo(...i[1]); ctx.closePath();
+    ctx.fillStyle = dirtPat; ctx.fill('evenodd');
+    // fade the outer edge into the dark backdrop
+    for (let k = 0; k < 3; k++) {
+      const a = [W0(-BORDER + k, -BORDER + k), W0(M + BORDER - k, -BORDER + k), W0(M + BORDER - k, M + BORDER - k), W0(-BORDER + k, M + BORDER - k)];
+      ctx.strokeStyle = 'rgba(6,5,10,' + (0.85 - k * 0.25) + ')'; ctx.lineWidth = TW * 0.9;
+      ctx.beginPath(); ctx.moveTo(...a[0]); ctx.lineTo(...a[1]); ctx.lineTo(...a[2]); ctx.lineTo(...a[3]); ctx.closePath(); ctx.stroke();
+    }
+    ctx.restore();
   };
 
   // ---------- street props on the outer road ring ----------
@@ -162,11 +198,79 @@
       if (!onRing(x, y, s)) continue;
       if (put(kind, x, y, s)) placed++;
     }
+    // junkyard border: a fence on the map edge, then heaps of scrap, car stacks, tyres and a few cranes
+    const B = BORDER, bocc = new Set(), bput = (kind, x, y, s, extra) => {
+      for (let j = y; j < y + s; j++) for (let i = x; i < x + s; i++) if (bocc.has(i + ',' + j) || (i >= 0 && j >= 0 && i < M && j < M)) return false;
+      for (let j = y; j < y + s; j++) for (let i = x; i < x + s; i++) bocc.add(i + ',' + j);
+      Wd.props.push(Object.assign({ kind, x, y, s, seed: Math.floor(rnd() * 1e6), border: true }, extra || {}));
+      return true;
+    };
+    for (let k = 0; k < M; k += 2) { bput('fence', k, -1, 1, { dir: 'x' }); bput('fence', -1, k, 1, { dir: 'y' }); bput('fence', k, M, 1, { dir: 'x' }); bput('fence', M, k, 1, { dir: 'y' }); }
+    const bk = ['heap', 'heap', 'cars', 'heap', 'tyres', 'heap', 'cars', 'crane', 'heap', 'tyres'];
+    for (let n = 0, tr = 0; n < 340 && tr < 12000; tr++) {
+      const kind = bk[n % bk.length], s = kind === 'tyres' ? 1 : kind === 'crane' ? 2 : 2 + (rnd() < 0.5 ? 1 : 0);
+      const x = Math.floor(-B + rnd() * (M + 2 * B - s + 1)), y = Math.floor(-B + rnd() * (M + 2 * B - s + 1));
+      // right next to the base on the front sides (bottom/right) heaps stay low so they never hide buildings
+      const front = (x + s > M && x < M + 3) || (y + s > M && y < M + 3);
+      if (front && (kind === 'crane' || s > 2)) continue;
+      if (bput(front && kind === 'heap' ? 'heapLow' : kind, x, y, s)) n++;
+    }
   })();
 
   const propCache = new Map();
   const HEAD = 90, PADX = 10;
+  const RUST = ['#5a3420', '#6a4028', '#4a3a30', '#3a3a44', '#704a2a', '#2e3a3a', '#5a2a24', '#4a4a3a'];
   const PROP_DRAW = {
+    fence(x, ox, oy, p) { // chain-link fence segment with a hazard sign: the edge of the playable city
+      const along = p.dir === 'x';
+      const a = along ? P(ox, oy, 0, 0.5) : P(ox, oy, 0.5, 0), b = along ? P(ox, oy, 2, 0.5) : P(ox, oy, 0.5, 2);
+      for (const q of [a, [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], b]) line(x, q, [q[0], q[1] - 20], '#4a4a56', 1.6);
+      x.save(); x.beginPath(); x.moveTo(a[0], a[1] - 2); x.lineTo(b[0], b[1] - 2); x.lineTo(b[0], b[1] - 19); x.lineTo(a[0], a[1] - 19); x.closePath();
+      x.fillStyle = 'rgba(120,120,140,.10)'; x.fill(); x.clip();
+      x.strokeStyle = 'rgba(150,150,170,.35)'; x.lineWidth = 0.5;
+      for (let k = -80; k < 80; k += 4) { x.beginPath(); x.moveTo(a[0] + k, a[1] - 25); x.lineTo(a[0] + k + 40, a[1] + 15); x.moveTo(a[0] + k, a[1] + 15); x.lineTo(a[0] + k + 40, a[1] - 25); x.stroke(); }
+      x.restore();
+      line(x, [a[0], a[1] - 19], [b[0], b[1] - 19], '#5a5a66', 1);
+      for (let k = 0; k < 6; k++) { const q = [a[0] + (b[0] - a[0]) * k / 6, a[1] + (b[1] - a[1]) * k / 6 - 21]; x.strokeStyle = 'rgba(170,170,190,.45)'; x.lineWidth = 0.6; x.beginPath(); x.arc(q[0], q[1], 1.6, 0, Math.PI * 2); x.stroke(); }
+      if (p.seed % 3 === 0) { const m = [(a[0] + b[0]) / 2 + 6, (a[1] + b[1]) / 2 - 12]; x.fillStyle = '#e8b820'; x.beginPath(); x.moveTo(m[0], m[1] - 5); x.lineTo(m[0] + 5, m[1] + 4); x.lineTo(m[0] - 5, m[1] + 4); x.closePath(); x.fill(); x.fillStyle = '#111'; x.fillRect(m[0] - 0.6, m[1] - 2, 1.2, 3.4); x.fillRect(m[0] - 0.6, m[1] + 2.2, 1.2, 1); }
+      return 26;
+    },
+    heap(x, ox, oy, p, r) { return junkHeap(x, ox, oy, p, r, 1); },
+    heapLow(x, ox, oy, p, r) { return junkHeap(x, ox, oy, p, r, 0.45); },
+    cars(x, ox, oy, p, r) { // stack of crushed car bodies
+      let z = 0, top = 0;
+      const n = 2 + Math.floor(r() * 2);
+      for (let i = 0; i < n; i++) {
+        const dx = (r() - 0.5) * 0.3, c = RUST[Math.floor(r() * RUST.length)];
+        const f = box(x, ox, oy, 0.25 + dx, 0.45, 1.75 + dx, 1.35, z, z + 6, pal(c));
+        x.fillStyle = 'rgba(140,200,220,.25)'; const w = P(ox, oy, 0.9 + dx, 1.35); x.fillRect(w[0] - 4, w[1] - z - 5, 8, 2.5);
+        void f; z += 6; top = z;
+      }
+      return top + 10;
+    },
+    tyres(x, ox, oy, p, r) { // pile of old tyres
+      const c = P(ox, oy, 0.5, 0.5); let z = 0;
+      for (let i = 0; i < 3 + Math.floor(r() * 3); i++) {
+        const dx = (r() - 0.5) * 6;
+        x.fillStyle = '#121216'; x.beginPath(); x.ellipse(c[0] + dx, c[1] - z, 9, 4.5, 0, 0, Math.PI * 2); x.fill();
+        x.strokeStyle = '#2a2a33'; x.lineWidth = 2.2; x.stroke();
+        x.fillStyle = '#07070a'; x.beginPath(); x.ellipse(c[0] + dx, c[1] - z, 3.5, 1.7, 0, 0, Math.PI * 2); x.fill();
+        z += 3.4;
+      }
+      return z + 10;
+    },
+    crane(x, ox, oy, p, r) { // rusted scrapyard crane with a magnet
+      const b = P(ox, oy, 1, 1);
+      box(x, ox, oy, 0.6, 0.6, 1.4, 1.4, 0, 6, pal('#4a3a30'));
+      for (let z = 6; z < 66; z += 8) { line(x, [b[0] - 4, b[1] - z], [b[0] + 4, b[1] - z - 8], '#8a5a2a', 0.8); line(x, [b[0] + 4, b[1] - z], [b[0] - 4, b[1] - z - 8], '#8a5a2a', 0.8); }
+      line(x, [b[0] - 4, b[1] - 6], [b[0] - 4, b[1] - 66], '#7a4a24', 1.4); line(x, [b[0] + 4, b[1] - 6], [b[0] + 4, b[1] - 66], '#7a4a24', 1.4);
+      const dir = r() < 0.5 ? 1 : -1, tip = [b[0] + dir * 44, b[1] - 60];
+      line(x, [b[0], b[1] - 66], tip, '#9a6a2a', 2.4); line(x, [b[0], b[1] - 72], tip, '#6a4a20', 0.8);
+      line(x, tip, [tip[0], tip[1] + 22], '#666', 0.7);
+      x.fillStyle = '#2a2a30'; x.beginPath(); x.ellipse(tip[0], tip[1] + 24, 6, 3, 0, 0, Math.PI * 2); x.fill();
+      dot(x, b[0], b[1] - 74, 1.4, '#ff5a2a', 6);
+      return 80;
+    },
     lamp(x, ox, oy, p) {
       const b = P(ox, oy, 0.5, 0.5);
       cyl(x, b[0], b[1], 2.2, 0, 46, '#3a3d4a', '#555a6a');
@@ -226,8 +330,40 @@
       return 20;
     },
   };
+  // heap of scrap: rusty plates, beams, barrels and pipes piled into a mound
+  function junkHeap(x, ox, oy, p, r, hk) {
+    const s = p.s, c0 = P(ox, oy, s / 2, s / 2), H = (14 + r() * 16) * s / 2 * hk;
+    // dirt mound
+    const g = x.createRadialGradient(c0[0] - 8, c0[1] - H * 0.6, 2, c0[0], c0[1], s * TW * 0.5);
+    g.addColorStop(0, '#5a4030'); g.addColorStop(0.6, '#3a2a20'); g.addColorStop(1, '#1a1410');
+    x.fillStyle = g; x.beginPath(); x.ellipse(c0[0], c0[1], s * TW * 0.42, s * TH * 0.44, 0, Math.PI, 0); x.quadraticCurveTo(c0[0] + s * TW * 0.2, c0[1] - H * 1.2, c0[0], c0[1] - H); x.quadraticCurveTo(c0[0] - s * TW * 0.2, c0[1] - H * 1.2, c0[0] - s * TW * 0.42, c0[1]); x.fill();
+    x.fillStyle = g; x.beginPath(); x.ellipse(c0[0], c0[1], s * TW * 0.42, s * TH * 0.44, 0, 0, Math.PI); x.fill();
+    // junk sticking out of the mound
+    const n = Math.floor(6 + s * 4 * hk);
+    const items = [];
+    for (let i = 0; i < n; i++) items.push({ u: 0.25 + r() * (s - 0.7), v: 0.25 + r() * (s - 0.7), k: r() });
+    items.sort((a, b) => a.u + a.v - b.u - b.v);
+    for (const it of items) {
+      const q = P(ox, oy, it.u, it.v), dist = 1 - Math.hypot(it.u - s / 2, it.v - s / 2) / (s * 0.7), z = Math.max(0, H * dist * 0.85);
+      const col = RUST[Math.floor(r() * RUST.length)];
+      if (it.k < 0.45) { // bent plate
+        x.save(); x.translate(q[0], q[1] - z); x.rotate((r() - 0.5) * 1.4);
+        x.fillStyle = col; x.fillRect(-6, -3, 12, 5); x.fillStyle = 'rgba(255,255,255,.12)'; x.fillRect(-6, -3, 12, 1); x.strokeStyle = 'rgba(0,0,0,.5)'; x.lineWidth = 0.5; x.strokeRect(-6, -3, 12, 5);
+        x.restore();
+      } else if (it.k < 0.65) { // beam / pipe
+        const ang = (r() - 0.5) * 2, L2 = 10 + r() * 12;
+        line(x, [q[0], q[1] - z], [q[0] + Math.cos(ang) * L2, q[1] - z - Math.abs(Math.sin(ang)) * L2], r() < 0.5 ? '#6a6a76' : '#7a4a2a', 2);
+      } else if (it.k < 0.85) { // barrel
+        cyl(x, q[0], q[1] - z + 4, 3, 0, 7, r() < 0.5 ? '#7a3a24' : '#2a5a4a', '#3a3a40');
+      } else { // small box
+        box(x, ox, oy, it.u, it.v, it.u + 0.22, it.v + 0.22, z, z + 4, pal(col));
+      }
+    }
+    if (r() < 0.25) dot(x, c0[0] + (r() - 0.5) * 20, c0[1] - H * 0.7, 1.2, '#ff7a30', 6); // ember
+    return H + 22;
+  }
   function propSprite(p) {
-    const key = p.kind + p.seed % 7 + (p.color || '');
+    const key = p.kind + p.s + (p.dir || '') + p.seed % 7 + (p.color || '');
     let sp = propCache.get(key);
     if (sp) return sp;
     const w = p.s * TW + PADX * 2, h = p.s * TH + HEAD;

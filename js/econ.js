@@ -154,11 +154,21 @@
     }
     return true;
   };
+  // before the Core can go up, every other building (walls excepted) must reach the highest level this Core allows
+  E.coreNeeds = function (s) {
+    const L = Math.min(G.MAXLV, E.coreLevel(s)), need = {};
+    for (const b of s.buildings) {
+      if (b.type === 'core' || BD()[b.type].wall) continue;
+      if (b.level < L) need[b.type] = (need[b.type] || 0) + 1;
+    }
+    return Object.keys(need).map((type) => ({ type, n: need[type], lv: L }));
+  };
   E.upgradeInfo = function (s, b) {
     const d = BD()[b.type], next = b.level + 1;
     if (b.level >= G.MAXLV) return { max: true };
     const needCore = b.type === 'core' ? 0 : next;
-    return { next, res: d.res, cost: d.cost[next - 1], time: d.time[next - 1], needCore, blocked: needCore > E.coreLevel(s) };
+    const coreNeeds = b.type === 'core' ? E.coreNeeds(s) : [];
+    return { next, res: d.res, cost: d.cost[next - 1], time: d.time[next - 1], needCore, coreNeeds, blocked: needCore > E.coreLevel(s) || coreNeeds.length > 0 };
   };
   // chips to finish now: cheaper per minute for long timers (16 h ~ 170 chips)
   E.speedCost = (ms) => Math.max(1, Math.ceil(Math.pow(Math.max(0, ms) / 60000, 0.75)));
@@ -366,6 +376,7 @@
       if (b.busyUntil > now) return ERR('noBuilder');
       const u = E.upgradeInfo(s, b);
       if (u.max) return ERR('maxLevel');
+      if (u.coreNeeds && u.coreNeeds.length) return ERR('coreNeeds');
       if (u.blocked) return ERR('needCore', { n: u.needCore });
       if (u.time > 0 && E.buildersBusy(s, now) >= E.builders(s)) return ERR('noBuilder');
       const e = pay(s, u.res, u.cost); if (e) return e;
