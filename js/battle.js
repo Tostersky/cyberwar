@@ -175,7 +175,9 @@
       const c = centerW(q, 8);
       Bt.fx.push({ k: 'boom', x: c[0], y: c[1], r: q.wall ? 12 : 16 + q.size * 8, life: 0.5, max: 0.5, color: '#ff8a1f' });
       G.Sfx.play(q.wall ? 'small' : 'boom');
-      for (const u of Bt.units) if (u.wall === q.i) { u.wall = null; u.path = null; }
+      // any wall going down may open a shorter way: everyone stuck at a wall re-plans (wall breachers keep their target)
+      if (q.wall) { for (const u of Bt.units) if (u.wall != null && u.def.target !== 'wall') { u.wall = null; u.path = null; } }
+      else for (const u of Bt.units) if (u.wall === q.i) { u.wall = null; u.path = null; }
     }
   }
 
@@ -351,7 +353,18 @@
     if (!u.fly && u.path == null) { const r = findPath(u, u.target); u.path = r.path; u.wall = r.wall; }
     let goal = null;
     if (distRect(u.x, u.y, tq) <= u.def.range) goal = tq;
-    else if (u.wall != null && !b.bs[u.wall].dead && distRect(u.x, u.y, b.bs[u.wall]) <= u.def.range) goal = b.bs[u.wall];
+    else if (u.wall != null && !b.bs[u.wall].dead && distRect(u.x, u.y, b.bs[u.wall]) <= u.def.range) {
+      goal = b.bs[u.wall];
+      // don't keep hitting a wall when a gap nearby leads to the target: re-plan now and then
+      if (u.def.target !== 'wall') {
+        u.replan = (u.replan == null ? Math.random() : u.replan) - dt;
+        if (u.replan <= 0) {
+          u.replan = 1;
+          const r = findPath(u, u.target);
+          if (r.wall !== u.wall) { u.path = r.path; u.wall = r.wall; goal = null; }
+        }
+      }
+    }
     if (goal) {
       const [cx, cy] = closest(u.x, u.y, goal);
       u.flip = (cx - cy) < (u.x - u.y);

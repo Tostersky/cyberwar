@@ -177,6 +177,7 @@ G.STR = {
     presetQueued: 'Dodano do kolejki: {n}', presetReady: 'Masz już cały ten skład',
     u_breacher: 'Saper', ud_breacher: 'Biegnie do najbliższego firewalla i wysadza go — ogromne obrażenia dla murów (×30). Bez murów wybucha na budynku.',
     st_wall: 'Obrażenia dla murów', tg_wall: 'Mury',
+    upRow: 'Ulepsz rząd', upAll: 'Ulepsz wszystkie', multiUpQ: 'Ulepszyć {n} z {m} na poziom {lv} za {c} ({r})?', multiUpDone: 'Ulepszono {n} na poziom {lv}',
     b_skymine: 'Mina powietrzna', d_skymine: 'Ukryta pułapka. Wybucha, gdy blisko przeleci jednostka latająca — jeden potężny cios.', ds_skymine: 'Ukryta pułapka na drony.',
   },
   en: {
@@ -355,6 +356,7 @@ G.STR = {
     presetQueued: 'Queued: {n}', presetReady: 'You already have this whole army',
     u_breacher: 'Breacher', ud_breacher: 'Runs to the nearest firewall and blows it up — huge damage to walls (×30). With no walls left it blows up on a building.',
     st_wall: 'Damage to walls', tg_wall: 'Walls',
+    upRow: 'Upgrade row', upAll: 'Upgrade all', multiUpQ: 'Upgrade {n} of {m} to level {lv} for {c} ({r})?', multiUpDone: 'Upgraded {n} to level {lv}',
     b_skymine: 'Sky Mine', d_skymine: 'Hidden trap. Goes off when a flying unit passes close — one massive hit.', ds_skymine: 'Hidden trap against drones.',
   },
 };

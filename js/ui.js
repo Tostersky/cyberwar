@@ -182,6 +182,30 @@
   };
   const lastRes = {};
 
+  // ---------- upgrading many at once (walls, traps: anything that upgrades instantly) ----------
+  // the straight line of same-level pieces through b (the longer of horizontal / vertical), nearest first
+  const rowOf = (b) => {
+    const s = G.state, at = new Map();
+    for (const q of s.buildings) if (q.type === b.type && q.level === b.level && !(q.busyUntil > Date.now())) at.set(q.x + ',' + q.y, q);
+    const line = (dx, dy) => { const out = []; for (const k of [1, -1]) for (let i = 1; ; i++) { const q = at.get((b.x + dx * i * k) + ',' + (b.y + dy * i * k)); if (!q) break; out.push([i, q]); } return out; };
+    const h = line(1, 0), v = line(0, 1), pick = h.length >= v.length ? h : v;
+    return [b].concat(pick.sort((p, q) => p[0] - q[0]).map((p) => p[1]));
+  };
+  // every piece of this type at this level, nearest to b first
+  const sameLevel = (b) => G.state.buildings.filter((q) => q.type === b.type && q.level === b.level && !(q.busyUntil > Date.now()))
+    .sort((p, q) => Math.hypot(p.x - b.x, p.y - b.y) - Math.hypot(q.x - b.x, q.y - b.y));
+  const multiUp = (list, b) => {
+    const u = G.upgradeInfo(b), have = G.state.res[u.res] || 0;
+    const can = Math.min(list.length, Math.floor(have / u.cost));
+    if (can <= 0) { U.toast(t('notEnough', { r: t(u.res) })); return; }
+    U.confirm(t('multiUpQ', { n: can, m: list.length, lv: u.next, c: G.fmt(can * u.cost), r: t(u.res).toLowerCase() }), () => {
+      let done = 0;
+      for (const q of list.slice(0, can)) { const r = G.act({ c: 'upgrade', id: q.id }); if (r.err) break; done++; }
+      if (done) { G.Sfx.play('build'); G.save(); U.notify(t('multiUpDone', { n: done, lv: u.next })); }
+      U.showSel(b); U.refreshHud();
+    });
+  };
+
   // ---------- selection bar ----------
   U.showSel = function (b) {
     const el = $('#selbar'), d = B[b.type], now = Date.now();
@@ -199,7 +223,15 @@
       // upgrade only when the Core allows it; otherwise say right away what's needed
       if (u.max) btns += `<div class="sb-btn sb-info-only"><span class="sb-l">${t('maxLevel')}</span></div>`;
       else if (u.blocked) btns += `<div class="sb-btn sb-info-only"><span class="sb-ic">${IC.up}</span><span class="sb-l">${t('needCore', { n: u.needCore })}</span></div>`;
-      else btns += btn('sb-up', IC.up, t('upgrade'), `<span class="sb-c">${resIc(u.res)}${G.fmt(u.cost)}</span>`);
+      else {
+        btns += btn('sb-up', IC.up, t('upgrade'), `<span class="sb-c">${resIc(u.res)}${G.fmt(u.cost)}</span>`);
+        // instant upgrades (walls, traps): a whole row, or every piece of this level, in one go
+        if (!u.time && b.level > 0) {
+          const row = d.wall ? rowOf(b) : [], all = sameLevel(b);
+          if (row.length > 1) btns += btn('sb-uprow', IC.up, t('upRow') + ' ×' + row.length, `<span class="sb-c">${resIc(u.res)}${G.fmt(u.cost * row.length)}</span>`);
+          if (all.length > 1 && all.length > row.length) btns += btn('sb-upall', IC.up, t('upAll') + ' ×' + all.length, `<span class="sb-c">${resIc(u.res)}${G.fmt(u.cost * all.length)}</span>`);
+        }
+      }
     } else {
       btns += btn('sb-fin', IC.bolt, t('finish'), `<span class="sb-c">${resIc('chips')}<span id="sb-fc">${G.finishCost(b)}</span></span>`);
     }
@@ -212,6 +244,8 @@
     el.dataset.id = b.id;
     $('#sb-info').onclick = () => U.openInfo(b);
     if ($('#sb-up')) $('#sb-up').onclick = () => U.openUpgrade(b);
+    if ($('#sb-uprow')) $('#sb-uprow').onclick = () => multiUp(rowOf(b), b);
+    if ($('#sb-upall')) $('#sb-upall').onclick = () => multiUp(sameLevel(b), b);
     if ($('#sb-fin')) $('#sb-fin').onclick = () => {
       const c = G.finishCost(b);
       U.confirm(t('finishFor', { n: c }), () => { const e = G.finishNow(b); if (e) U.toast(e); U.showSel(b); U.refreshHud(); });
