@@ -1353,89 +1353,178 @@
       visor(-3, -18 + by, 7, 2.2);
       ctx.strokeStyle = '#8a8aa0'; ctx.lineWidth = 0.7; ctx.beginPath(); ctx.moveTo(-6, -21 + by); ctx.lineTo(-7, -28 + by); ctx.stroke();
     } else {
+      // ---- people of the city: each unit is a person with a face, hair, clothes and implants ----
       const by = -bob;
-      const coat = { runner: '#2a1838', gunner: '#16303a', ronin: '#e8e4ec', nyx: '#2c1640', medic: '#dfe9e4', breacher: '#3a2a14' }[type];
-      // wall breacher: a big charge strapped on the back, its fuse blinking
-      if (type === 'breacher') {
-        ctx.fillStyle = '#2a2a30'; ctx.beginPath(); ctx.arc(-5.2, -12 + by, 4.2, 0, Math.PI * 2); ctx.fill();
-        ctx.strokeStyle = c; ctx.lineWidth = 0.8; ctx.beginPath(); ctx.arc(-5.2, -12 + by, 4.2, 0, Math.PI * 2); ctx.stroke();
-        ctx.fillStyle = '#ffe14d'; ctx.fillRect(-7.6, -12.6 + by, 4.8, 1.2);
-        ctx.strokeStyle = '#8a7a60'; ctx.lineWidth = 0.7; ctx.beginPath(); ctx.moveTo(-5.2, -16.2 + by); ctx.quadraticCurveTo(-4, -19 + by, -6.5, -19.5 + by); ctx.stroke();
-        if (Math.sin(t * 14) > 0) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; G.World.light(ctx, '#ff5a2a', -6.5, -19.5 + by, 3.5, 3.5, 1); ctx.restore(); }
+      const LOOK = {
+        //            skin       hair       jacket     jacket hi  pants      boots      accent (neon)
+        runner:   { skin: '#c88a64', hair: '#ff2bd6', top: '#2a1834', hi: '#4a2a5a', pants: '#1c1626', boots: '#0c0a12', acc: '#ff2bd6' },
+        gunner:   { skin: '#8a5a3c', hair: '#1a1410', top: '#3e4a36', hi: '#5c6a4a', pants: '#2a2e30', boots: '#141414', acc: '#19f0ff' },
+        medic:    { skin: '#e8bc96', hair: '#f2ead8', top: '#e6eef0', hi: '#ffffff', pants: '#2c3a40', boots: '#1a2024', acc: '#39ff88' },
+        breacher: { skin: '#a8704a', hair: '#2a1c10', top: '#5a4024', hi: '#7a5a34', pants: '#2e2a24', boots: '#1a140e', acc: '#ffb040' },
+        ronin:    { skin: '#e0b08a', hair: '#0c0a0e', top: '#e8e4ec', hi: '#ffffff', pants: '#2a2630', boots: '#16121a', acc: '#ff3048' },
+        nyx:      { skin: '#b88470', hair: '#d03cff', top: '#2a1440', hi: '#4a2470', pants: '#1a1222', boots: '#0e0a14', acc: '#b26bff' },
+      }[type] || { skin: '#c9a98a', hair: '#222', top: '#333', hi: '#555', pants: '#222', boots: '#111', acc: c };
+      const K = (col) => skin || col; // white flash when hit
+      const P2 = (pts, col, line) => { ctx.fillStyle = K(col); ctx.beginPath(); pts.forEach((p, i) => (i ? ctx.lineTo(p[0], p[1] + by) : ctx.moveTo(p[0], p[1] + by))); ctx.closePath(); ctx.fill(); if (line !== false) { ctx.strokeStyle = 'rgba(5,3,12,.85)'; ctx.lineWidth = 0.45; ctx.stroke(); } };
+      const glowAt = (col, x, y, rx, ry, a) => { ctx.save(); ctx.globalCompositeOperation = 'lighter'; G.World.light(ctx, col, x, y + by, rx, ry, a); ctx.restore(); };
+      const hx = 0.4, hy = -18.4;
+      // ---------- behind the body ----------
+      if (type === 'ronin') { // long coat tails with red lining, flowing while running
+        const w = Math.sin(t * 9) * 1.2 + (mv ? 1.5 : 0);
+        P2([[-3, -10], [-5.5 - w, -2], [-1.5 - w * 0.5, -1.5], [0, -9]], '#b8162a', false);
       }
-      // medic: backpack with a green cross behind the body
-      if (type === 'medic') {
-        ctx.fillStyle = '#3a4a44'; ctx.fillRect(-6.5, -15 + by, 3.4, 6.5);
-        ctx.fillStyle = c; ctx.fillRect(-5.6, -12.8 + by, 1.6, 0.6); ctx.fillRect(-5.1, -13.3 + by, 0.6, 1.6);
+      if (type === 'nyx') { // long hair falling down the back + a trailing data cable
+        P2([[-1.5, -21], [-5.5 - Math.sin(t * 4) * 0.8, -11], [-3.2, -10], [-0.5, -18]], LOOK.hair, false);
+        ctx.strokeStyle = '#3a2a4a'; ctx.lineWidth = 0.8; ctx.beginPath(); ctx.moveTo(-2.5, -16 + by); ctx.quadraticCurveTo(-7, -11 + by, -5, -6 + by); ctx.stroke();
+        glowAt(LOOK.acc, -5, -6, 1.8, 1.8, 0.8);
       }
-      const trim = c;
-      // capes / scarves behind the body
-      if (type === 'runner') cape(-1, -14 + by, 9, 'rgba(255,43,214,.75)');
-      if (type === 'ronin') cape(-1, -15 + by, 13, '#b8162a');
-      if (type === 'nyx') { ctx.fillStyle = '#4a1f72'; ctx.beginPath(); ctx.moveTo(-2, -19 + by); ctx.quadraticCurveTo(-7 - Math.sin(t * 5), -12 + by, -5, -6 + by); ctx.lineTo(-1, -12 + by); ctx.fill(); }
-      // rear arm (swings opposite to the legs)
-      if (type !== 'gunner') arm(-2.6, -13.8 + by, -3.4 - swing * 0.7, -8.6 + by, shade2(coat, 0.7));
-      legs(-7 + by, 7, type === 'ronin' ? '#3a3640' : '#15121c', type === 'gunner' ? 2.8 : 2.4);
-      // torso: armoured chest with light from the top-left, dark outline, belt with a glowing buckle
-      const tg = ctx.createLinearGradient(-4, -15 + by, 4, -6 + by);
-      tg.addColorStop(0, skin || shade2(coat, 1.55)); tg.addColorStop(0.55, skin || coat); tg.addColorStop(1, skin || shade2(coat, 0.6));
-      ctx.fillStyle = tg; ctx.beginPath(); ctx.moveTo(-4, -15.2 + by); ctx.quadraticCurveTo(0, -16.2 + by, 4, -15.2 + by); ctx.lineTo(3.3, -6.4 + by); ctx.lineTo(-3.3, -6.4 + by); ctx.closePath(); ctx.fill();
-      ctx.strokeStyle = 'rgba(5,3,12,.85)'; ctx.lineWidth = 0.55; ctx.stroke();
-      ctx.strokeStyle = 'rgba(255,255,255,.14)'; ctx.lineWidth = 0.4; ctx.beginPath(); ctx.moveTo(0, -15.4 + by); ctx.lineTo(0, -9.8 + by); ctx.stroke(); // chest seam
-      ctx.fillStyle = '#0e0b16'; ctx.fillRect(-3.4, -8.2 + by, 6.8, 1.3); // belt
-      ctx.fillStyle = trim; ctx.fillRect(-3.4, -9.6 + by, 6.8, 1.1);
-      ctx.save(); ctx.globalCompositeOperation = 'lighter'; G.World.light(ctx, trim, 0, -9 + by, 4.5, 1.6, 0.35); ctx.restore();
-      ctx.fillStyle = '#d8d0a0'; ctx.fillRect(-0.7, -8 + by, 1.4, 0.9); // buckle
-      // shoulder pads
-      for (const sx of [-3.6, 3.6]) {
-        const sg = ctx.createRadialGradient(sx - 0.6, -15.4 + by, 0.2, sx, -14.6 + by, 2.4);
-        sg.addColorStop(0, skin || shade2(coat, 2)); sg.addColorStop(1, skin || shade2(coat, 0.75));
-        ctx.fillStyle = sg; ctx.beginPath(); ctx.ellipse(sx, -14.6 + by, 1.9, 1.4, 0, 0, Math.PI * 2); ctx.fill();
-        ctx.strokeStyle = 'rgba(5,3,12,.8)'; ctx.lineWidth = 0.4; ctx.stroke();
+      if (type === 'medic') { // field pack with a light cross
+        P2([[-6.2, -15.4], [-3, -15.4], [-3, -8.6], [-6.2, -8.6]], '#3a4a44');
+        ctx.fillStyle = LOOK.acc; ctx.fillRect(-5.4, -12.6 + by, 1.8, 0.6); ctx.fillRect(-4.8, -13.2 + by, 0.6, 1.8);
+        glowAt(LOOK.acc, -4.6, -12.3, 2.2, 2.2, 0.5);
       }
-      if (type === 'gunner') { ctx.fillStyle = '#2a4a56'; ctx.fillRect(-3.8, -14.5 + by, 7.6, 4); }
-      if (type === 'ronin') { ctx.fillStyle = '#c21a30'; ctx.fillRect(-3.8, -14.5 + by, 2, 8); }
-      if (type === 'nyx') { ctx.fillStyle = '#7a3ac0'; ctx.fillRect(-3.8, -11 + by, 7.6, 1); }
-      if (type === 'medic') { ctx.fillStyle = c; ctx.fillRect(-1.8, -13.6 + by, 3.6, 1.2); ctx.fillRect(-0.6, -14.8 + by, 1.2, 3.6); }
-      if (type === 'breacher') { ctx.fillStyle = '#ffe14d'; for (let k = 0; k < 3; k++) ctx.fillRect(-3.4 + k * 2.4, -14.2 + by, 1.2, 3.6); }
-      // head
-      const hx = 0, hy = -17.6 + by;
-      if (type === 'nyx') { ctx.fillStyle = '#6a2fa8'; ctx.beginPath(); ctx.arc(hx - 0.5, hy - 0.5, 3.4, Math.PI * 0.8, Math.PI * 2.1); ctx.lineTo(hx - 5, hy + 6); ctx.closePath(); ctx.fill(); }
-      ctx.fillStyle = skin || (type === 'gunner' ? '#2f3e48' : type === 'ronin' ? '#d8d4e0' : type === 'runner' ? '#1f1428' : type === 'medic' ? '#e8efe9' : type === 'breacher' ? '#5a4a30' : '#c9a98a');
-      { const hc = ctx.fillStyle; const hg = ctx.createRadialGradient(hx - 1.1, hy - 1.2, 0.3, hx, hy, 3.3);
-        hg.addColorStop(0, skin || shade2(hc, 1.7)); hg.addColorStop(0.6, hc); hg.addColorStop(1, skin || shade2(hc, 0.55));
-        ctx.fillStyle = hg; ctx.beginPath(); ctx.arc(hx, hy, 3.1, 0, Math.PI * 2); ctx.fill();
-        ctx.strokeStyle = 'rgba(5,3,12,.85)'; ctx.lineWidth = 0.5; ctx.stroke(); }
-      if (type === 'runner') { ctx.fillStyle = '#2a1838'; ctx.beginPath(); ctx.arc(hx - 0.6, hy - 0.6, 3.3, Math.PI, Math.PI * 2.2); ctx.fill(); }
-      if (type === 'ronin') { ctx.fillStyle = '#b8162a'; ctx.fillRect(hx - 3.2, hy - 1.6, 6.4, 1); }
-      visor(hx - 0.2, hy - 0.8, 3.4, 1.4);
-      ctx.fillStyle = 'rgba(255,255,255,.75)'; ctx.beginPath(); ctx.arc(hx - 1.2, hy - 1.5, 0.55, 0, Math.PI * 2); ctx.fill(); // glint
-      // weapons + attack animation
+      if (type === 'breacher') { // satchel charge with a fizzing fuse
+        ctx.fillStyle = K('#2a2a30'); ctx.beginPath(); ctx.arc(-5.4, -12 + by, 4, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = LOOK.acc; ctx.lineWidth = 0.7; ctx.stroke();
+        ctx.fillStyle = '#ffe14d'; for (let k = 0; k < 3; k++) ctx.fillRect(-8 + k * 2, -12.5 + by, 1, 1.2);
+        ctx.strokeStyle = '#8a7a60'; ctx.lineWidth = 0.6; ctx.beginPath(); ctx.moveTo(-5.4, -16 + by); ctx.quadraticCurveTo(-4, -19 + by, -6.8, -19.6 + by); ctx.stroke();
+        if (Math.sin(t * 14) > 0) glowAt('#ff5a2a', -6.8, -19.6, 3, 3, 1);
+      }
+      // ---------- rear arm ----------
+      if (type !== 'gunner') arm(-2.8, -14 + by, -3.6 - swing * 0.7, -8.8 + by, shade2(LOOK.top, 0.65));
+      // ---------- legs: trousers + chunky boots ----------
+      legs(-7.2 + by, 7.2, LOOK.pants, type === 'gunner' || type === 'breacher' ? 2.9 : 2.4);
+      ctx.fillStyle = K(LOOK.boots);
+      ctx.fillRect(-3.6 + swing * 0.6, -2.2, 3.6, 2.4); ctx.fillRect(-0.4 - swing * 0.6, -2.2, 3.6, 2.4);
+      ctx.fillStyle = 'rgba(255,255,255,.16)'; ctx.fillRect(-3.6 + swing * 0.6, -2.2, 3.6, 0.5); ctx.fillRect(-0.4 - swing * 0.6, -2.2, 3.6, 0.5);
+      if (type === 'runner') { ctx.fillStyle = LOOK.acc; ctx.fillRect(-3.6 + swing * 0.6, -0.5, 3.6, 0.5); ctx.fillRect(-0.4 - swing * 0.6, -0.5, 3.6, 0.5); } // neon soles
+      // ---------- torso: a different cut for every character ----------
+      const wide = type === 'gunner' || type === 'breacher' ? 1 : 0;
+      const tg = ctx.createLinearGradient(-4, -16 + by, 4, -6 + by);
+      tg.addColorStop(0, K(LOOK.hi)); tg.addColorStop(0.55, K(LOOK.top)); tg.addColorStop(1, K(shade2(LOOK.top, 0.55)));
+      ctx.fillStyle = tg;
+      ctx.beginPath(); ctx.moveTo(-4 - wide, -15.6 + by); ctx.quadraticCurveTo(0, -16.6 + by, 4 + wide, -15.6 + by);
+      if (type === 'medic' || type === 'ronin') { ctx.lineTo(4, -4.5 + by); ctx.lineTo(-4, -4.5 + by); } // long coat to the knees
+      else { ctx.lineTo(3.4 + wide * 0.5, -6.6 + by); ctx.lineTo(-3.4 - wide * 0.5, -6.6 + by); }
+      ctx.closePath(); ctx.fill(); ctx.strokeStyle = 'rgba(5,3,12,.85)'; ctx.lineWidth = 0.5; ctx.stroke();
+      if (type === 'runner') { // open hoodie: dark tee, neon zip edges, hood bunched at the neck
+        ctx.fillStyle = K('#120e18'); ctx.fillRect(-1.2, -15.4 + by, 2.4, 8.6);
+        ctx.strokeStyle = LOOK.acc; ctx.lineWidth = 0.5; ctx.beginPath(); ctx.moveTo(-1.3, -15.4 + by); ctx.lineTo(-1.3, -6.8 + by); ctx.moveTo(1.3, -15.4 + by); ctx.lineTo(1.3, -6.8 + by); ctx.stroke();
+        P2([[-3.4, -16.2], [3.4, -16.2], [2.4, -14.6], [-2.4, -14.6]], shade2(LOOK.top, 1.3));
+      }
+      if (type === 'gunner') { // plate carrier with pouches and a shoulder lamp
+        P2([[-3.6, -15], [3.6, -15], [3.4, -9], [-3.4, -9]], '#4a5640');
+        ctx.fillStyle = K('#2e3628'); for (let k = 0; k < 3; k++) ctx.fillRect(-3.2 + k * 2.3, -10.8 + by, 1.9, 1.8);
+        ctx.fillStyle = LOOK.acc; ctx.fillRect(2.2, -14.6 + by, 1.2, 0.7); glowAt(LOOK.acc, 2.8, -14.3, 2, 1.5, 0.6);
+      }
+      if (type === 'medic') { // lab coat: open front, green cross on the chest, armband
+        ctx.fillStyle = K('#2c3a40'); ctx.fillRect(-0.9, -15.2 + by, 1.8, 10.4);
+        ctx.fillStyle = LOOK.acc; ctx.fillRect(-3.2, -13.2 + by, 2.4, 0.8); ctx.fillRect(-2.4, -14 + by, 0.8, 2.4);
+        ctx.fillStyle = '#2ab86a'; ctx.fillRect(2.6, -13.4 + by, 1.6, 1);
+      }
+      if (type === 'breacher') { // leather apron with hazard stripes
+        P2([[-3.2, -12.4], [3.2, -12.4], [3.6, -5.6], [-3.6, -5.6]], '#6a4a28');
+        ctx.save(); ctx.beginPath(); ctx.rect(-3.6, -7.4 + by, 7.2, 1.6); ctx.clip();
+        for (let k = -6; k < 6; k += 1.6) { ctx.fillStyle = '#ffe14d'; ctx.beginPath(); ctx.moveTo(k, -5.8 + by); ctx.lineTo(k + 0.8, -5.8 + by); ctx.lineTo(k + 1.6, -7.4 + by); ctx.lineTo(k + 0.8, -7.4 + by); ctx.fill(); }
+        ctx.restore();
+      }
+      if (type === 'ronin') { // crossed kimono collar, red sash, glowing spine implant
+        ctx.strokeStyle = '#b8162a'; ctx.lineWidth = 0.9; ctx.beginPath(); ctx.moveTo(-2.6, -15.6 + by); ctx.lineTo(1.8, -10.4 + by); ctx.moveTo(2.6, -15.6 + by); ctx.lineTo(-0.4, -12.4 + by); ctx.stroke();
+        ctx.fillStyle = K('#b8162a'); ctx.fillRect(-4, -9.6 + by, 8, 1.6);
+        ctx.fillStyle = '#ffd0d6'; ctx.fillRect(-0.6, -9.4 + by, 1.2, 1.2);
+      }
+      if (type === 'nyx') { // hooded netrunner cloak with glowing circuit lines
+        ctx.strokeStyle = LOOK.acc; ctx.lineWidth = 0.45;
+        ctx.beginPath(); ctx.moveTo(-2.8, -14 + by); ctx.lineTo(-1.2, -12 + by); ctx.lineTo(-1.2, -8 + by); ctx.moveTo(2.6, -13.6 + by); ctx.lineTo(1.2, -11.6 + by); ctx.lineTo(2.2, -8.2 + by); ctx.stroke();
+        glowAt(LOOK.acc, 0, -11, 4, 3, 0.25 + Math.sin(t * 3) * 0.1);
+      }
+      // belt with a neon buckle (not on long coats)
+      if (type !== 'medic' && type !== 'ronin') {
+        ctx.fillStyle = K('#0e0b16'); ctx.fillRect(-3.6 - wide * 0.4, -7.8 + by, 7.2 + wide * 0.8, 1.2);
+        ctx.fillStyle = LOOK.acc; ctx.fillRect(-0.7, -7.7 + by, 1.4, 1);
+      }
+      // ---------- head: neck, face, eyes, hair / headgear ----------
+      ctx.fillStyle = K(shade2(LOOK.skin, 0.8)); ctx.fillRect(-0.9, -16.4 + by, 1.8, 1.4); // neck
+      if (type === 'nyx') P2([[-3.8, -17.6], [-2.6, -22.6], [2.8, -22.8], [4.2, -18.6], [3.4, -15.8], [-3.2, -15.8]], '#3a1c5a'); // hood behind the face
+      const fg = ctx.createRadialGradient(hx - 1, hy - 1.2 + by, 0.3, hx, hy + by, 3.4);
+      fg.addColorStop(0, K(shade2(LOOK.skin, 1.3))); fg.addColorStop(0.65, K(LOOK.skin)); fg.addColorStop(1, K(shade2(LOOK.skin, 0.65)));
+      ctx.fillStyle = fg; ctx.beginPath(); ctx.ellipse(hx, hy + by, 2.9, 3.3, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = 'rgba(5,3,12,.85)'; ctx.lineWidth = 0.45; ctx.stroke();
+      // eyes looking forward (the unit faces right)
+      const eye = (x, col) => { ctx.fillStyle = col; ctx.fillRect(hx + x, hy - 0.6 + by, 0.9, 0.8); };
+      if (type === 'gunner') { // helmet with tactical goggles
+        P2([[-3.1, -18.6], [-2.6, -21.8], [2.8, -22], [3.6, -18.8], [3.2, -18], [-3, -18]], '#2c3a44');
+        ctx.fillStyle = K('#0a1418'); ctx.fillRect(hx - 0.6, hy - 1 + by, 3.6, 1.4);
+        ctx.fillStyle = LOOK.acc; ctx.fillRect(hx + 0.2, hy - 0.8 + by, 1.1, 0.9); ctx.fillRect(hx + 1.7, hy - 0.8 + by, 1.1, 0.9);
+        glowAt(LOOK.acc, hx + 1.4, hy - 0.4, 2.6, 1.2, 0.6);
+        ctx.fillStyle = K('#1a1410'); ctx.fillRect(hx - 1.6, hy + 1.6 + by, 3.4, 0.8); // stubble beard line
+      } else if (type === 'breacher') { // gas mask with filters + hood
+        P2([[-3.2, -17], [-3, -21.4], [2.6, -21.8], [3.2, -18.6], [2.6, -16]], '#4a3420');
+        ctx.fillStyle = K('#1e1e24'); ctx.beginPath(); ctx.ellipse(hx + 1, hy + 0.6 + by, 2.4, 2, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#ffb040'; ctx.beginPath(); ctx.arc(hx + 0.4, hy - 0.4 + by, 0.7, 0, Math.PI * 2); ctx.arc(hx + 2.2, hy - 0.4 + by, 0.7, 0, Math.PI * 2); ctx.fill();
+        glowAt('#ffb040', hx + 1.3, hy - 0.4, 2.4, 1.2, 0.5);
+        ctx.fillStyle = K('#3a3a42'); ctx.beginPath(); ctx.arc(hx + 2.8, hy + 1.8 + by, 1.1, 0, Math.PI * 2); ctx.fill(); // filter
+      } else {
+        // regular face: eyes, brows, mouth
+        if (type === 'ronin') { eye(0.4, '#1a1014'); ctx.fillStyle = '#ff3048'; ctx.fillRect(hx + 1.8, hy - 0.7 + by, 1.1, 1); glowAt('#ff3048', hx + 2.3, hy - 0.2, 1.8, 1.4, 0.8); } // cyber eye
+        else if (type === 'nyx') { eye(0.4, '#ffffff'); eye(1.9, '#ffffff'); ctx.fillStyle = LOOK.acc; ctx.fillRect(hx + 0.6, hy - 0.5 + by, 0.5, 0.6); ctx.fillRect(hx + 2.1, hy - 0.5 + by, 0.5, 0.6);
+          ctx.strokeStyle = LOOK.acc; ctx.lineWidth = 0.35; ctx.beginPath(); ctx.moveTo(hx - 0.8, hy - 1.6 + by); ctx.lineTo(hx - 0.8, hy + 1.8 + by); ctx.moveTo(hx - 1.6, hy + 0.2 + by); ctx.lineTo(hx - 0.8, hy + 0.2 + by); ctx.stroke(); } // face tattoo
+        else if (type === 'runner') { ctx.fillStyle = K('#101018'); ctx.fillRect(hx - 0.8, hy - 1.1 + by, 3.8, 1.3); ctx.fillStyle = '#19f0ff'; ctx.fillRect(hx - 0.4, hy - 0.8 + by, 3.2, 0.6); glowAt('#19f0ff', hx + 1.2, hy - 0.5, 2.6, 1, 0.7); } // visor shades
+        else { eye(0.4, '#1a1014'); eye(1.9, '#1a1014'); }
+        ctx.fillStyle = 'rgba(40,16,16,.55)'; ctx.fillRect(hx + 0.6, hy + 1.5 + by, 1.6, 0.4); // mouth
+        if (type === 'medic') { ctx.fillStyle = K('#5ad0b0'); ctx.fillRect(hx - 0.8, hy + 0.6 + by, 3.8, 1.8); } // surgical mask
+      }
+      // hair / headgear on top
+      if (type === 'runner') { // neon mohawk + shaved sides
+        ctx.fillStyle = K(shade2(LOOK.skin, 0.7)); ctx.fillRect(hx - 2.6, hy - 2.6 + by, 5.2, 1);
+        ctx.fillStyle = K(LOOK.hair); ctx.beginPath(); ctx.moveTo(hx - 2.4, hy - 2.4 + by);
+        for (let k = 0; k < 5; k++) { ctx.lineTo(hx - 2 + k * 1.1, hy - 5.6 - (k % 2) * 0.8 + by); ctx.lineTo(hx - 1.5 + k * 1.1, hy - 2.6 + by); }
+        ctx.closePath(); ctx.fill(); glowAt(LOOK.hair, hx, hy - 4, 3, 2, 0.45);
+      }
+      if (type === 'medic') { // light hair with a ponytail and a headband light
+        P2([[-3, -18.6], [-2.4, -21.8], [2.6, -21.8], [3.2, -19.6], [1, -20.2], [-2, -19]], LOOK.hair, false);
+        P2([[-2.8, -20], [-5.2, -18.8 + Math.sin(t * 8) * 0.4], [-4.6, -17.6], [-2.6, -18.8]], LOOK.hair, false);
+        ctx.fillStyle = LOOK.acc; ctx.fillRect(hx - 2.6, hy - 2.2 + by, 5.4, 0.5);
+      }
+      if (type === 'ronin') { // top-knot + red headband with tails
+        ctx.fillStyle = K(LOOK.hair); ctx.beginPath(); ctx.ellipse(hx, hy - 2.2 + by, 3, 1.5, 0, Math.PI, 0); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(hx - 0.6, hy - 4.2 + by, 1, 1.3, -0.3, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#c21a30'; ctx.fillRect(hx - 3, hy - 2 + by, 6, 0.8);
+        ctx.strokeStyle = '#c21a30'; ctx.lineWidth = 0.6; ctx.beginPath(); ctx.moveTo(hx - 3, hy - 1.6 + by); ctx.lineTo(hx - 5 - Math.sin(t * 9), hy - 0.4 + by); ctx.stroke();
+      }
+      if (type === 'nyx') { // hood rim + bangs, glowing jack in the temple
+        ctx.fillStyle = K(LOOK.hair); ctx.beginPath(); ctx.moveTo(hx - 2.8, hy - 1 + by); ctx.quadraticCurveTo(hx - 1, hy - 4.4 + by, hx + 2.9, hy - 1.8 + by); ctx.lineTo(hx + 0.6, hy - 1.8 + by); ctx.closePath(); ctx.fill();
+        ctx.strokeStyle = K('#4a2470'); ctx.lineWidth = 0.9; ctx.beginPath(); ctx.arc(hx, hy + by, 3.4, Math.PI * 0.95, Math.PI * 2.05); ctx.stroke();
+        ctx.fillStyle = LOOK.acc; ctx.fillRect(hx - 2.8, hy + by, 0.8, 0.8); glowAt(LOOK.acc, hx - 2.4, hy + 0.4, 1.6, 1.6, 0.9);
+      }
+      ctx.fillStyle = 'rgba(255,255,255,.55)'; ctx.beginPath(); ctx.arc(hx - 1.2, hy - 1.6 + by, 0.45, 0, Math.PI * 2); ctx.fill(); // highlight
+      // ---------- front arm: runner and ronin get chrome cyber-arms ----------
       const sw = atk;
-      // front arm reaching to the weapon / forward
-      if (type !== 'gunner' && type !== 'nyx') arm(2.6, -13.8 + by, 3.2 + swing * 0.5 + sw * 1.2, -10.2 + by, shade2(coat, 0.95));
-      else arm(2.6, -13.8 + by, 3.4, -10.6 + by, shade2(coat, 0.95));
-      if (type === 'runner') {
-        ctx.save(); ctx.translate(2.5, -10.5 + by); ctx.rotate(-0.9 + sw * 1.6);
-        ctx.strokeStyle = c; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(7, 0); ctx.stroke();
-        ctx.globalCompositeOperation = 'lighter'; G.World.light(ctx, c, 4, 0, 6, 3, 0.6); ctx.restore();
+      const cyberArm = type === 'runner' || type === 'ronin';
+      const armCol = cyberArm ? '#a8b4c4' : shade2(LOOK.top, 0.95);
+      if (type !== 'gunner' && type !== 'nyx') arm(2.8, -14 + by, 3.2 + swing * 0.5 + sw * 1.2, -10.2 + by, armCol);
+      else arm(2.8, -14 + by, 3.4, -10.6 + by, armCol);
+      if (cyberArm) glowAt(LOOK.acc, 3, -12, 1.4, 1.4, 0.7);
+      if (type === 'runner') { // mono-blade
+        ctx.save(); ctx.translate(2.6, -10.5 + by); ctx.rotate(-0.9 + sw * 1.6);
+        ctx.strokeStyle = '#ffd6f4'; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(0.5, 0); ctx.lineTo(7.5, 0); ctx.stroke();
+        ctx.strokeStyle = LOOK.acc; ctx.lineWidth = 0.6; ctx.beginPath(); ctx.moveTo(1, 0.5); ctx.lineTo(7.5, 0.5); ctx.stroke();
+        ctx.globalCompositeOperation = 'lighter'; G.World.light(ctx, LOOK.acc, 4, 0, 6, 3, 0.6); ctx.restore();
       } else if (type === 'gunner') {
         const rc = sw * 2;
-        // rifle: stock, body with a highlight, magazine, scope, barrel and a glowing emitter
-        ctx.fillStyle = '#20262c'; ctx.fillRect(-2.2 - rc, -11.6 + by, 3, 2); // stock
+        ctx.fillStyle = '#20262c'; ctx.fillRect(-2.2 - rc, -11.6 + by, 3, 2);
         const rg = ctx.createLinearGradient(0, -12.2 + by, 0, -9.4 + by); rg.addColorStop(0, '#7a8894'); rg.addColorStop(0.45, '#4a5560'); rg.addColorStop(1, '#262c34');
         ctx.fillStyle = rg; ctx.fillRect(0.6 - rc, -12.2 + by, 8, 2.8);
         ctx.strokeStyle = 'rgba(5,3,12,.85)'; ctx.lineWidth = 0.45; ctx.strokeRect(0.6 - rc, -12.2 + by, 8, 2.8);
-        ctx.fillStyle = '#1a1e24'; ctx.fillRect(3 - rc, -9.6 + by, 1.8, 2.6); // magazine
-        ctx.fillStyle = '#14181e'; ctx.fillRect(2.4 - rc, -13.6 + by, 3.6, 1.2); ctx.fillStyle = c; ctx.fillRect(5.6 - rc, -13.5 + by, 0.6, 1); // scope
-        ctx.fillStyle = '#5a6670'; ctx.fillRect(8.6 - rc, -11.4 + by, 3, 1.2); // barrel
-        ctx.fillStyle = c; ctx.fillRect(11.2 - rc, -11.8 + by, 1.4, 2);
-        if (sw > 0.5) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; G.World.light(ctx, '#ffffff', 13, -10.7 + by, 6, 4, sw); G.World.light(ctx, c, 14, -10.7 + by, 10, 6, sw); ctx.restore(); }
+        ctx.fillStyle = '#1a1e24'; ctx.fillRect(3 - rc, -9.6 + by, 1.8, 2.6);
+        ctx.fillStyle = '#14181e'; ctx.fillRect(2.4 - rc, -13.6 + by, 3.6, 1.2); ctx.fillStyle = LOOK.acc; ctx.fillRect(5.6 - rc, -13.5 + by, 0.6, 1);
+        ctx.fillStyle = '#5a6670'; ctx.fillRect(8.6 - rc, -11.4 + by, 3, 1.2);
+        ctx.fillStyle = LOOK.acc; ctx.fillRect(11.2 - rc, -11.8 + by, 1.4, 2);
+        if (sw > 0.5) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; G.World.light(ctx, '#ffffff', 13, -10.7 + by, 6, 4, sw); G.World.light(ctx, LOOK.acc, 14, -10.7 + by, 10, 6, sw); ctx.restore(); }
       } else if (type === 'ronin') {
         const a0 = -1.1 + sw * 2.2;
-        ctx.save(); ctx.translate(2.5, -11 + by);
+        ctx.save(); ctx.translate(2.6, -11 + by);
         if (sw > 0.05) {
-          // katana slash trail
           ctx.globalCompositeOperation = 'lighter';
           ctx.strokeStyle = 'rgba(255,60,80,' + (0.7 * sw).toFixed(2) + ')'; ctx.lineWidth = 3;
           ctx.beginPath(); ctx.arc(0, 0, 13, a0 - 1.6, a0); ctx.stroke();
@@ -1446,30 +1535,27 @@
         ctx.rotate(a0);
         ctx.strokeStyle = '#ffd0d6'; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.moveTo(2, 0); ctx.lineTo(14, 0); ctx.stroke();
         ctx.strokeStyle = '#ff2a40'; ctx.lineWidth = 0.6; ctx.beginPath(); ctx.moveTo(3, 0.6); ctx.lineTo(14, 0.6); ctx.stroke();
-        ctx.fillStyle = '#222'; ctx.fillRect(-1, -1, 3, 2);
+        ctx.fillStyle = '#222'; ctx.fillRect(-1, -1, 3, 2); ctx.fillStyle = '#c21a30'; ctx.fillRect(1.6, -1.4, 0.6, 2.8);
         ctx.globalCompositeOperation = 'lighter'; G.World.light(ctx, '#ff3048', 9, 0, 9, 3, 0.55);
         ctx.restore();
       } else if (type === 'breacher') {
-        // demolition charge held forward, pulsing
         ctx.fillStyle = '#3a3a42'; ctx.fillRect(2, -12 + by, 4.5, 3.4);
-        ctx.fillStyle = c; ctx.fillRect(2.6, -11.4 + by, 3.3, 0.9);
-        ctx.save(); ctx.globalCompositeOperation = 'lighter'; G.World.light(ctx, '#ff5a2a', 4.2, -10.4 + by, 3 + Math.abs(Math.sin(t * 8)) * 3, 2.5, 0.8); ctx.restore();
+        ctx.fillStyle = LOOK.acc; ctx.fillRect(2.6, -11.4 + by, 3.3, 0.9);
+        glowAt('#ff5a2a', 4.2, -10.4, 3 + Math.abs(Math.sin(t * 8)) * 3, 2.5, 0.8);
       } else if (type === 'medic') {
-        // nano-injector with a glowing green canister; glows brighter while healing
         ctx.fillStyle = '#9aa8a2'; ctx.fillRect(1.5, -11.5 + by, 6, 1.8);
-        ctx.fillStyle = c; ctx.fillRect(3, -13 + by, 2.4, 1.6);
-        ctx.save(); ctx.globalCompositeOperation = 'lighter'; G.World.light(ctx, c, 4.2, -12.2 + by, 4 + sw * 6, 3 + sw * 4, 0.5 + sw * 0.5); ctx.restore();
+        ctx.fillStyle = LOOK.acc; ctx.fillRect(3, -13 + by, 2.4, 1.6);
+        glowAt(LOOK.acc, 4.2, -12.2, 4 + sw * 6, 3 + sw * 4, 0.5 + sw * 0.5);
       } else if (type === 'nyx') {
-        // holographic interface around the hand
         ctx.save(); ctx.translate(7, -11 + by);
         ctx.globalCompositeOperation = 'lighter';
-        ctx.strokeStyle = c; ctx.lineWidth = 0.8; ctx.setLineDash([2, 2]); ctx.lineDashOffset = t * 10;
+        ctx.strokeStyle = LOOK.acc; ctx.lineWidth = 0.8; ctx.setLineDash([2, 2]); ctx.lineDashOffset = t * 10;
         ctx.beginPath(); ctx.ellipse(0, 0, 4.5 + sw * 2, 2.6 + sw, 0, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
         ctx.fillStyle = 'rgba(178,107,255,.6)';
         for (let k = 0; k < 3; k++) { const a = t * 2 + k * 2.1; ctx.fillRect(Math.cos(a) * 6 - 1, Math.sin(a) * 3 - 4 - k, 2.4, 1.6); }
-        G.World.light(ctx, c, 0, 0, 7 + sw * 4, 5 + sw * 3, 0.7);
+        G.World.light(ctx, LOOK.acc, 0, 0, 7 + sw * 4, 5 + sw * 3, 0.7);
         ctx.restore();
-        ctx.fillStyle = '#c9a98a'; ctx.beginPath(); ctx.arc(4.5, -10.5 + by, 1.2, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = K(LOOK.skin); ctx.beginPath(); ctx.arc(4.5, -10.5 + by, 1.1, 0, Math.PI * 2); ctx.fill();
       }
     }
     ctx.restore();

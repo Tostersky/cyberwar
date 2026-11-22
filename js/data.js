@@ -1,5 +1,5 @@
 // Game data: buildings, units, heroes, campaign. All numbers are CyberWar's own.
-G.TW = 64; G.TH = 32; G.MAP = 40; G.VERSION = '0.15.3';
+G.TW = 64; G.TH = 32; G.MAP = 40; G.VERSION = '0.15.4';
 G.BUILDERS = 2; // builder drones at the start; more can be bought with chips (up to 5)
 G.BUILDER_PRICE = [0, 0, 250, 500, 1000]; // price of the 3rd, 4th and 5th drone
 G.BUILDERS_MAX = 5;
