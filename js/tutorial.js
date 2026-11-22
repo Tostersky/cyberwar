@@ -22,25 +22,30 @@ G.Tut = (function () {
     return { x: r.left + r.width / 2, y: r.top, el: e };
   }
 
+  // what the player has really done so far (read from the save, so it survives reloads and logins)
+  const st = (k) => (S().stats && S().stats[k]) | 0;
+  const fl = (k) => !!(S().flags && S().flags[k]);
+  const pveDone = () => Object.keys(S().pve || {}).length > 0;
   // each step: text key, done() → advance, target() → where the arrow points
   const STEPS = [
     { key: 'tut_welcome', button: true },
-    { key: 'tut_collect', done: () => S().flags.collected,
+    // resources flow into storage by themselves, so anything mined counts
+    { key: 'tut_collect', done: () => fl('collected') || st('mined') > 0,
       target: () => (inBattle() || modalOpen() ? null : worldPoint('scrapyard')) },
-    { key: 'tut_build', done: () => G.countType('vault') > 0,
+    { key: 'tut_build', done: () => G.countType('vault') > 0 || G.countType('silo') > 0 || st('builds') > 0,
       target: () => {
         if (G.Village.ghost) return el('#pb-ok');
         if (modalOpen()) return el('#modal .card[data-type="vault"]');
         return el('#btn-shop');
       } },
-    { key: 'tut_train', done: () => S().flags.trained,
+    { key: 'tut_train', done: () => fl('trained') || st('trained') > 0,
       target: () => (modalOpen() ? el('#modal .card.unit[data-u="runner"]') : el('#btn-army')) },
-    { key: 'tut_attack', done: () => S().flags.battled,
+    { key: 'tut_attack', done: () => fl('battled') || pveDone() || st('wins') > 0,
       target: () => {
         if (!modalOpen()) return el('#btn-attack');
         return el('#modal .lvl .btn') || el('#a-pve');
       } },
-    { key: 'tut_deploy', done: () => S().flags.battleDone, target: () => null },
+    { key: 'tut_deploy', done: () => fl('battleDone') || pveDone() || st('wins') > 0, target: () => null },
     { key: 'tut_done', button: true, done: () => false },
   ];
 
@@ -60,19 +65,27 @@ G.Tut = (function () {
     const box = $('#tut');
     if (!box) return;
     if (!T.active() || G.Auth.isOpen()) { box.classList.add('hidden'); return; }
-    let st = STEPS[S().tut];
-    // skip steps already satisfied (e.g. player did it before the prompt)
-    while (st && st.done && !st.button && st.done()) { S().tut++; G.save(); st = STEPS[S().tut]; }
+    // jump straight to the first task the player hasn't done yet (the welcome too, once anything is done)
+    // (mining starts on its own within seconds, so it doesn't count as "already playing")
+    // after "Show the tutorial again" (T.replay) every hint is shown in order
+    const from = S().tut;
+    let i = from;
+    if (!T.replay) {
+      const playing = STEPS.slice(2).some((x) => x.done && !x.button && x.done());
+      if (i === 0 && playing) i = 1;
+      while (STEPS[i] && STEPS[i].done && !STEPS[i].button && STEPS[i].done()) i++;
+    }
+    if (i !== from) { S().tut = i; G.save(); }
+    const st = STEPS[S().tut];
     if (!st) { box.classList.add('hidden'); return; }
-    // result screen: let the player read it, then continue
-    if (st.key === 'tut_deploy' && !inBattle() && !S().flags.battled) { /* not started yet */ }
     box.classList.remove('hidden');
     if (lastStep !== S().tut) {
       lastStep = S().tut;
       $('.tut-t').textContent = G.t(st.key);
       $('#tut-skip').textContent = G.t('skip');
       $('#tut-next').textContent = G.t(S().tut === STEPS.length - 1 ? 'ok' : 'next');
-      $('#tut-next').classList.toggle('hidden', !st.button);
+      // every hint can be passed over with "Next" — you don't have to finish one task to see the next
+      $('#tut-next').classList.remove('hidden');
       $('#tut-skip').classList.toggle('hidden', !!st.button && S().tut === STEPS.length - 1);
       if (S().tut > 0) G.Sfx.play('star');
     }

@@ -1150,7 +1150,7 @@
       b.onclick = () => { G.state.settings[key] = b.dataset.v === '1'; G.save(); G.Sfx.updateMusic(); U.openSettings(); };
     });
     tog('s-sfx', 'sfx'); tog('s-mus', 'music');
-    $('#s-tut').onclick = () => { G.state.tut = 0; G.state.flags = {}; G.save(); U.closeModal(); };
+    $('#s-tut').onclick = () => { G.state.tut = 0; G.Tut.replay = true; G.save(); U.closeModal(); };
     $('#s-reset').onclick = () => U.confirm(t('resetConfirm'), () => { G.resetGame(); G.Village.camInit = false; G.Village.enter(); });
   };
 
