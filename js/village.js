@@ -35,9 +35,82 @@
     }
     if (f.t >= 1.5) V.fly = null;
   }
+  // ---------- ambient life: your soldiers stroll between the buildings, drones patrol overhead ----------
+  const WALK_TYPES = ['runner', 'gunner', 'medic', 'breacher', 'mech'];
+  const amb = { walkers: [], drones: [], occ: null, occT: 0, city: 0, droneT: 2 };
+  function occGrid() {
+    const M = G.MAP, g = new Uint8Array(M * M);
+    const mark = (x0, y0, sz) => { for (let y = y0; y < y0 + sz; y++) for (let x = x0; x < x0 + sz; x++) if (x >= 0 && y >= 0 && x < M && y < M) g[y * M + x] = 1; };
+    for (const b of mine()) mark(b.x, b.y, B[b.type].size);
+    if (V.city === 1) for (const o of G.state.obstacles || []) mark(o.x, o.y, G.OBSTACLES[o.type].size);
+    return g;
+  }
+  const freeTile = (x, y) => x >= 3 && y >= 3 && x < G.MAP - 3 && y < G.MAP - 3 && !amb.occ[y * G.MAP + x];
+  function walkerTypes() {
+    const a = G.state.army || {}, have = WALK_TYPES.filter((u) => (a[u] | 0) > 0);
+    return have.length ? have : ['runner', 'gunner'];
+  }
+  function placeWalker(w) {
+    for (let i = 0; i < 60; i++) {
+      const x = 3 + Math.floor(Math.random() * (G.MAP - 6)), y = 3 + Math.floor(Math.random() * (G.MAP - 6));
+      if (freeTile(x, y)) { w.tx = w.nx = x; w.ty = w.ny = y; w.x = x + 0.5; w.y = y + 0.5; return true; }
+    }
+    return false;
+  }
+  function ambUpdate(dt) {
+    if (amb.city !== V.city) { amb.walkers = []; amb.drones = []; amb.city = V.city; amb.occ = null; }
+    amb.occT -= dt;
+    if (!amb.occ || amb.occT <= 0) { amb.occ = occGrid(); amb.occT = 1.5; }
+    // walkers (only in the home city: the colony is a desert outpost)
+    let army = 0; for (const u in G.state.army || {}) army += G.state.army[u] | 0;
+    const want = V.city === 1 ? Math.min(10, 3 + Math.floor(army / 5)) : 0;
+    const types = walkerTypes();
+    while (amb.walkers.length < want) {
+      const w = { type: types[Math.floor(Math.random() * types.length)], anim: Math.random() * 10, wait: Math.random() * 2, dir: [1, 0], moving: false, flip: false };
+      if (!placeWalker(w)) break;
+      amb.walkers.push(w);
+    }
+    if (amb.walkers.length > want) amb.walkers.length = want;
+    const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+    for (const w of amb.walkers) {
+      w.anim += dt;
+      if (!freeTile(w.nx, w.ny) && !placeWalker(w)) continue; // a building was placed on top of them
+      if (w.wait > 0) { w.wait -= dt; w.moving = false; continue; }
+      const dx = w.nx + 0.5 - w.x, dy = w.ny + 0.5 - w.y, d = Math.hypot(dx, dy);
+      if (d < 0.04) {
+        w.tx = w.nx; w.ty = w.ny;
+        if (Math.random() < 0.08) { w.wait = 1 + Math.random() * 3; w.moving = false; continue; } // stop and look around
+        const opts = DIRS.filter((q) => freeTile(w.tx + q[0], w.ty + q[1]) && !(q[0] === -w.dir[0] && q[1] === -w.dir[1]));
+        const keep = opts.find((q) => q[0] === w.dir[0] && q[1] === w.dir[1]);
+        const pick = keep && Math.random() < 0.7 ? keep : opts[Math.floor(Math.random() * opts.length)] || [-w.dir[0], -w.dir[1]];
+        if (!freeTile(w.tx + pick[0], w.ty + pick[1])) { w.wait = 0.5; continue; }
+        w.dir = pick; w.nx = w.tx + pick[0]; w.ny = w.ty + pick[1];
+        w.flip = (pick[0] - pick[1]) < 0; // screen direction of the step
+      } else {
+        const sp = (w.type === 'mech' ? 0.6 : 0.85) * dt, k = Math.min(sp, d) / d;
+        w.x += dx * k; w.y += dy * k; w.moving = true;
+      }
+    }
+    // patrol drones crossing the sky
+    amb.droneT -= dt;
+    const maxD = V.city === 1 ? 2 : 1;
+    if (amb.droneT <= 0 && amb.drones.length < maxD) {
+      amb.droneT = 6 + Math.random() * 8;
+      const a = G.tileToWorld(0, 0), b = G.tileToWorld(G.MAP, G.MAP), l = G.tileToWorld(0, G.MAP), r = G.tileToWorld(G.MAP, 0);
+      const left = Math.random() < 0.5, y0 = a[1] + Math.random() * (b[1] - a[1]) * 0.8, y1 = a[1] + Math.random() * (b[1] - a[1]) * 0.8;
+      const x0 = left ? l[0] - 80 : r[0] + 80, x1 = left ? r[0] + 80 : l[0] - 80;
+      const len = Math.hypot(x1 - x0, y1 - y0), sp = 55 + Math.random() * 25;
+      amb.drones.push({ x: x0, y: y0, vx: (x1 - x0) / len * sp, vy: (y1 - y0) / len * sp, life: len / sp, t: Math.random() * 5 });
+    }
+    for (const d of amb.drones) { d.x += d.vx * dt; d.y += d.vy * dt; d.life -= dt; d.t += dt; }
+    amb.drones = amb.drones.filter((d) => d.life > 0);
+  }
+  V.ambient = amb;
+
   V.update = function (dt) {
     V.t += dt; V.lastDt = dt;
     updateFly(dt);
+    try { ambUpdate(dt); } catch (_) {}
     G.World.update(dt, V.t);
     // every 5 s show how much each mine has delivered to storage
     V.flowT = (V.flowT || 0) + dt;
@@ -364,14 +437,17 @@
       ctx.save(); ctx.globalAlpha = pulse + 0.2; G.R.diamond(ctx, V.selObs.x, V.selObs.y, s, 'rgba(255,225,77,.12)', '#ffe14d', 2); ctx.restore();
     }
     const obs = (V.city === 1 ? G.state.obstacles || [] : []).map((o) => ({ d: o.x + o.y + G.OBSTACLES[o.type].size, o }));
-    const items = list.map((b) => ({ d: b.x + b.y + B[b.type].size, b })).concat(obs, G.World.propItems(), G.World.shipItem());
+    const walkers = V.editMode || V.ghost ? [] : amb.walkers.map((w) => ({ d: w.x + w.y, w }));
+    const items = list.map((b) => ({ d: b.x + b.y + B[b.type].size, b })).concat(obs, walkers, G.World.propItems(), G.World.shipItem());
     items.sort((a, b) => a.d - b.d);
     for (const it of items) {
       if (it.b) drawBuilding(ctx, it.b, t, walls);
       else if (it.ship) G.World.drawShip(ctx, V.t);
+      else if (it.w) { const w = it.w, [wx, wy] = G.tileToWorld(w.x, w.y); ctx.save(); ctx.translate(wx, wy); ctx.scale(0.72, 0.72); G.Art.drawUnit(ctx, w.type, 0, 0, w.anim, w.flip, false, { moving: w.moving, atk: 0, dead: 0 }); ctx.restore(); }
       else if (it.o) { const [wx, wy] = G.tileToWorld(it.o.x, it.o.y); G.Art.drawSprite(ctx, G.Art.obsSprite(it.o.type, it.o.id % 3), wx, wy); }
       else G.World.drawProp(ctx, it.prop);
     }
+    for (const d of amb.drones) { ctx.save(); ctx.translate(d.x, d.y); ctx.scale(0.9, 0.9); G.Art.drawUnit(ctx, 'drone', 0, -30, d.t, d.vx < 0, false, { moving: true, atk: 0, dead: 0 }); ctx.restore(); }
     if (V.drag) {
       // the building being dragged, lifted slightly, with a green/red footprint
       const d = V.drag, s = B[d.b.type].size, ok = V.dragValid();
