@@ -588,4 +588,8 @@ table.stats td.nx { color: var(--grn); font-weight: 800; width: 90px; }
 .cn:hover, .cn:active { border-color: #39ff88; background: rgba(20,60,40,.6); }
 .cn-go { display: inline-flex; } .cn-go svg { width: 16px; height: 16px; }
 .cn img { width: 34px; height: 34px; } .cn span { flex: 1; } .cn b { color: #ffb08a; white-space: nowrap; }
-.sb-c.warn { color: #ff8a6a; }
+.sb-c.warn { color: #ff8a6a; }/* weekend event card in the attack menu */
+.mode-card.ev { display: block; width: 100%; min-height: 0; margin-bottom: 10px; background: linear-gradient(160deg, rgba(255,176,64,.28), rgba(28,22,56,.95)); border-color: #ffb040; animation: evGlow 2.4s ease-in-out infinite; }
+.mode-card.ev .ev-stars { color: #ffe14d; letter-spacing: 2px; }
+@keyframes evGlow { 0%, 100% { box-shadow: 0 0 0 rgba(255,176,64,0); } 50% { box-shadow: 0 0 18px rgba(255,176,64,.55); } }
+.mode-card.ev .ev-stars i { font-style: normal; color: rgba(255,255,255,.22); }
