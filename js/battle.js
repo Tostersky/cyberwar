@@ -28,7 +28,7 @@
     // heroes that are resting after a lost fight, or being upgraded, stay home
     for (const h of G.HERO_ORDER) if (G.heroUnlocked(h) && G.Econ.heroReady(G.state, h, Date.now())) b.heroes[h] = { state: 'ready', unit: null, abil: 'ready' };
     b.availSpells = Object.assign({}, G.state.spells || {}); b.usedSpells = {}; b.zones = [];
-    b.units = []; b.fx = []; b.deployed = 0;
+    b.units = []; b.fx = []; b.scorch = []; b.deployed = 0;
     b.sel = nextSel();
     b.holdAcc = 0;
     b.cam.center(); b.cam.z *= 1.05;
@@ -157,6 +157,22 @@
       G.World.emit({ k: 'smoke', x: c[0] + (Math.random() - 0.5) * q.size * 20, y: c[1] - Math.random() * 10, vx: (Math.random() - 0.5) * 14, vy: -12 - Math.random() * 12, r: 6 + q.size * 2, gr: 10, life: 2.4, max: 2.4, c: '30,26,36', a: 0.55 });
     }
     Bt.fx.push({ k: 'flash', x: c[0], y: c[1], r: 40 + q.size * 25, life: 0.35, max: 0.35, color: '#ffb050' });
+    fireball(c[0], c[1] - 4, 14 + q.size * 7, 5 + q.size * 2);
+    Bt.fx.push({ k: 'shock', x: c[0], y: c[1] + 4, r: 30 + q.size * 22, life: 0.45, max: 0.45 });
+    scorch(c[0], c[1] + 6, 26 + q.size * 20);
+  }
+  // a rolling ball of fire: hot puffs that rise, cool and turn into smoke
+  function fireball(x, y, r, n) {
+    const puffs = [];
+    for (let i = 0; i < n; i++) { const a = Math.random() * Math.PI * 2, d = Math.random() * r * 0.7; puffs.push({ dx: Math.cos(a) * d, dy: Math.sin(a) * d * 0.5, s: 0.6 + Math.random() * 0.6, rise: 0.6 + Math.random() * 0.8 }); }
+    Bt.fx.push({ k: 'fire', x, y, r, puffs, life: 0.9, max: 0.9 });
+  }
+  // a burnt patch left on the ground, with embers that glow for a while
+  function scorch(x, y, r) {
+    if (Bt.scorch.length > 40) Bt.scorch.shift();
+    const em = [];
+    for (let i = 0; i < 3 + Math.round(r / 10); i++) { const a = Math.random() * Math.PI * 2, d = Math.random() * r * 0.7; em.push([Math.cos(a) * d, Math.sin(a) * d * 0.5, Math.random() * 6]); }
+    Bt.scorch.push({ x, y, r, t: Bt.t, em });
   }
 
   function damageB(q, dmg) {
@@ -388,11 +404,22 @@
           for (const q of b.bs) if (q !== goal && !q.dead && !q.trap && distRect(cx, cy, q) <= u.def.aoe) damageB(q, hit * 0.5);
           const p = G.tileToWorld(cx, cy); b.fx.push({ k: 'ring', x: p[0], y: p[1], r: u.def.aoe * G.TW * 0.6, life: 0.35, max: 0.35, color: G.Art.UCOL[u.type] });
           b.shake = Math.max(b.shake || 0, 0.12);
+          b.fx.push({ k: 'shock', x: p[0], y: p[1], r: u.def.aoe * G.TW * 0.8, life: 0.3, max: 0.3 });
+          if (Math.random() < 0.35) scorch(p[0], p[1], 14);
         }
         const from = unitW(u), to = centerW(goal);
         G.Sfx.play(u.def.range > 1.5 ? 'shot' : 'hit');
-        if (u.def.range > 1.5) b.fx.push({ k: 'bolt', x1: from[0] + (u.flip ? -14 : 14), y1: from[1] - 6, x2: to[0], y2: to[1], color: G.Art.UCOL[u.type], life: 0.16, max: 0.16 });
-        else { const p = G.tileToWorld(cx, cy); b.fx.push({ k: 'spark', x: p[0], y: p[1] - 10, life: 0.2, max: 0.2, color: G.Art.UCOL[u.type] }); }
+        const uc = G.Art.UCOL[u.type];
+        if (u.def.range > 1.5) {
+          const mx = from[0] + (u.flip ? -14 : 14), my = from[1] - 6;
+          b.fx.push({ k: 'bolt', x1: mx, y1: my, x2: to[0], y2: to[1], color: uc, life: 0.16, max: 0.16 });
+          b.fx.push({ k: 'muzzle', x: mx, y: my, color: uc, dir: u.flip ? -1 : 1, life: 0.08, max: 0.08 });
+          b.fx.push({ k: 'hit', x: to[0], y: to[1], color: uc, wait: 0.14, life: 0.34, max: 0.34, n: 5, seed: Math.random() * 6 });
+        } else {
+          const p = G.tileToWorld(cx, cy);
+          b.fx.push({ k: 'spark', x: p[0], y: p[1] - 10, life: 0.2, max: 0.2, color: uc });
+          b.fx.push({ k: 'hit', x: p[0], y: p[1] - 10, color: uc, wait: 0, life: 0.22, max: 0.22, n: 6, seed: Math.random() * 6 });
+        }
       }
       return;
     }
@@ -476,6 +503,7 @@
       const from = centerW(q, 26);
       hurtUnit(u, dmg);
       Bt.fx.push({ k: 'bolt', x1: from[0], y1: from[1], x2: tw[0], y2: tw[1], color: '#ff3355', life: 0.22, max: 0.22 });
+      Bt.fx.push({ k: 'hit', x: tw[0], y: tw[1], color: '#ff3355', wait: 0.2, life: 0.4, max: 0.4, n: 6, seed: Math.random() * 6 });
       G.Sfx.play('shot');
     } else {
       hurtUnit(u, dmg);
@@ -531,6 +559,9 @@
         f.done = true;
         for (const v of b.units) if (!v.dead && !v.fly && Math.hypot(v.x - f.tx, v.y - f.ty) <= f.splash) hurtUnit(v, f.dmg);
         b.fx.push({ k: 'flash', x: f.x2, y: f.y2 - 4, r: 50, life: 0.35, max: 0.35, color: f.color });
+        fireball(f.x2, f.y2 - 4, 16, 5);
+        b.fx.push({ k: 'shock', x: f.x2, y: f.y2, r: f.splash * G.TW * 0.8, life: 0.35, max: 0.35 });
+        scorch(f.x2, f.y2, f.splash * G.TW * 0.45);
         G.Sfx.play('small');
       }
     }
@@ -649,6 +680,21 @@
       }
       ctx.restore();
     }
+    // burnt ground with fading embers
+    for (const s of b.scorch || []) {
+      const age = b.t - s.t;
+      ctx.save(); ctx.translate(s.x, s.y); ctx.scale(1, 0.5);
+      const g = ctx.createRadialGradient(0, 0, 0, 0, 0, s.r);
+      g.addColorStop(0, 'rgba(6,4,8,.7)'); g.addColorStop(0.6, 'rgba(14,10,14,.45)'); g.addColorStop(1, 'rgba(14,10,14,0)');
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, s.r, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+      if (age < 7) {
+        ctx.save(); ctx.globalCompositeOperation = 'lighter';
+        const k = 1 - age / 7;
+        for (const e of s.em) G.World.light(ctx, '#ff6a20', s.x + e[0], s.y + e[1], 3, 2, k * (0.5 + 0.5 * Math.sin(b.t * 5 + e[2])));
+        ctx.restore();
+      }
+    }
     const items = [];
     for (const q of b.bs) items.push({ d: q.x + q.y + q.size, q });
     for (const u of b.units) if (!u.dead || (!u.exploded && b.t - u.deadAt < 0.6)) items.push({ d: u.x + u.y + (u.fly ? 2 : 0), u });
@@ -743,6 +789,48 @@
         ctx.lineWidth = 2.5; ctx.globalAlpha = a; ctx.stroke();
       } else if (f.k === 'spark') {
         L(f.color, f.x, f.y, 6 * a + 3, 1);
+      } else if (f.k === 'muzzle') {
+        // star-shaped flash at the barrel
+        ctx.globalAlpha = a; ctx.fillStyle = '#ffffff';
+        ctx.beginPath(); ctx.moveTo(f.x + f.dir * 14, f.y); ctx.lineTo(f.x + f.dir * 3, f.y - 2.5); ctx.lineTo(f.x, f.y - 7); ctx.lineTo(f.x - f.dir * 2, f.y - 2); ctx.lineTo(f.x - f.dir * 4, f.y); ctx.lineTo(f.x - f.dir * 2, f.y + 2); ctx.lineTo(f.x, f.y + 7); ctx.lineTo(f.x + f.dir * 3, f.y + 2.5); ctx.closePath(); ctx.fill();
+        L(f.color, f.x + f.dir * 4, f.y, 14, a); L('#ffffff', f.x, f.y, 6, a);
+      } else if (f.k === 'hit') {
+        // impact: short sparks flying out from the point that was hit
+        const age = f.max - f.life - f.wait;
+        if (age >= 0) {
+          const span = f.max - f.wait, k = Math.min(1, age / span), fade = 1 - k;
+          L(f.color, f.x, f.y, 12 * fade + 4, fade);
+          ctx.lineWidth = 1.4; ctx.globalAlpha = fade;
+          for (let i = 0; i < f.n; i++) {
+            const ang = f.seed + i * (Math.PI * 2 / f.n) + Math.sin(f.seed * 7 + i) * 0.5, d0 = 3 + k * 10, d1 = d0 + 5 * fade + 2;
+            ctx.strokeStyle = i % 2 ? '#ffffff' : f.color;
+            ctx.beginPath(); ctx.moveTo(f.x + Math.cos(ang) * d0, f.y + Math.sin(ang) * d0 * 0.7 + k * 4); ctx.lineTo(f.x + Math.cos(ang) * d1, f.y + Math.sin(ang) * d1 * 0.7 + k * 6); ctx.stroke();
+          }
+        }
+      } else if (f.k === 'shock') {
+        // pale shockwave racing out over the ground
+        const k = 1 - a, r = f.r * (0.2 + k * 0.9);
+        ctx.globalAlpha = a * 0.8; ctx.strokeStyle = '#fff4dc'; ctx.lineWidth = 1 + a * 4;
+        ctx.beginPath(); ctx.ellipse(f.x, f.y, r, r * 0.45, 0, 0, Math.PI * 2); ctx.stroke();
+        ctx.globalAlpha = a * 0.3; ctx.lineWidth = 8 * a + 2; ctx.stroke();
+      } else if (f.k === 'fire') {
+        // fireball: white-hot core -> orange -> red, cooling into dark smoke as it rises
+        ctx.globalCompositeOperation = 'source-over';
+        const k = 1 - a, heat = Math.max(0, 1 - k * 1.7), fa = Math.min(1, a * 1.6);
+        const mix = (c1, c2, t2) => c1.map((v, i) => Math.round(v + (c2[i] - v) * t2)).join(',');
+        ctx.globalAlpha = 1;
+        for (const p of f.puffs) {
+          const px = f.x + p.dx * (0.5 + k * 1.3), py = f.y + p.dy * (0.5 + k) - k * f.r * 1.4 * p.rise;
+          const r = f.r * p.s * (0.35 + k * 0.95);
+          const g = ctx.createRadialGradient(px - r * 0.2, py - r * 0.25, 0, px, py, r);
+          g.addColorStop(0, 'rgba(' + mix([60, 50, 56], [255, 248, 220], heat) + ',' + (0.95 * fa).toFixed(3) + ')');
+          g.addColorStop(0.4, 'rgba(' + mix([40, 34, 42], [255, 150, 40], heat) + ',' + (0.85 * fa).toFixed(3) + ')');
+          g.addColorStop(0.75, 'rgba(' + mix([24, 20, 28], [190, 40, 16], heat) + ',' + (0.6 * fa).toFixed(3) + ')');
+          g.addColorStop(1, 'rgba(20,16,24,0)');
+          ctx.fillStyle = g; ctx.beginPath(); ctx.arc(px, py, r, 0, Math.PI * 2); ctx.fill();
+        }
+        ctx.globalCompositeOperation = 'lighter';
+        if (heat > 0) L('#ff9a30', f.x, f.y - k * f.r, f.r * 2.2, heat * 0.8);
       } else if (f.k === 'num') {
         ctx.globalCompositeOperation = 'source-over';
         ctx.globalAlpha = Math.min(1, a * 2);
