@@ -1,5 +1,5 @@
 // Game data: buildings, units, heroes, campaign. All numbers are CyberWar's own.
-G.TW = 64; G.TH = 32; G.MAP = 40; G.VERSION = '0.15.6';
+G.TW = 64; G.TH = 32; G.MAP = 40; G.VERSION = '0.15.7';
 G.BUILDERS = 2; // builder drones at the start; more can be bought with chips (up to 5)
 G.BUILDER_PRICE = [0, 0, 250, 500, 1000]; // price of the 3rd, 4th and 5th drone
 G.BUILDERS_MAX = 5;
@@ -278,6 +278,23 @@ for (let n = 9; n <= 20; n++) {
     hpMul: Math.round((1 + k * 0.06 + (boss ? 0.25 : 0)) * 100) / 100, boss,
   });
 }
+
+// ---- weekend event "Neon Weekend": every Saturday + Sunday (UTC) the Syndicate Vault opens ----
+// one special base tuned to the player's Core (same base all weekend), 3x loot, chips for stars; bot raids give +50%
+G.EVENT = { chips: [0, 15, 30, 60], lootMul: 3, botBonus: 1.5 };
+G.eventId = (now) => { const d = new Date(now), w = d.getUTCDay(); if (w !== 6 && w !== 0) return null; return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() - (w === 0 ? 1 : 0))).toISOString().slice(0, 10); };
+G.eventEnds = (now) => { const d = new Date(now); return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + (d.getUTCDay() === 6 ? 2 : 1)); };
+G.eventBase = function (core, id) {
+  const seed = (parseInt(id.replace(/-/g, ''), 10) % 99991) + core * 7;
+  const r = G.rng(seed), c = Math.max(1, Math.min(G.MAXLV, core));
+  const p = {
+    core: c, lasers: Math.max(1, G.LIMITS.laser[c - 1] - 1), laserLv: c, rings: c >= 2 ? 2 : 1, wallLv: Math.max(1, c - 1), wallLv2: Math.max(1, c - 2),
+    scrap: 2, copper: 2, vault: Math.max(1, G.LIMITS.vault[c - 1]), silo: Math.max(1, G.LIMITS.silo[c - 1]), factory: 1, hq: 1, blv: c,
+    mortar: G.LIMITS.mortar[c - 1], aa: G.LIMITS.aa[c - 1], emp: G.LIMITS.emp[c - 1], mines: G.LIMITS.mine[c - 1], lab: G.LIMITS.lab[c - 1], skymines: G.LIMITS.skymine[c - 1],
+  };
+  const base = Math.floor((500 + r() * 200) * c * c * G.EVENT.lootMul);
+  return { buildings: G.genBase(p, seed), loot: { scrap: base, copper: base }, seed };
+};
 
 // loot multiplier when a stronger player raids a weaker base (Core level difference)
 G.lootMul = (attCore, defCore) => { const d = attCore - defCore; return d <= 1 ? 1 : d === 2 ? 0.5 : 0.25; };

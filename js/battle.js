@@ -615,6 +615,7 @@
     // loot and chips are decided by the shared economy rules (again on the server)
     const proof = { deployed: b.dep, dur: Math.round(b.t * 10) / 10, usedSpells, fell: Object.keys(b.heroes).filter((h) => b.heroes[h].unit && b.heroes[h].unit.dead) };
     if (o.mode === 'pve') r = G.act(Object.assign({ c: 'battle', mode: 'pve', level: o.level, stars, pct, used, usedClan }, proof));
+    else if (o.mode === 'event') r = G.act(Object.assign({ c: 'battle', mode: 'event', stars, pct, used, usedClan }, proof));
     else if (!real) r = G.act(Object.assign({ c: 'battle', mode: 'bot', loot: o.base.loot, seed: o.seed, pct, used, usedClan }, proof));
     else {
       // real player: show the loot now; the server checks the battle and credits what it accepts

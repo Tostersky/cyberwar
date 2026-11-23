@@ -683,7 +683,11 @@
   // ---------- attack ----------
   U.openAttack = function () {
     const cost = 30 * G.coreLevel();
-    U.modal(t('attack'), `<div class="two">
+    const evId = G.eventId(Date.now()), evRec = G.state.event && G.state.event.id === evId ? G.state.event : null;
+    const evStars = evRec ? evRec.stars : 0;
+    const evHtml = evId ? `<button class="mode-card ev" id="a-ev"><div class="mc-t">⚡ ${t('eventName')}</div><p>${t('eventDesc')}</p>
+      <div class="mc-c"><span class="ev-stars">${'★'.repeat(evStars)}<i>${'★'.repeat(3 - evStars)}</i></span> · ${t('eventLeft', { t: G.fmtTime(Math.ceil((G.eventEnds(Date.now()) - Date.now()) / 1000)) })}</div></button>` : '';
+    U.modal(t('attack'), `${evHtml}<div class="two">
       <button class="mode-card" id="a-pve"><div class="mc-t">${t('campaign')}</div><p>${t('campaignDesc')}</p></button>
       <button class="mode-card mp" id="a-pvp"><div class="mc-t">${t('multiplayer')}</div><p>${t('mpDesc')}</p>
         <div class="mc-c">${t('findMatch')} · ${costHtml('copper', cost, G.state.res.copper >= cost)}</div></button></div>
@@ -691,6 +695,12 @@
       ${(G.state.shieldUntil || 0) > Date.now() ? `<p class="hint shield-note">${IC.shield} ${t('shieldWarn', { t: G.fmtTime(Math.ceil((G.state.shieldUntil - Date.now()) / 1000)) })}</p>` : ''}
       <p class="hint">${t(G.Net.session ? 'pvpNote' : 'pvpNoteOffline')}</p>`, { cls: 'wide' });
     $('#a-pve').onclick = U.openCampaign;
+    if (evId) $('#a-ev').onclick = () => {
+      if (!G.Battle.hasAnything()) { U.toast(t('armyEmpty')); return; }
+      const eb = G.eventBase(G.coreLevel(), evId);
+      U.closeModal();
+      G.Battle.start({ mode: 'event', base: { buildings: eb.buildings, loot: eb.loot }, name: t('eventVault') });
+    };
     $('#a-rank').onclick = U.openRanking;
     $('#a-league').onclick = U.openLeague;
     $('#a-find').onclick = U.openPlayerSearch;
@@ -1274,6 +1284,26 @@
     requestAnimationFrame(tick);
   };
 
+  // ---------- one-time, friendly question about notifications (nothing is sent without a yes) ----------
+  let villageTime = 0;
+  U.maybeAskPush = function () {
+    villageTime += 0.25;
+    const s = G.state, N = G.Net;
+    if (villageTime < 45 || G.scene !== G.Village || U.isModal() || G.Tut.active() || G.Village.ghost || G.Auth.isOpen()) return;
+    if (!N.session || !N.pushSupported() || N.pushIsOn()) return;
+    // ask only players who already built or won something
+    if (!(s.stats && ((s.stats.builds | 0) > 0 || (s.stats.wins | 0) > 0))) return;
+    try { if (Notification.permission === 'denied' || localStorage.getItem('cyberwar_push_asked')) return; localStorage.setItem('cyberwar_push_asked', '1'); } catch (_) { return; }
+    U.modal(t('pushAskT'), `<p class="center">${t('pushAsk')}</p><div class="row-btns"><button class="btn" id="pa-no">${t('pushLater')}</button><button class="btn primary" id="pa-yes">${t('pushYes')}</button></div>`, { cls: 'small' });
+    $('#pa-no').onclick = U.closeModal;
+    $('#pa-yes').onclick = async () => {
+      U.closeModal(); U.loading(true);
+      try { await N.pushOn(); U.notify(t('notifsOn')); }
+      catch (e) { U.toast(t(e.code === 'pushNo' ? 'pushNo' : e.code === 'pushDenied' ? 'pushDenied' : 'err_' + (e.code || 'server'))); }
+      U.loading(false);
+    };
+  };
+
   // ---------- per-frame updates ----------
   let acc = 0;
   U.frame = function (dt) {
@@ -1293,6 +1323,7 @@
     if (acc < 0.25) return;
     acc = 0;
     U.refreshHud();
+    U.maybeAskPush();
     const sel = G.Village.sel;
     if (sel && !$('#selbar').classList.contains('hidden')) {
       const tm = $('#sb-time');

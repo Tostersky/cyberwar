@@ -79,6 +79,7 @@
     if (s.research && !G.UNITS[s.research.u]) s.research = null;
     s.trophies = Math.max(0, Math.floor(+s.trophies || 0));
     s.daily = s.daily && typeof s.daily.last === 'string' ? { last: s.daily.last, streak: Math.max(1, Math.min(7, s.daily.streak | 0)) } : null;
+    s.event = s.event && typeof s.event.id === 'string' ? { id: s.event.id, stars: Math.max(0, Math.min(3, s.event.stars | 0)), taken: { scrap: Math.max(0, s.event.taken && s.event.taken.scrap | 0), copper: Math.max(0, s.event.taken && s.event.taken.copper | 0) } } : null;
     if (!(s.mis && typeof s.mis.day === 'string' && Array.isArray(s.mis.list) && s.mis.list.every((m) => m && G.MISSIONS[m.id]))) s.mis = null;
     // obstacles: drop broken rows; old saves get their first batch here
     if (Array.isArray(s.obstacles)) s.obstacles = s.obstacles.filter((o) => o && G.OBSTACLES[o.type] && Number.isInteger(o.x) && Number.isInteger(o.y)).slice(0, G.OBS_MAX);
@@ -694,6 +695,7 @@
     let base = null, hpMul = 1;
     if (cmd.mode === 'pve') { const L = G.PVE[(cmd.level | 0) - 1]; if (L) { base = G.genBase(L, L.seed); hpMul = L.hpMul || 1; } }
     else if (cmd.mode === 'bot' && Number.isInteger(cmd.seed)) base = G.genBot(E.coreLevel(s), cmd.seed).buildings;
+    else if (cmd.mode === 'event' && G.eventId(now)) base = G.eventBase(E.coreLevel(s), G.eventId(now)).buildings;
     else if (cmd.mode === 'pvp' && Array.isArray(cmd._base)) base = cmd._base;
     const pct = base ? E.checkPct(s, cmd, base, hpMul, sdur) : Math.max(0, Math.min(1, +cmd.pct || 0));
     // units sent into battle are gone (heroes are free)
@@ -721,7 +723,16 @@
       // training fight against a bot: the bot is rebuilt from its seed, so its loot is known exactly
       const c = Math.min(G.MAXLV, E.coreLevel(s) + 1), max = 800 * c * c;
       const lootSrc = Number.isInteger(cmd.seed) ? G.genBot(E.coreLevel(s), cmd.seed).loot : (cmd.loot || {});
-      for (const r of ['scrap', 'copper']) gained[r] = E.addRes(s, r, Math.floor(Math.min(max, Math.max(0, lootSrc[r] | 0)) * pct));
+      const wk = G.eventId(now) ? G.EVENT.botBonus : 1;
+      for (const r of ['scrap', 'copper']) gained[r] = E.addRes(s, r, Math.floor(Math.min(max, Math.max(0, lootSrc[r] | 0)) * pct * wk));
+    } else if (cmd.mode === 'event') {
+      // weekend vault: loot and chips only for doing better than before this weekend
+      const id = G.eventId(now); if (!id) return ERR('eventOver');
+      const eb = G.eventBase(E.coreLevel(s), id);
+      if (!s.event || s.event.id !== id) s.event = { id, stars: 0, taken: { scrap: 0, copper: 0 } };
+      const rec = s.event, stars = Math.max(0, Math.min(cmd.stars | 0, G.starsFor(pct)));
+      for (const r of ['scrap', 'copper']) { const want = Math.floor(eb.loot[r] * pct) - (rec.taken[r] | 0); gained[r] = E.addRes(s, r, Math.max(0, want)); rec.taken[r] = (rec.taken[r] | 0) + gained[r]; }
+      if (stars > rec.stars) { chips = G.EVENT.chips[stars] - G.EVENT.chips[rec.stars]; E.addRes(s, 'chips', chips); rec.stars = stars; }
     } else if (cmd.mode === 'pvp') {
       // the server fills cmd.loot from the attack record (submit_attack already capped it)
       if (cmd.loot) for (const r of ['scrap', 'copper']) gained[r] = E.addRes(s, r, Math.max(0, cmd.loot[r] | 0));
