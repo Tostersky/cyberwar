@@ -253,6 +253,41 @@
       }
     }
   }
+  // one shared light for every finished building: a key light from the upper left, a bright rim on the
+  // edges facing it, a dark rim on the edges turned away and a little ambient occlusion near the ground
+  function lightSprite(c, ay) {
+    const w = c.width, h = c.height, x = c.getContext('2d');
+    x.save(); x.setTransform(1, 0, 0, 1, 0, 0);
+    const mask = document.createElement('canvas'); mask.width = w; mask.height = h;
+    const m = mask.getContext('2d'); m.drawImage(c, 0, 0); m.globalCompositeOperation = 'source-in'; m.fillStyle = '#fff'; m.fillRect(0, 0, w, h);
+    const edge = (dx, dy, col) => {
+      const e = document.createElement('canvas'); e.width = w; e.height = h;
+      const ex = e.getContext('2d'); ex.drawImage(mask, 0, 0); ex.globalCompositeOperation = 'destination-out'; ex.drawImage(mask, dx, dy);
+      ex.globalCompositeOperation = 'source-in'; ex.fillStyle = col; ex.fillRect(0, 0, w, h);
+      return e;
+    };
+    // key light across the whole sprite
+    x.globalCompositeOperation = 'source-atop';
+    // (the buildings' right walls are the lit ones, so the key light comes from the upper right)
+    const g = x.createLinearGradient(w * 0.9, h * 0.1, w * 0.1, h * 0.9);
+    g.addColorStop(0, 'rgba(255,240,255,.16)'); g.addColorStop(0.45, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(4,0,24,.36)');
+    x.fillStyle = g; x.fillRect(0, 0, w, h);
+    // vertical falloff: roofs catch the sky, the lower walls darken
+    const gv = x.createLinearGradient(0, 0, 0, h);
+    gv.addColorStop(0, 'rgba(255,255,255,.06)'); gv.addColorStop(0.55, 'rgba(0,0,0,0)'); gv.addColorStop(1, 'rgba(0,0,10,.16)');
+    x.fillStyle = gv; x.fillRect(0, 0, w, h);
+    // the ground-level part sits in the building's own shadow
+    const gy = ay * SS, ao = x.createLinearGradient(0, gy - 26 * SS, 0, gy + 8 * SS);
+    ao.addColorStop(0, 'rgba(0,0,0,0)'); ao.addColorStop(1, 'rgba(0,0,0,.18)');
+    x.fillStyle = ao; x.fillRect(0, 0, w, h);
+    // edges turned away from the light
+    x.drawImage(edge(2.2 * SS, -1.6 * SS, 'rgba(0,0,8,.55)'), 0, 0);
+    // rim light on the edges facing the light (adds a crisp, polished look)
+    x.globalCompositeOperation = 'lighter';
+    x.drawImage(edge(-1.4 * SS, 1.4 * SS, 'rgba(200,210,255,.42)'), 0, 0);
+    x.drawImage(edge(0, 1.2 * SS, 'rgba(160,170,255,.16)'), 0, 0);
+    x.restore();
+  }
   // dark silhouette outline around a finished sprite so it reads clearly on any ground
   function outlineSprite(c) {
     const w = c.width, h = c.height;
@@ -929,6 +964,7 @@
     const [c, x] = mk(w, h, SS);
     const ox = s * TW / 2 + PADX, oy = HEAD;
     const top = DRAW[type](x, ox, oy, s, level, G.rng(hash(key)));
+    if (type !== 'rubble' && !A.flatLight) lightSprite(c, oy + s * TH / 2);
     sp = { c: outlineSprite(c), ax: ox, ay: oy, w, h, top, s };
     cache.set(key, sp);
     return sp;
@@ -1171,19 +1207,40 @@
   A.drawLaserHead = function (ctx, cx, cy, L, ang, fire, dis) {
     const y = cy - A.laserHeight(L) - 7;
     const t = dis ? '#666' : TRIM[L - 1];
-    ctx.save();
-    ctx.fillStyle = '#20243a'; ctx.beginPath(); ctx.ellipse(cx, y + 3, 11, 6, 0, 0, Math.PI * 2); ctx.fill();
     const dx = Math.cos(ang), dy = Math.sin(ang) * 0.5;
-    ctx.strokeStyle = '#11131f'; ctx.lineWidth = 6; ctx.beginPath(); ctx.moveTo(cx, y); ctx.lineTo(cx + dx * 17, y + dy * 17); ctx.stroke();
-    ctx.strokeStyle = t; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.moveTo(cx + dx * 4, y + dy * 4); ctx.lineTo(cx + dx * 17, y + dy * 17); ctx.stroke();
-    ctx.fillStyle = '#3a4160'; ctx.beginPath(); ctx.arc(cx, y - 1, 7, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = 'rgba(255,255,255,.25)'; ctx.beginPath(); ctx.arc(cx - 2, y - 3, 3, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = t; ctx.beginPath(); ctx.arc(cx + dx * 3, y - 2 + dy * 3, 2.4, 0, Math.PI * 2); ctx.fill();
+    ctx.save();
+    // swivel ring: a short metal cylinder (lit on the right, like the buildings)
+    const rg = ctx.createLinearGradient(cx - 11, 0, cx + 11, 0);
+    rg.addColorStop(0, '#141726'); rg.addColorStop(0.65, '#3c4466'); rg.addColorStop(1, '#22263c');
+    ctx.fillStyle = rg; ctx.beginPath(); ctx.ellipse(cx, y + 5, 11, 6, 0, 0, Math.PI); ctx.lineTo(cx - 11, y + 2); ctx.ellipse(cx, y + 2, 11, 6, 0, Math.PI, 0, true); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#2a2f4a'; ctx.beginPath(); ctx.ellipse(cx, y + 2, 11, 6, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = t; ctx.globalAlpha = 0.7; ctx.lineWidth = 1; ctx.beginPath(); ctx.ellipse(cx, y + 2, 9.5, 5, 0, 0.1, Math.PI - 0.1); ctx.stroke(); ctx.globalAlpha = 1;
+    // barrel behind the head when it points away from the camera
+    const barrel = () => {
+      const bx = cx + dx * 18, by = y - 1 + dy * 18;
+      ctx.strokeStyle = '#0c0e18'; ctx.lineWidth = 6.5; ctx.beginPath(); ctx.moveTo(cx, y - 1); ctx.lineTo(bx, by); ctx.stroke();
+      ctx.strokeStyle = '#4a5274'; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(cx, y - 1); ctx.lineTo(bx, by); ctx.stroke();
+      ctx.strokeStyle = 'rgba(255,255,255,.35)'; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(cx, y - 2.4); ctx.lineTo(bx, by - 1.4); ctx.stroke();
+      ctx.strokeStyle = t; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.moveTo(cx + dx * 6, y - 1 + dy * 6); ctx.lineTo(bx, by); ctx.stroke();
+      ctx.fillStyle = '#0c0e18'; ctx.beginPath(); ctx.ellipse(bx, by, 2.6, 2.2, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = t; ctx.beginPath(); ctx.arc(bx, by, 1.3, 0, Math.PI * 2); ctx.fill();
+    };
+    if (dy < 0) barrel();
+    // head: a lit sphere with a specular highlight
+    const hg = ctx.createRadialGradient(cx + 2.5, y - 4.5, 0.8, cx, y - 1, 8.5);
+    hg.addColorStop(0, '#9aa6d8'); hg.addColorStop(0.35, '#4a5480'); hg.addColorStop(0.8, '#232842'); hg.addColorStop(1, '#10121e');
+    ctx.fillStyle = hg; ctx.beginPath(); ctx.arc(cx, y - 1, 7.5, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = 'rgba(4,3,12,.85)'; ctx.lineWidth = 0.8; ctx.stroke();
+    ctx.strokeStyle = 'rgba(0,0,0,.4)'; ctx.lineWidth = 0.8; ctx.beginPath(); ctx.ellipse(cx, y - 0.5, 7.2, 2.6, 0, 0, Math.PI); ctx.stroke(); // seam
+    ctx.fillStyle = 'rgba(255,255,255,.65)'; ctx.beginPath(); ctx.ellipse(cx + 2.6, y - 4.6, 2, 1.2, -0.5, 0, Math.PI * 2); ctx.fill();
+    // glowing eye on the side the gun points to
+    ctx.fillStyle = t; ctx.beginPath(); ctx.arc(cx + dx * 3.5, y - 1.5 + dy * 3, 2.2, 0, Math.PI * 2); ctx.fill();
+    if (dy >= 0) barrel();
     ctx.globalCompositeOperation = 'lighter';
-    G.World.light(ctx, t, cx + dx * 18, y + dy * 18, fire ? 16 : 6, fire ? 16 : 6, fire ? 1 : 0.5);
+    G.World.light(ctx, t, cx + dx * 3.5, y - 1.5 + dy * 3, 5, 5, 0.5);
+    G.World.light(ctx, t, cx + dx * 18, y - 1 + dy * 18, fire ? 16 : 6, fire ? 16 : 6, fire ? 1 : 0.5);
     ctx.restore();
-    return [cx + dx * 18, y + dy * 18];
+    return [cx + dx * 18, y - 1 + dy * 18];
   };
 
   // ---------- units ----------
